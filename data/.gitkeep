@@ -1,0 +1,5 @@
+# Place GeoJSON data files here:
+#   signalisation-permanente.geojson
+#
+# Files larger than 100 MB must be tracked with Git LFS.
+# See README.md for instructions.

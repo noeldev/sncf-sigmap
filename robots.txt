@@ -1,0 +1,4 @@
+# Railway signalling data — internal use only
+# Exclude this project from all search engines
+User-agent: *
+Disallow: /

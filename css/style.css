@@ -1,0 +1,319 @@
+/* ============================================================
+   SNCF Signalling — style.css
+   Dark industrial theme — IBM Plex Mono / IBM Plex Sans
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+/* ---- Variables ---- */
+:root {
+  --bg:        #0b0e16;
+  --panel:     #131722;
+  --panel2:    #1a2030;
+  --panel3:    #1e2640;
+  --border:    #26304a;
+  --border2:   #2e3b5a;
+  --accent:    #e8321e;
+  --blue:      #3b82f6;
+  --text:      #dde4f0;
+  --text2:     #7888a4;
+  --text3:     #4a5878;
+  --tag:       #1e2a42;
+  --radius:    3px;
+  --sidebar-w: 300px;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+/* ---- Reset ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; font-family: var(--sans); background: var(--bg); color: var(--text); }
+button { cursor: pointer; font-family: var(--mono); }
+input  { font-family: var(--mono); }
+
+/* ---- Scrollbars ---- */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ============================
+   LAYOUT
+   ============================ */
+#app { display: flex; height: 100vh; }
+
+/* ============================
+   SIDEBAR
+   ============================ */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: 240px;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+/* ---- Header ---- */
+#sidebar-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+.logo { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.logo-badge {
+  background: var(--accent); color: #fff;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  padding: 3px 9px; letter-spacing: 1.5px;
+}
+.logo h1 {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text);
+}
+#record-count { font-size: 11px; color: var(--text2); font-family: var(--mono); }
+
+/* ---- File section ---- */
+#file-section {
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+.section-label {
+  font-size: 10px; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .8px; display: block; margin-bottom: 8px;
+}
+.file-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.file-row:last-child { margin-bottom: 0; }
+.file-name { font-size: 11px; color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.btn-file {
+  background: var(--tag); border: 1px solid var(--border2);
+  color: var(--text); font-size: 11px; padding: 5px 10px;
+  border-radius: var(--radius); white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.btn-file:hover { background: var(--border); border-color: var(--text3); }
+
+.btn-clear {
+  background: none; border: none; color: var(--text3);
+  font-size: 14px; padding: 0 2px; line-height: 1;
+  transition: color .15s;
+}
+.btn-clear:hover { color: var(--accent); }
+
+#cache-status {
+  font-size: 10px; color: var(--text3); font-family: var(--mono);
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+  min-height: 16px;
+}
+
+input[type=file] { display: none; }
+
+/* ---- Filters ---- */
+#filters-section { flex: 1; overflow-y: auto; padding: 12px 16px; }
+
+.filters-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.filters-title-text { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; }
+.filters-actions { display: flex; gap: 6px; }
+
+.btn-add-filter, .btn-reset {
+  background: none; border: 1px dashed var(--border2);
+  color: var(--text2); font-size: 10px; padding: 3px 8px;
+  border-radius: var(--radius); font-family: var(--mono);
+  transition: all .15s;
+}
+.btn-add-filter:hover { border-color: var(--accent); color: var(--accent); }
+.btn-reset:hover       { border-color: var(--blue); color: var(--blue); }
+
+/* Filter group */
+.filter-group { margin-bottom: 16px; }
+.fg-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.fg-title { font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+.fg-remove { background: none; border: none; color: var(--text3); font-size: 13px; line-height: 1; transition: color .15s; }
+.fg-remove:hover { color: var(--accent); }
+
+.fg-search {
+  width: 100%; background: var(--panel2); border: 1px solid var(--border);
+  color: var(--text); font-size: 11px; padding: 5px 8px; border-radius: var(--radius);
+  margin-bottom: 5px; outline: none; transition: border-color .15s;
+}
+.fg-search:focus { border-color: var(--accent); }
+
+.fg-values { max-height: 180px; overflow-y: auto; }
+.fg-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: var(--radius);
+  cursor: pointer; transition: background .1s;
+  user-select: none;
+}
+.fg-item:hover  { background: var(--tag); }
+.fg-item.active { background: rgba(232,50,30,.12); }
+
+.fgi-check {
+  width: 13px; height: 13px; border: 1px solid var(--border2);
+  border-radius: 2px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 9px; color: #fff;
+  transition: all .1s;
+}
+.fg-item.active .fgi-check { background: var(--accent); border-color: var(--accent); }
+
+.fgi-name  { flex: 1; font-size: 11px; font-family: var(--mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fgi-count { font-size: 10px; font-family: var(--mono); color: var(--text2); flex-shrink: 0; }
+
+/* Add-filter dropdown */
+.add-filter-menu {
+  position: fixed; z-index: 9999;
+  background: var(--panel2); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 4px; min-width: 140px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+.afm-option {
+  padding: 7px 14px; cursor: pointer; font-family: var(--mono);
+  font-size: 12px; color: var(--text); border-radius: var(--radius);
+  transition: background .1s;
+}
+.afm-option:hover { background: var(--tag); }
+
+/* ============================
+   MAP
+   ============================ */
+#map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; background: var(--bg); }
+
+/* ---- Leaflet control overrides ---- */
+.leaflet-bar a,
+.leaflet-control-zoom a {
+  background: var(--panel2) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar a:hover { background: var(--panel3) !important; }
+
+/* ---- Basemap selector ---- */
+#basemap-selector {
+  position: absolute; top: 50px; right: 10px; z-index: 500;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+.basemap-btn {
+  display: block; width: 100%;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text2); font-size: 11px; padding: 7px 14px;
+  text-align: left; white-space: nowrap; font-family: var(--mono);
+  transition: all .15s;
+}
+.basemap-btn:last-child { border-bottom: none; }
+.basemap-btn:hover  { background: var(--tag); color: var(--text); }
+.basemap-btn.active { color: var(--accent); background: var(--tag); font-weight: 600; }
+
+/* ---- Geolocation button ---- */
+#btn-geolocate {
+  position: absolute; bottom: 36px; right: 10px; z-index: 500;
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--text); width: 36px; height: 36px;
+  border-radius: var(--radius); display: flex; align-items: center;
+  justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  transition: background .15s, color .15s;
+}
+#btn-geolocate:hover { background: var(--blue); border-color: var(--blue); }
+#btn-geolocate.loading { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Signal dot markers ---- */
+.sig-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--c);
+  border: 2px solid rgba(255,255,255,.6);
+  box-shadow: 0 0 4px rgba(0,0,0,.5);
+  transition: transform .1s;
+}
+.sig-dot.multi {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.9);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.25), 0 0 6px rgba(0,0,0,.5);
+}
+.sig-dot:hover { transform: scale(1.4); }
+
+/* ---- Signal popup ---- */
+.leaflet-popup-content-wrapper {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.7) !important;
+  padding: 0 !important;
+  min-width: 230px;
+}
+.leaflet-popup-tip-container { display: none; }
+.leaflet-popup-content { margin: 0 !important; }
+
+.pu-wrap { overflow: hidden; border-radius: 4px; }
+.pu-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; background: var(--panel2); border-bottom: 1px solid var(--border);
+}
+.pu-nav-label { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+.pu-nav-btns { display: flex; gap: 4px; }
+.pu-nav-btn {
+  background: var(--tag); border: 1px solid var(--border2);
+  color: var(--text); font-size: 16px; line-height: 1;
+  width: 26px; height: 26px; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans); transition: background .1s;
+}
+.pu-nav-btn:hover   { background: var(--accent); border-color: var(--accent); }
+.pu-nav-btn:disabled { opacity: .3; pointer-events: none; }
+
+.pu-body { padding: 12px 14px; }
+.pu-row { margin-bottom: 8px; }
+.pu-row:last-child { margin-bottom: 0; }
+.pu-label { font-family: var(--mono); font-size: 9px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 2px; }
+.pu-val   { font-family: var(--mono); font-size: 13px; color: var(--text); }
+.pu-badge {
+  display: inline-block; color: #fff;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  padding: 2px 10px; letter-spacing: .5px; border-radius: 2px;
+}
+
+/* ---- Status bar ---- */
+#statusbar {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 500;
+  background: rgba(11,14,22,.88); backdrop-filter: blur(6px);
+  border-top: 1px solid var(--border);
+  padding: 4px 14px; font-size: 11px;
+  font-family: var(--mono); color: var(--text2);
+  display: flex; flex-wrap: wrap;
+}
+.sb-item { padding: 0 12px 0 0; }
+.sb-val  { color: var(--text); }
+.sb-sep  { color: var(--border2); padding-right: 12px; }
+
+/* ---- Progress overlay ---- */
+#progress-overlay {
+  position: absolute; inset: 0; z-index: 1000;
+  background: rgba(11,14,22,.78); backdrop-filter: blur(4px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+}
+#progress-overlay.hidden { display: none; }
+.progress-spinner {
+  width: 36px; height: 36px; border: 3px solid var(--border2);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+#progress-msg { font-family: var(--mono); font-size: 13px; color: var(--text2); text-align: center; padding: 0 24px; }
+
+/* ---- Signal logo in sidebar header ---- */
+.logo-signal {
+  height: 40px;
+  width: auto;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(0,255,0,0.3));
+}
