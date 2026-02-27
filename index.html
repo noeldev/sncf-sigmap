@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Map viewer for SNCF permanent signalling data (RFN).">
+  <meta name="description" content="SNCF Permanent Signalling map viewer.">
   <meta name="robots" content="noindex, nofollow">
   <title>SNCF – Permanent Signalling</title>
 
-  <!-- Favicons -->
-  <link rel="icon"             type="image/svg+xml" href="favicon.svg">
-  <link rel="icon"             type="image/png"     href="favicon.png" sizes="32x32">
-  <link rel="apple-touch-icon"                      href="favicon.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png"     href="favicon.png" sizes="32x32">
+  <link rel="apple-touch-icon"          href="favicon.png">
 
   <link  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -31,17 +30,6 @@
       <div id="record-count">Loading…</div>
     </div>
 
-    <div id="file-section">
-      <span class="section-label">GeoJSON Data</span>
-      <div class="file-row">
-        <input type="file" id="signals-file" accept=".geojson,.json">
-        <button class="btn-file" id="btn-load-signals">📍 Signals</button>
-        <span class="file-name" id="signals-file-name">Loading…</span>
-        <button class="btn-clear" id="btn-clear-signals" title="Clear cache">✕</button>
-      </div>
-      <div id="cache-status"></div>
-    </div>
-
     <div id="filters-section">
       <div class="filters-header">
         <span class="filters-title-text">Filters</span>
@@ -58,6 +46,11 @@
     <div id="map"></div>
     <div id="basemap-selector"></div>
 
+    <!-- Zoom hint overlay -->
+    <div id="zoom-hint" class="hidden">
+      🔍 Zoom in to see signals (level 11+)
+    </div>
+
     <button id="btn-geolocate" title="Centre map on my location">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3"/>
@@ -73,8 +66,6 @@
 
     <div id="statusbar">
       <span class="sb-item">Visible: <span class="sb-val" id="st-visible">0</span></span>
-      <span class="sb-sep">|</span>
-      <span class="sb-item">Total: <span class="sb-val" id="st-total">0</span></span>
       <span class="sb-sep">|</span>
       <span class="sb-item">Active filters: <span class="sb-val" id="st-filters">0</span></span>
     </div>
