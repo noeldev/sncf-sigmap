@@ -1,0 +1,21 @@
+# Dependencies (no node_modules here — vanilla JS project)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Large data files — comment out if you want to version them directly
+# (use Git LFS instead for files > 100 MB)
+# data/*.geojson
+# data/*.json
+
+# Local environment files
+.env
+.env.local
+
+# Logs
+*.log
+/.vs
