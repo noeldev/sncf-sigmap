@@ -3,10 +3,7 @@
 Thumbs.db
 *.swp
 
-# The raw source GeoJSON — large, not needed after tiles are built
-data/signalisation-permanente.geojson
-
-# Build artifacts
+# TileBuilder build artefacts — never commit compiled output
 tools/TileBuilder/bin/
 tools/TileBuilder/obj/
 
