@@ -372,3 +372,92 @@ input[type=file] { display: none; }
   padding: 4px 6px;
   font-style: italic;
 }
+
+/* ============================================================
+   COMBO-BOX FILTER
+   ============================================================ */
+
+/* Selected value tags */
+.fg-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; min-height: 0; }
+.fg-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(232,50,30,.15); border: 1px solid rgba(232,50,30,.4);
+  color: var(--text); font-size: 10px; font-family: var(--mono);
+  padding: 2px 6px; border-radius: 2px;
+}
+.fg-tag-remove {
+  background: none; border: none; color: var(--accent);
+  font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+}
+
+/* Combo input row */
+.fg-combo { position: relative; }
+.fg-combo-input {
+  display: flex; align-items: center;
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer;
+  transition: border-color .15s;
+}
+.fg-combo-input:hover { border-color: var(--border2); }
+.fg-search {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 11px; font-family: var(--mono);
+  padding: 5px 8px; cursor: pointer;
+}
+.fg-search:focus { cursor: text; }
+.fg-combo-arrow { color: var(--text3); font-size: 10px; padding-right: 8px; pointer-events: none; }
+
+/* Dropdown list */
+.fg-dropdown {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+  background: var(--panel2); border: 1px solid var(--border2);
+  border-radius: var(--radius); z-index: 1000;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  max-height: 220px; overflow-y: auto;
+}
+.fg-dropdown.hidden { display: none; }
+.fg-dropdown-inner { padding: 4px; }
+
+.fg-drop-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: var(--radius);
+  cursor: pointer; transition: background .1s;
+}
+.fg-drop-item:hover  { background: var(--tag); }
+.fg-drop-item.active { background: rgba(232,50,30,.12); }
+.fg-drop-item .fgi-check {
+  width: 13px; height: 13px; flex-shrink: 0;
+  border: 1px solid var(--border2); border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: #fff;
+}
+.fg-drop-item.active .fgi-check { background: var(--accent); border-color: var(--accent); }
+.fg-drop-item .fgi-name {
+  flex: 1; font-size: 11px; font-family: var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fg-drop-item .fgi-count { font-size: 10px; color: var(--text2); flex-shrink: 0; }
+
+/* ============================================================
+   POPUP — OSM TAGS PREVIEW
+   ============================================================ */
+.pu-osm-preview {
+  border-top: 1px solid var(--border);
+  padding: 0 14px;
+}
+.pu-osm-preview summary {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .5px;
+  cursor: pointer; padding: 7px 0;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.pu-osm-preview summary::before { content: '▶'; font-size: 8px; }
+.pu-osm-preview[open] summary::before { content: '▼'; }
+.pu-osm-list { padding-bottom: 10px; }
+.pu-osm-row {
+  display: flex; gap: 8px; font-size: 10px; font-family: var(--mono);
+  padding: 2px 0; border-bottom: 1px solid var(--border);
+}
+.pu-osm-row:last-child { border-bottom: none; }
+.pu-osm-key { color: var(--text2); flex-shrink: 0; min-width: 120px; }
+.pu-osm-val { color: var(--text); word-break: break-all; }

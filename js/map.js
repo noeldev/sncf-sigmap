@@ -38,28 +38,25 @@ const BASEMAPS = {
   },
 };
 
-// Live tile layer references
 const _layers = {};
 
 export function initMap(containerId) {
   map = L.map(containerId, {
     zoomControl:  false,
     maxZoom:      22,
-    preferCanvas: true,   // Required for performance with 100k+ markers
+    preferCanvas: true,
   }).setView(MAP_INITIAL_VIEW.center, MAP_INITIAL_VIEW.zoom);
 
-  // Build all tile layers (only the active one is added to the map)
   Object.entries(BASEMAPS).forEach(([key, def]) => {
     _layers[key] = L.tileLayer(def.url, def.opts);
   });
 
-  // Fall back to OSM if the Jawg key has not been set
   const startMap = JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN' ? 'osm' : currentBasemap;
   currentBasemap = startMap;
   _layers[currentBasemap].addTo(map);
 
   if (JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN') {
-    console.warn('[Map] Jawg API key not configured — falling back to OSM. Set JAWG_API_KEY in js/config.js');
+    console.warn('[Map] Jawg key not set — falling back to OSM.');
   }
 
   L.control.zoom({ position: 'topleft' }).addTo(map);
@@ -121,7 +118,11 @@ export function geolocate() {
       }).addTo(map)
         .bindPopup(`📍 Your location<br><small>Accuracy: ±${Math.round(accuracy)} m</small>`);
 
-      map.flyTo([lat, lng], Math.min(map.getZoom() < 12 ? 14 : map.getZoom(), 17), { duration: 1.2 });
+      // Clamp zoom to avoid rate-limiting burst on Jawg free plan
+      // and jump without animation to avoid triggering many intermediate tile requests
+      const targetZoom = Math.min(map.getZoom() < 12 ? 14 : map.getZoom(), 16);
+      map.setView([lat, lng], targetZoom, { animate: false });
+
       if (btn) btn.classList.remove('loading');
     },
     err => {

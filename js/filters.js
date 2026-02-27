@@ -1,8 +1,7 @@
 /**
  * filters.js
- * Filter panel: TYPE IF and CODE LIGNE.
- * Values are pre-populated from index.json at startup,
- * then counts are updated progressively as tiles load.
+ * Filter panel: TYPE IF and CODE LIGNE as searchable combo-box dropdowns.
+ * Values are pre-loaded from index.json; counts update as tiles load.
  */
 
 export const FILTER_FIELDS = [
@@ -10,19 +9,20 @@ export const FILTER_FIELDS = [
   { key: 'code_ligne', label: 'CODE LIGNE' },
 ];
 
-// Active filters: { fieldKey: Set<string> }
 export let activeFilters = {};
 
-// All known values from index.json: { fieldKey: string[] }
+// All known values from index.json
 let _indexValues = { type_if: [], code_ligne: [] };
 
-// Signal counts accumulated from loaded tiles: { fieldKey: Map<value, count> }
+// Counts accumulated from loaded tiles
 let _counts = { type_if: new Map(), code_ligne: new Map() };
 
-// Active filter panel definitions: [{ field, searchText }]
+// Which dropdown is currently open
+let _openDropdown = null;
+
 let _filterDefs = [
-  { field: 'type_if',    searchText: '' },
-  { field: 'code_ligne', searchText: '' },
+  { field: 'type_if',    search: '' },
+  { field: 'code_ligne', search: '' },
 ];
 
 let _onChange = null;
@@ -33,9 +33,12 @@ export function initFilters(onChange) {
   _onChange = onChange;
   activeFilters = {};
   _render();
+  // Close dropdowns on outside click
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.fg-combo')) _closeAllDropdowns();
+  });
 }
 
-/** Load index.json and pre-populate filter value lists. */
 export async function loadFilterIndex(tilesBase) {
   try {
     const res = await fetch(tilesBase + 'index.json');
@@ -49,7 +52,6 @@ export async function loadFilterIndex(tilesBase) {
   }
 }
 
-/** Accumulate signal counts from a freshly loaded tile batch. */
 export function indexSignals(signals) {
   for (const s of signals) {
     for (const field of ['type_if', 'code_ligne']) {
@@ -60,14 +62,14 @@ export function indexSignals(signals) {
   _render();
 }
 
-/** Clear counts when the viewport changes significantly. */
 export function resetCounts() {
   _counts = { type_if: new Map(), code_ligne: new Map() };
 }
 
 export function resetFilters() {
   activeFilters = {};
-  _filterDefs.forEach(f => { f.searchText = ''; });
+  _filterDefs.forEach(f => { f.search = ''; });
+  _closeAllDropdowns();
   _render();
   _onChange && _onChange();
 }
@@ -88,66 +90,128 @@ function _render() {
   container.innerHTML = '';
 
   _filterDefs.forEach((fd, idx) => {
-    // Use index values (full list) with counts from loaded tiles where available
     const allValues = _indexValues[fd.field] || [];
     const counts    = _counts[fd.field] || new Map();
+    const selected  = activeFilters[fd.field] || new Set();
 
-    const filtered = allValues
-      .filter(v => v.toLowerCase().includes(fd.searchText.toLowerCase()))
-      .map(v => ({ v, count: counts.get(v) || 0 }))
-      .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
+    // Selected values shown as removable tags at the top
+    const tags = [...selected].map(v => `
+      <span class="fg-tag">
+        ${_esc(v)}
+        <button class="fg-tag-remove" data-field="${fd.field}" data-val="${_esc(v)}">✕</button>
+      </span>`).join('');
 
     const group = document.createElement('div');
     group.className = 'filter-group';
     group.innerHTML = `
       <div class="fg-header">
         <span class="fg-title">${_label(fd.field)}</span>
-        <button class="fg-remove" title="Remove filter" data-idx="${idx}">✕</button>
+        <button class="fg-remove" data-idx="${idx}" title="Remove this filter">✕</button>
       </div>
-      <input class="fg-search" placeholder="Search… (${allValues.length} values)" value="${_esc(fd.searchText)}" data-idx="${idx}">
-      <div class="fg-values" id="fg-${idx}"></div>
+      <div class="fg-tags">${tags}</div>
+      <div class="fg-combo" data-idx="${idx}">
+        <div class="fg-combo-input" data-idx="${idx}">
+          <input class="fg-search" type="text"
+            placeholder="Search ${allValues.length} values…"
+            value="${_esc(fd.search)}" data-idx="${idx}" autocomplete="off">
+          <span class="fg-combo-arrow">▾</span>
+        </div>
+        <div class="fg-dropdown hidden" id="fgd-${idx}">
+          <div class="fg-dropdown-inner"></div>
+        </div>
+      </div>
     `;
     container.appendChild(group);
 
-    const fvEl = group.querySelector(`#fg-${idx}`);
-
-    if (filtered.length === 0) {
-      fvEl.innerHTML = '<div class="fg-empty">No values loaded yet</div>';
-    } else {
-      filtered.forEach(({ v, count }) => {
-        const active = activeFilters[fd.field]?.has(v);
-        const item   = document.createElement('div');
-        item.className = 'fg-item' + (active ? ' active' : '');
-        item.dataset.field = fd.field;
-        item.dataset.val   = v;
-        item.innerHTML = `
-          <div class="fgi-check">${active ? '✓' : ''}</div>
-          <div class="fgi-name">${_esc(v)}</div>
-          <div class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</div>
-        `;
-        fvEl.appendChild(item);
-      });
-    }
+    // Populate dropdown list
+    _populateDropdown(group.querySelector(`#fgd-${idx} .fg-dropdown-inner`),
+                      allValues, counts, selected, fd.field, fd.search);
   });
 
-  // Bind events
+  // Events
   container.querySelectorAll('.fg-remove').forEach(btn =>
     btn.addEventListener('click', () => _removeFilter(parseInt(btn.dataset.idx)))
   );
-  container.querySelectorAll('.fg-search').forEach(input =>
-    input.addEventListener('input', () => {
-      _filterDefs[parseInt(input.dataset.idx)].searchText = input.value;
-      _render();
+  container.querySelectorAll('.fg-tag-remove').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _toggle(btn.dataset.field, btn.dataset.val);
     })
   );
-  container.querySelectorAll('.fg-item').forEach(item =>
-    item.addEventListener('click', () => _toggle(item.dataset.field, item.dataset.val))
+  container.querySelectorAll('.fg-combo-input').forEach(div =>
+    div.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(div.dataset.idx);
+      _toggleDropdown(idx);
+    })
   );
+  container.querySelectorAll('.fg-search').forEach(input => {
+    input.addEventListener('click', e => e.stopPropagation());
+    input.addEventListener('input', () => {
+      const idx = parseInt(input.dataset.idx);
+      _filterDefs[idx].search = input.value;
+      const allValues = _indexValues[_filterDefs[idx].field] || [];
+      const counts    = _counts[_filterDefs[idx].field] || new Map();
+      const selected  = activeFilters[_filterDefs[idx].field] || new Set();
+      const inner     = document.querySelector(`#fgd-${idx} .fg-dropdown-inner`);
+      if (inner) _populateDropdown(inner, allValues, counts, selected, _filterDefs[idx].field, input.value);
+    });
+  });
 
-  // Update active filter count in status bar
+  // Update status bar
   const active = Object.values(activeFilters).filter(s => s.size > 0).length;
   const el = document.getElementById('st-filters');
   if (el) el.textContent = active;
+}
+
+function _populateDropdown(container, allValues, counts, selected, field, search) {
+  const q = search.toLowerCase();
+  const filtered = allValues
+    .filter(v => v.toLowerCase().includes(q))
+    .map(v => ({ v, count: counts.get(v) || 0 }))
+    .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
+
+  container.innerHTML = '';
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="fg-empty">No matching values</div>';
+    return;
+  }
+
+  filtered.forEach(({ v, count }) => {
+    const isActive = selected.has(v);
+    const item = document.createElement('div');
+    item.className = 'fg-drop-item' + (isActive ? ' active' : '');
+    item.dataset.field = field;
+    item.dataset.val   = v;
+    item.innerHTML = `
+      <span class="fgi-check">${isActive ? '✓' : ''}</span>
+      <span class="fgi-name">${_esc(v)}</span>
+      <span class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</span>
+    `;
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      _toggle(field, v);
+    });
+    container.appendChild(item);
+  });
+}
+
+function _toggleDropdown(idx) {
+  const dd = document.getElementById(`fgd-${idx}`);
+  if (!dd) return;
+  const isOpen = !dd.classList.contains('hidden');
+  _closeAllDropdowns();
+  if (!isOpen) {
+    dd.classList.remove('hidden');
+    _openDropdown = idx;
+    // Focus search input
+    dd.closest('.fg-combo')?.querySelector('.fg-search')?.focus();
+  }
+}
+
+function _closeAllDropdowns() {
+  document.querySelectorAll('.fg-dropdown').forEach(d => d.classList.add('hidden'));
+  _openDropdown = null;
 }
 
 function _toggle(field, val) {
@@ -157,12 +221,19 @@ function _toggle(field, val) {
     : activeFilters[field].add(val);
   if (activeFilters[field].size === 0) delete activeFilters[field];
   _render();
+  // Re-open the dropdown for the affected field
+  const idx = _filterDefs.findIndex(f => f.field === field);
+  if (idx >= 0) {
+    const dd = document.getElementById(`fgd-${idx}`);
+    if (dd) dd.classList.remove('hidden');
+  }
   _onChange && _onChange();
 }
 
 function _removeFilter(idx) {
   delete activeFilters[_filterDefs[idx].field];
   _filterDefs.splice(idx, 1);
+  _closeAllDropdowns();
   _render();
   _onChange && _onChange();
 }
@@ -196,7 +267,7 @@ export function initAddFilterButton(btn) {
       opt.className   = 'afm-option';
       opt.textContent = f.label;
       opt.addEventListener('click', () => {
-        _filterDefs.push({ field: f.key, searchText: '' });
+        _filterDefs.push({ field: f.key, search: '' });
         _render();
         menu.remove();
       });
