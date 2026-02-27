@@ -1,21 +1,16 @@
-# Dependencies (no node_modules here — vanilla JS project)
-node_modules/
-
 # OS files
 .DS_Store
 Thumbs.db
 *.swp
-*.swo
 
-# Large data files — comment out if you want to version them directly
-# (use Git LFS instead for files > 100 MB)
-# data/*.geojson
-# data/*.json
+# The raw source GeoJSON — large, not needed after tiles are built
+data/signalisation-permanente.geojson
 
-# Local environment files
-.env
-.env.local
+# Build artifacts
+tools/TileBuilder/bin/
+tools/TileBuilder/obj/
 
 # Logs
 *.log
 /.vs
+/tools/TileBuilder/.vs/TileBuilder
