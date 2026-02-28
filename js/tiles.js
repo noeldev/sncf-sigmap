@@ -1,12 +1,10 @@
 /**
- * tiles.js
- * Tile manifest loader and tile key calculator.
- * Determines which tile files to fetch for a given map bounds.
+ * tiles.js — Tile manifest loader and URL calculator.
  */
 
 import { TILE_DEG, TILES_BASE } from './config.js';
 
-let _manifest = null;   // { tile_deg, tiles: { "tx:ty": count } }
+let _manifest = null;
 
 export async function loadManifest() {
   if (_manifest) return _manifest;
@@ -16,15 +14,16 @@ export async function loadManifest() {
     _manifest = await res.json();
     return _manifest;
   } catch (err) {
-    console.error('[Tiles] Could not load manifest:', err.message);
+    console.error('[Tiles] manifest.json failed:', err.message);
     return null;
   }
 }
 
 /**
- * Returns all tile URLs that intersect the given Leaflet bounds.
+ * Returns tile URLs that intersect bounds.
+ * At low zoom, limits to a maximum number of tiles to keep the request count reasonable.
  */
-export function getTileUrlsForBounds(bounds, manifest) {
+export function getTileUrlsForBounds(bounds, manifest, zoom) {
   if (!manifest) return [];
 
   const sw = bounds.getSouthWest();
@@ -40,7 +39,6 @@ export function getTileUrlsForBounds(bounds, manifest) {
     for (let ty = tyMin; ty <= tyMax; ty++) {
       const key = `${tx}:${ty}`;
       if (manifest.tiles[key]) {
-        // File name mirrors TileBuilder output: tx_ty.json.gz
         urls.push(TILES_BASE + `${tx}_${ty}.json.gz`);
       }
     }
@@ -48,15 +46,21 @@ export function getTileUrlsForBounds(bounds, manifest) {
   return urls;
 }
 
-/**
- * Returns all unique type_if and code_ligne values from the manifest
- * (used to populate filters before any tile is loaded).
- * Requires a full-index tile or pre-built values list — falls back to
- * collecting from loaded tiles progressively.
- */
 export function getManifestStats(manifest) {
   if (!manifest) return { tileCount: 0, totalSignals: 0 };
   let total = 0;
   for (const v of Object.values(manifest.tiles)) total += v;
   return { tileCount: Object.keys(manifest.tiles).length, totalSignals: total };
+}
+
+/**
+ * Returns the maximum number of signals to render at a given zoom level.
+ * This creates a progressive density effect without a hard zoom cutoff.
+ */
+export function maxSignalsForZoom(zoom) {
+  if (zoom >= 14) return Infinity;   // full detail
+  if (zoom >= 12) return 3000;
+  if (zoom >= 10) return 1000;
+  if (zoom >= 8)  return 300;
+  return 80;                          // overview at zoom 7
 }
