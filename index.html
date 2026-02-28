@@ -3,75 +3,157 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="SNCF permanent railway signalling map viewer.">
-  <meta name="robots" content="noindex, nofollow">
-  <title>SNCF – Permanent Signalling</title>
-
-  <!-- Favicon: use signal-avl.svg (SVG favicons supported in all modern browsers) -->
+  <meta name="description" content="Visualiseur de la signalisation permanente SNCF — données open data SNCF Réseau, intégration OSM via JOSM.">
+  <title>Signalisation Permanente SNCF</title>
   <link rel="icon" type="image/svg+xml" href="assets/svg/signal-avl.svg">
-  <link rel="icon" type="image/png"     href="assets/png/favicon.png" sizes="32x32">
-
+  <link rel="icon" type="image/png" href="assets/png/favicon.png" sizes="32x32">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
 <div id="app">
 
-  <aside id="sidebar">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar-open">
+
     <div id="sidebar-header">
-      <div class="logo">
-        <img src="assets/svg/signal-avl.svg" alt="Signal A-VL" class="logo-signal">
-        <div>
-          <div class="logo-badge">SNCF</div>
-          <h1>Permanent Signalling</h1>
+      <div class="logo-row">
+        <img src="assets/png/sncf-logo.png" alt="SNCF" class="logo-sncf">
+        <div class="logo-text">
+          <div class="logo-title">Signalisation</div>
+          <div class="logo-title">Permanente</div>
         </div>
       </div>
-      <div id="record-count">Loading…</div>
+      <div id="record-count" class="record-count">Chargement…</div>
     </div>
 
-    <div id="filters-section">
-      <div class="filters-header">
-        <span class="filters-title-text">Filters</span>
-        <div class="filters-actions">
-          <button class="btn-add-filter" id="btn-add-filter">+ Add</button>
-          <button class="btn-reset" id="btn-reset-filters">Reset</button>
-        </div>
+    <nav id="sidebar-tabs">
+      <button class="stab active" data-tab="filters">Filtres</button>
+      <button class="stab" data-tab="layers">Couches</button>
+      <button class="stab" data-tab="about">À propos</button>
+    </nav>
+
+    <!-- Filters tab -->
+    <div id="tab-filters" class="tab-panel active">
+      <div class="panel-toolbar">
+        <button class="tbtn" id="btn-add-filter">+ Ajouter</button>
+        <button class="tbtn tbtn-ghost" id="btn-reset-filters">Réinitialiser</button>
+        <label class="tbtn-check" id="lbl-mapped-only" title="N'afficher que les types pris en charge dans signal-mapping.js">
+          <input type="checkbox" id="chk-mapped-only"> Mappés uniquement
+        </label>
       </div>
       <div id="filters-container"></div>
     </div>
+
+    <!-- Layers tab -->
+    <div id="tab-layers" class="tab-panel">
+      <div class="layers-group">
+        <div class="layers-label">Fond de carte</div>
+        <div id="basemap-list"></div>
+      </div>
+    </div>
+
+    <!-- About tab -->
+    <div id="tab-about" class="tab-panel">
+      <div class="about-content">
+        <p class="about-intro">
+          Visualisation des données open data de la <strong>signalisation permanente SNCF</strong>
+          et aide à l'intégration dans OpenStreetMap via JOSM ou le presse-papiers.
+        </p>
+
+        <div class="about-section">
+          <div class="about-section-title">Utilisation</div>
+          <p>Zoomez au niveau 11 ou plus pour voir les signaux. Cliquez sur un signal pour afficher ses propriétés et exporter les tags OSM vers JOSM ou le presse-papiers.</p>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Liens</div>
+          <ul class="about-links">
+            <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
+            <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging France</a></li>
+            <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM</a></li>
+            <li><a href="https://noeldev.github.io/FrenchRailwaySignalling/" target="_blank" rel="noopener">JOSM Presets — Signalisation française</a></li>
+            <li><a href="https://openrailwaymap.org/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
+          </ul>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Crédits</div>
+          <p class="about-credits">
+            © 2026 Noël Danjou — Site<br>
+            Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>
+            Fond de carte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
   </aside>
 
+  <!-- Map area -->
   <div id="map-container">
     <div id="map"></div>
-    <div id="basemap-selector"></div>
 
-    <div id="zoom-hint" class="hidden">
-      🔍 Zoom in to see signals (level 11+)
+    <!-- Top-left map controls -->
+    <div id="map-controls">
+      <button id="btn-sidebar-toggle" class="mc-btn" title="Afficher/masquer le panneau">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+          <rect y="3" width="20" height="2" rx="1"/>
+          <rect y="9" width="20" height="2" rx="1"/>
+          <rect y="15" width="20" height="2" rx="1"/>
+        </svg>
+      </button>
+      <div class="mc-sep"></div>
+      <button id="btn-zoom-in"  class="mc-btn" title="Zoom avant">+</button>
+      <button id="btn-zoom-out" class="mc-btn" title="Zoom arrière">−</button>
+      <div class="mc-sep"></div>
+      <button id="btn-geolocate" class="mc-btn" title="Centrer sur ma position">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </button>
+      <button id="btn-fullscreen" class="mc-btn" title="Plein écran">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+      </button>
     </div>
 
-    <button id="btn-geolocate" title="Centre map on my location">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-           stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-        <circle cx="12" cy="12" r="8" stroke-dasharray="3 3" opacity=".5"/>
-      </svg>
-    </button>
+    <!-- Zoom hint overlay -->
+    <div id="zoom-hint" class="hidden">
+      🔍 Zoomez au niveau 11 ou plus pour afficher les signaux
+    </div>
 
+    <!-- Progress overlay -->
     <div id="progress-overlay" class="hidden">
       <div class="progress-spinner"></div>
-      <div id="progress-msg">Loading…</div>
+      <span id="progress-msg">Chargement…</span>
     </div>
 
+    <!-- Status bar -->
     <div id="statusbar">
-      <span class="sb-item">Visible: <span class="sb-val" id="st-visible">0</span></span>
-      <span class="sb-sep">|</span>
-      <span class="sb-item">Active filters: <span class="sb-val" id="st-filters">0</span></span>
+      <span class="sb-item">
+        <span class="sb-label">Signaux</span>
+        <span class="sb-val" id="st-visible">0</span>
+      </span>
+      <span class="sb-sep"></span>
+      <span class="sb-item">
+        <span class="sb-label">Filtres</span>
+        <span class="sb-val" id="st-filters">0</span>
+      </span>
+      <span class="sb-sep"></span>
+      <span class="sb-item">
+        <span class="sb-label">Zoom</span>
+        <span class="sb-val" id="st-zoom">—</span>
+      </span>
     </div>
   </div>
 
 </div>
+
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

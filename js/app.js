@@ -1,18 +1,14 @@
 /**
  * app.js — Main orchestration.
- * Tile-based on-demand loading: only fetches tiles visible in the current viewport.
- * Signals are filtered in the Web Worker (spatial + attribute).
  */
 
-import { initMap, map }                                         from './map.js';
+import { initMap, map, updateZoomStatus } from './map.js';
 import { loadManifest, getTileUrlsForBounds, getManifestStats } from './tiles.js';
-import { initFilters, loadFilterIndex, indexSignals,
-         resetCounts, resetFilters,
-         getActiveFiltersForWorker, initAddFilterButton }       from './filters.js';
-import { openSignalPopup, getTypeColor }                        from './popup.js';
-import { MIN_ZOOM_FETCH, TILES_BASE }                           from './config.js';
+import { initFilters, loadFilterIndex, indexSignals, resetCounts,
+         resetFilters, getActiveFiltersForWorker, initAddFilterButton } from './filters.js';
+import { openSignalPopup, getTypeColor } from './popup.js';
+import { MIN_ZOOM_FETCH, TILES_BASE } from './config.js';
 
-// ---- State ----
 let manifest      = null;
 let markersLayer  = null;
 let worker        = null;
@@ -20,7 +16,6 @@ let loadPending   = false;
 let loadRunning   = false;
 let _lastTileKeys = new Set();
 
-// ---- Init ----
 document.addEventListener('DOMContentLoaded', async () => {
   initMap('map');
   markersLayer = L.layerGroup().addTo(map);
@@ -32,8 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     _refresh();
   });
 
-  // Load tile manifest + filter index in parallel
-  _setProgress(true, 'Loading tile index…');
+  _setProgress(true, 'Chargement de l\'index…');
   [manifest] = await Promise.all([
     loadManifest(),
     loadFilterIndex(TILES_BASE),
@@ -41,24 +35,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (!manifest) {
     _setProgress(false);
-    _showZoomHint('⚠️ Tile index not found. Run TileBuilder first.');
+    _showZoomHint('⚠ Index non trouvé — exécutez TileBuilder d\'abord.');
     return;
   }
 
   const { tileCount, totalSignals } = getManifestStats(manifest);
   document.getElementById('record-count').textContent =
-    `${totalSignals.toLocaleString()} signals — ${tileCount} tiles`;
+    `${totalSignals.toLocaleString()} signaux — ${tileCount} tuiles`;
 
   _setProgress(false);
   _updateZoomHint();
+  updateZoomStatus(map.getZoom());
 
-  map.on('moveend zoomend', _debounce(_onMapMove, 300));
+  map.on('moveend zoomend', _debounce(() => {
+    _updateZoomHint();
+    updateZoomStatus(map.getZoom());
+    _onMapMove();
+  }, 300));
+
   _onMapMove();
 });
 
-// ---- Map move / zoom ----
 function _onMapMove() {
-  _updateZoomHint();
   if (map.getZoom() < MIN_ZOOM_FETCH) {
     markersLayer.clearLayers();
     resetCounts();
@@ -70,10 +68,8 @@ function _onMapMove() {
 
 function _onFilterChange() { _refresh(); }
 
-// ---- Refresh: determine which tiles are needed ----
 function _refresh() {
   if (map.getZoom() < MIN_ZOOM_FETCH) return;
-
   if (loadRunning) { loadPending = true; return; }
 
   const bounds   = map.getBounds();
@@ -89,27 +85,23 @@ function _refresh() {
     document.getElementById('st-visible').textContent = '0';
     return;
   }
-
   _runWorker(bounds, tileUrls);
 }
 
-// ---- Worker dispatch ----
 function _runWorker(bounds, tileUrls) {
   if (worker) { worker.terminate(); worker = null; }
   loadRunning = true;
-  _setProgress(true, `Loading ${tileUrls.length} tile(s)…`);
+  _setProgress(true, `Chargement de ${tileUrls.length} tuile(s)…`);
 
   worker = new Worker('./js/geojson.worker.js');
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
 
   worker.onmessage = e => {
-    const { status, msg, signals } = e.data;
-
+    const { status, msg, signals, count } = e.data;
     if (status === 'progress') { _setProgress(true, msg); return; }
 
-    worker.terminate();
-    worker      = null;
+    worker.terminate(); worker = null;
     loadRunning = false;
     _setProgress(false);
 
@@ -117,14 +109,12 @@ function _runWorker(bounds, tileUrls) {
 
     _renderSignals(signals);
     indexSignals(signals);
-
     if (loadPending) { loadPending = false; _refresh(); }
   };
 
   worker.onerror = err => {
-    console.error('[Worker]', err);
-    worker = null; loadRunning = false;
-    _setProgress(false);
+    console.error('[Worker error]', err);
+    worker = null; loadRunning = false; _setProgress(false);
   };
 
   worker.postMessage({
@@ -135,14 +125,12 @@ function _runWorker(bounds, tileUrls) {
   });
 }
 
-// ---- Marker rendering ----
 function _renderSignals(signals) {
   markersLayer.clearLayers();
 
-  // Group by code_voie + pk (signals at the same physical location)
   const groups = {};
   signals.forEach(s => {
-    const key = s.p.code_voie && s.p.pk
+    const key = (s.p.code_voie && s.p.pk)
       ? `${s.p.code_voie}|${s.p.pk}`
       : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
     if (!groups[key]) groups[key] = { lat: s.lat, lng: s.lng, feats: [] };
@@ -152,15 +140,12 @@ function _renderSignals(signals) {
   Object.values(groups).forEach(({ lat, lng, feats }) => {
     const color = getTypeColor(feats[0].p.type_if);
     const multi = feats.length > 1;
-
-    const icon = L.divIcon({
+    const icon  = L.divIcon({
       className: '',
-      html: `<div class="sig-dot${multi?' multi':''}" style="--c:${color}"></div>`,
-      iconSize:    [multi?14:10, multi?14:10],
-      iconAnchor:  [multi?7:5,   multi?7:5],
-      popupAnchor: [0, -10],
+      html: `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color}"></div>`,
+      iconSize:    [multi ? 14 : 10, multi ? 14 : 10],
+      iconAnchor:  [multi ? 7 : 5,   multi ? 7 : 5],
     });
-
     L.marker([lat, lng], { icon })
       .on('click', () => openSignalPopup([lat, lng], feats, 0))
       .addTo(markersLayer);
@@ -170,7 +155,6 @@ function _renderSignals(signals) {
     Object.keys(groups).length.toLocaleString();
 }
 
-// ---- UI helpers ----
 function _updateZoomHint() {
   const hint = document.getElementById('zoom-hint');
   if (hint) hint.classList.toggle('hidden', map.getZoom() >= MIN_ZOOM_FETCH);
@@ -182,10 +166,9 @@ function _showZoomHint(msg) {
 }
 
 function _setProgress(visible, msg = '') {
-  const overlay = document.getElementById('progress-overlay');
-  const msgEl   = document.getElementById('progress-msg');
-  if (overlay) overlay.classList.toggle('hidden', !visible);
-  if (msgEl)   msgEl.textContent = msg;
+  document.getElementById('progress-overlay')?.classList.toggle('hidden', !visible);
+  const el = document.getElementById('progress-msg');
+  if (el) el.textContent = msg;
 }
 
 function _debounce(fn, ms) {

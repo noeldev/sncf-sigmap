@@ -1,14 +1,12 @@
 /**
- * filters.js
- * Filter panel with searchable combo-box dropdowns.
+ * filters.js — Filter panel with combo-box dropdowns.
  *
- * Key design decisions:
- * - _buildPanels() creates the DOM once; subsequent updates
- *   call _refreshDropdown() and _refreshTags() which mutate
- *   existing elements instead of recreating them, so focus is never lost.
- * - mousedown on dropdown items uses e.preventDefault() to prevent
- *   the search input from losing focus before the click registers.
+ * _buildPanels() creates DOM once. _refreshDropdown() and _refreshTags()
+ * update existing elements in-place so focus is never lost on keystroke.
+ * mousedown on items calls e.preventDefault() to prevent input blur.
  */
+
+import { SIGNAL_MAPPING } from './signal-mapping.js';
 
 export const FILTER_FIELDS = [
   { key: 'type_if',    label: 'TYPE IF' },
@@ -17,13 +15,15 @@ export const FILTER_FIELDS = [
 
 export let activeFilters = {};
 
-let _indexValues = { type_if: [], code_ligne: [] };
-let _counts      = { type_if: new Map(), code_ligne: new Map() };
-let _defs        = [
+let _indexValues  = { type_if: [], code_ligne: [] };
+let _counts       = { type_if: new Map(), code_ligne: new Map() };
+let _defs         = [
   { field: 'type_if',    search: '' },
   { field: 'code_ligne', search: '' },
 ];
-let _onChange = null;
+let _mappedOnly   = false;
+let _mappedTypes  = new Set(Object.keys(SIGNAL_MAPPING));
+let _onChange     = null;
 
 // Public API
 
@@ -31,9 +31,22 @@ export function initFilters(onChange) {
   _onChange = onChange;
   activeFilters = {};
   _buildPanels();
+
   document.addEventListener('click', e => {
     if (!e.target.closest('.fg-combo')) _closeAll();
   });
+
+  // "Mapped only" checkbox
+  const chk = document.getElementById('chk-mapped-only');
+  if (chk) {
+    chk.addEventListener('change', () => {
+      _mappedOnly = chk.checked;
+      activeFilters = {};   // clear filters when toggling
+      _defs.forEach(d => { d.search = ''; });
+      _buildPanels();
+      _onChange && _onChange();
+    });
+  }
 }
 
 export async function loadFilterIndex(tilesBase) {
@@ -95,11 +108,11 @@ export function initAddFilterButton(btn) {
     menu.style.left = r.left + 'px';
 
     available.forEach(f => {
-      const opt = document.createElement('div');
+      const opt       = document.createElement('div');
       opt.className   = 'afm-option';
       opt.textContent = f.label;
-      opt.addEventListener('mousedown', e => {
-        e.preventDefault();
+      opt.addEventListener('mousedown', e2 => {
+        e2.preventDefault();
         _defs.push({ field: f.key, search: '' });
         _buildPanels();
         menu.remove();
@@ -111,7 +124,7 @@ export function initAddFilterButton(btn) {
   });
 }
 
-// Panel construction (called once on init and on explicit reset)
+// Panel construction
 
 function _buildPanels() {
   const container = document.getElementById('filters-container');
@@ -121,19 +134,17 @@ function _buildPanels() {
   _defs.forEach((def, idx) => {
     const panel     = document.createElement('div');
     panel.className = 'filter-group';
-
     panel.innerHTML = `
       <div class="fg-header">
         <span class="fg-title">${_label(def.field)}</span>
-        <button class="fg-remove" title="Remove filter">&#10005;</button>
+        <button class="fg-remove" title="Supprimer le filtre">&#10005;</button>
       </div>
       <div class="fg-tags" id="fgt-${idx}"></div>
       <div class="fg-combo" id="fgc-${idx}">
-        <div class="fg-combo-input">
+        <div class="fg-combo-input" id="fgci-${idx}">
           <input id="fgi-${idx}" class="fg-search" type="text"
                  autocomplete="off" spellcheck="false"
-                 placeholder="Search ${_indexValues[def.field].length} values…"
-                 value="${_esc(def.search)}">
+                 placeholder="Rechercher…">
           <span class="fg-combo-arrow">&#9662;</span>
         </div>
         <div class="fg-dropdown" id="fgd-${idx}" style="display:none">
@@ -142,7 +153,6 @@ function _buildPanels() {
       </div>`;
     container.appendChild(panel);
 
-    // Remove-panel button
     panel.querySelector('.fg-remove').addEventListener('click', () => {
       delete activeFilters[def.field];
       _defs.splice(idx, 1);
@@ -150,7 +160,6 @@ function _buildPanels() {
       _onChange && _onChange();
     });
 
-    // Search input — update list in-place
     const input = document.getElementById(`fgi-${idx}`);
     input.addEventListener('input', () => {
       def.search = input.value;
@@ -159,17 +168,15 @@ function _buildPanels() {
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter')  { e.preventDefault(); _selectFirst(idx); }
       if (e.key === 'Escape') { _closeDropdown(idx); }
-      if (e.key === 'ArrowDown') { e.preventDefault(); _focusItem(idx, 0); }
     });
     input.addEventListener('focus', () => _openDropdown(idx));
 
-    // Arrow click — toggle dropdown
-    panel.querySelector('.fg-combo-input').addEventListener('mousedown', e => {
+    document.getElementById(`fgci-${idx}`).addEventListener('mousedown', e => {
       if (e.target === input) return;
       e.preventDefault();
-      document.getElementById(`fgd-${idx}`).style.display === 'none'
-        ? (_openDropdown(idx), input.focus())
-        : _closeDropdown(idx);
+      const dd = document.getElementById(`fgd-${idx}`);
+      if (dd.style.display === 'none') { _openDropdown(idx); input.focus(); }
+      else { _closeDropdown(idx); }
     });
 
     _refreshTags(idx);
@@ -179,7 +186,7 @@ function _buildPanels() {
   _updateStatusBar();
 }
 
-// Targeted updates (do not rebuild panels)
+// In-place refresh functions
 
 function _refreshTags(idx) {
   const def = _defs[idx];
@@ -205,38 +212,39 @@ function _refreshDropdown(idx) {
   const input = document.getElementById(`fgi-${idx}`);
   if (!list || !def) return;
 
-  const all    = _indexValues[def.field] || [];
+  let all      = _indexValues[def.field] || [];
   const counts = _counts[def.field] || new Map();
   const sel    = activeFilters[def.field] || new Set();
   const q      = def.search.toLowerCase();
 
-  if (input) input.placeholder = `Search ${all.length} values…`;
+  // Apply "mapped only" filter for type_if
+  if (_mappedOnly && def.field === 'type_if') {
+    all = all.filter(v => _mappedTypes.has(v));
+  }
+
+  if (input) input.placeholder = `Rechercher parmi ${all.length} valeurs…`;
 
   const filtered = all
     .filter(v => v.toLowerCase().includes(q))
-    .map(v    => ({ v, count: counts.get(v) || 0 }))
+    .map(v    => ({ v, count: counts.get(v) || 0, mapped: _mappedTypes.has(v) }))
     .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
 
   list.innerHTML = '';
   if (!filtered.length) {
-    list.innerHTML = `<div class="fg-empty">No matching values</div>`;
+    list.innerHTML = `<div class="fg-empty">Aucune valeur correspondante</div>`;
     return;
   }
-  filtered.forEach(({ v, count }) => {
+  filtered.forEach(({ v, count, mapped }) => {
     const active = sel.has(v);
     const item   = document.createElement('div');
-    item.className     = 'fg-drop-item' + (active ? ' active' : '');
-    item.tabIndex      = -1;
+    item.className     = 'fg-drop-item' + (active ? ' active' : '') + (mapped ? ' mapped' : '');
     item.dataset.field = def.field;
     item.dataset.val   = v;
     item.innerHTML     = `
       <span class="fgi-check">${active ? '&#10003;' : ''}</span>
       <span class="fgi-name">${_esc(v)}</span>
       <span class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</span>`;
-    item.addEventListener('mousedown', e => {
-      e.preventDefault(); // prevent input blur
-      _toggle(def.field, v);
-    });
+    item.addEventListener('mousedown', e => { e.preventDefault(); _toggle(def.field, v); });
     list.appendChild(item);
   });
 }
@@ -246,13 +254,6 @@ function _selectFirst(idx) {
   if (first) _toggle(first.dataset.field, first.dataset.val);
 }
 
-function _focusItem(idx, itemIdx) {
-  const items = document.getElementById(`fgl-${idx}`)?.querySelectorAll('.fg-drop-item');
-  if (items && items[itemIdx]) items[itemIdx].focus();
-}
-
-// Open / close
-
 function _openDropdown(idx) {
   const dd = document.getElementById(`fgd-${idx}`);
   if (dd) dd.style.display = 'block';
@@ -261,11 +262,7 @@ function _closeDropdown(idx) {
   const dd = document.getElementById(`fgd-${idx}`);
   if (dd) dd.style.display = 'none';
 }
-function _closeAll() {
-  _defs.forEach((_, i) => _closeDropdown(i));
-}
-
-// Toggle a filter value
+function _closeAll() { _defs.forEach((_, i) => _closeDropdown(i)); }
 
 function _toggle(field, val) {
   if (!activeFilters[field]) activeFilters[field] = new Set();
@@ -274,11 +271,7 @@ function _toggle(field, val) {
   if (activeFilters[field].size === 0) delete activeFilters[field];
 
   const idx = _defs.findIndex(d => d.field === field);
-  if (idx >= 0) {
-    _refreshTags(idx);
-    _refreshDropdown(idx);
-    _openDropdown(idx);
-  }
+  if (idx >= 0) { _refreshTags(idx); _refreshDropdown(idx); _openDropdown(idx); }
   _updateStatusBar();
   _onChange && _onChange();
 }
@@ -287,7 +280,6 @@ function _updateStatusBar() {
   const el = document.getElementById('st-filters');
   if (el) el.textContent = Object.values(activeFilters).filter(s => s.size > 0).length;
 }
-
 function _label(key) {
   return (FILTER_FIELDS.find(f => f.key === key) || { label: key.toUpperCase() }).label;
 }

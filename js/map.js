@@ -1,33 +1,36 @@
 /**
- * map.js — Leaflet map, basemaps (Transport + OSM + Satellite), geolocation.
+ * map.js — Leaflet map initialisation, basemaps, geolocation, fullscreen.
  */
 
 import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
 
 export let map;
-let currentBasemap = null;
-let geolocMarker   = null;
-let geolocCircle   = null;
 
 const BASEMAPS = {
   'jawg-transport': {
-    label: '🚆 Transport',
+    label: 'Jawg Transport',
+    color: '#2589c7',
     url:   `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`,
-    opts:  { attribution: '© <a href="https://jawg.io">Jawg</a> © <a href="https://openstreetmap.org">OSM</a>', maxZoom: 22 },
+    opts:  { attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 22 },
   },
   'osm': {
-    label: '🗺 OSM',
+    label: 'OpenStreetMap',
+    color: '#7dcf7d',
     url:   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    opts:  { attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 20 },
+    opts:  { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 20 },
   },
   'satellite': {
-    label: '🛰 Satellite',
+    label: 'Satellite',
+    color: '#c8a96a',
     url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    opts:  { attribution: '© Esri', maxZoom: 20 },
+    opts:  { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: 20 },
   },
 };
 
 const _layers = {};
+let _current  = null;
+let _geolocMarker = null;
+let _geolocCircle = null;
 
 export function initMap(containerId) {
   map = L.map(containerId, { zoomControl: false, maxZoom: 22, preferCanvas: true })
@@ -38,72 +41,109 @@ export function initMap(containerId) {
   });
 
   const start = (JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN') ? 'osm' : DEFAULT_BASEMAP;
-  currentBasemap = start;
+  _current = start;
   _layers[start].addTo(map);
 
-  L.control.zoom({ position: 'topleft' }).addTo(map);
-  _buildBasemapControl();
-  _buildGeolocControl();
+  _buildLayerButtons();
+  _buildControls();
   return map;
 }
 
-function _buildBasemapControl() {
-  const ctrl = document.getElementById('basemap-selector');
-  if (!ctrl) return;
-  ctrl.innerHTML = '';
+function _buildLayerButtons() {
+  const list = document.getElementById('basemap-list');
+  if (!list) return;
+  list.innerHTML = '';
   Object.entries(BASEMAPS).forEach(([key, def]) => {
-    const btn       = document.createElement('button');
-    btn.className   = 'basemap-btn' + (key === currentBasemap ? ' active' : '');
+    const btn     = document.createElement('button');
+    btn.className = 'layer-btn' + (key === _current ? ' active' : '');
     btn.dataset.map = key;
-    btn.textContent = def.label;
+    btn.innerHTML = `<span class="layer-dot" style="background:${def.color}"></span>${def.label}`;
     btn.addEventListener('click', () => _setBasemap(key));
-    ctrl.appendChild(btn);
+    list.appendChild(btn);
   });
 }
 
 function _setBasemap(key) {
-  if (!_layers[key] || key === currentBasemap) return;
-  map.removeLayer(_layers[currentBasemap]);
+  if (!_layers[key] || key === _current) return;
+  map.removeLayer(_layers[_current]);
   _layers[key].addTo(map);
-  currentBasemap = key;
-  document.querySelectorAll('.basemap-btn')
+  _current = key;
+  document.querySelectorAll('.layer-btn')
     .forEach(b => b.classList.toggle('active', b.dataset.map === key));
 }
 
-// ── Geolocation ───────────────────────────────────────────────────────────
+function _buildControls() {
+  // Custom zoom buttons
+  document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
+  document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
 
-function _buildGeolocControl() {
+  // Geolocation
   document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
+
+  // Fullscreen
+  document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
+  document.addEventListener('fullscreenchange', () => {
+    document.getElementById('btn-fullscreen')
+      ?.classList.toggle('fs-active', !!document.fullscreenElement);
+  });
+
+  // Sidebar toggle
+  document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
+    const sidebar = document.getElementById('sidebar');
+    sidebar?.classList.toggle('sidebar-closed');
+    setTimeout(() => map.invalidateSize(), 200);
+  });
+
+  // Sidebar tabs
+  document.querySelectorAll('.stab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
+    });
+  });
 }
 
 function _geolocate() {
-  if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
+  if (!navigator.geolocation) { alert('Géolocalisation non disponible.'); return; }
   const btn = document.getElementById('btn-geolocate');
-  btn?.classList.add('loading');
+  btn?.classList.add('active');
 
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    if (_geolocMarker) { map.removeLayer(_geolocMarker); _geolocMarker = null; }
+    if (_geolocCircle) { map.removeLayer(_geolocCircle); _geolocCircle = null; }
 
-    if (geolocMarker) { map.removeLayer(geolocMarker); geolocMarker = null; }
-    if (geolocCircle) { map.removeLayer(geolocCircle); geolocCircle = null; }
-
-    geolocCircle = L.circle([lat, lng], {
-      radius: accuracy, color: '#60a5fa', fillColor: '#60a5fa',
-      fillOpacity: 0.12, weight: 1,
+    _geolocCircle = L.circle([lat, lng], {
+      radius: accuracy, color: '#2589c7', fillColor: '#2589c7',
+      fillOpacity: 0.1, weight: 1,
     }).addTo(map);
 
-    geolocMarker = L.circleMarker([lat, lng], {
-      radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 1, weight: 2,
+    _geolocMarker = L.circleMarker([lat, lng], {
+      radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
     }).addTo(map)
-      .bindPopup(`📍 Votre position<br><small>Précision : ±${Math.round(accuracy)} m</small>`);
+      .bindPopup(`📍 Votre position — précision ±${Math.round(accuracy)} m`);
 
-    // Jump without animation — avoids tile burst on Jawg free plan
-    const zoom = Math.max(map.getZoom(), 14);
-    map.setView([lat, lng], Math.min(zoom, 17), { animate: false });
-    btn?.classList.remove('loading');
+    const zoom = Math.min(Math.max(map.getZoom(), 14), 17);
+    map.setView([lat, lng], zoom, { animate: false });
+    btn?.classList.remove('active');
 
   }, err => {
-    btn?.classList.remove('loading');
-    alert('Localisation impossible : ' + err.message);
+    btn?.classList.remove('active');
+    alert('Impossible de vous localiser : ' + err.message);
   }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function _toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.getElementById('app')?.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+export function updateZoomStatus(zoom) {
+  const el = document.getElementById('st-zoom');
+  if (el) el.textContent = zoom;
 }
