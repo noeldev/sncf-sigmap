@@ -1,18 +1,13 @@
 [build]
   publish = "."
 
-# HTML: never cache
 [[headers]]
   for = "/*.html"
   [headers.values]
   Cache-Control = "no-cache"
   X-Frame-Options = "DENY"
   X-Content-Type-Options = "nosniff"
-  # Required for Web Workers with ES modules on some browsers
-  Cross-Origin-Opener-Policy = "same-origin"
-  Cross-Origin-Embedder-Policy = "require-corp"
 
-# JS and CSS: cache indefinitely (filenames are stable)
 [[headers]]
   for = "/css/*"
   [headers.values]
@@ -22,12 +17,19 @@
   for = "/js/*"
   [headers.values]
   Cache-Control = "public, max-age=31536000, immutable"
-  Cross-Origin-Resource-Policy = "cross-origin"
 
-# GeoJSON data: cache for 24 hours, allow cross-origin fetch from the worker
+# Tile files: served as gzip-encoded JSON so fetch().json() decompresses automatically
 [[headers]]
-  for = "/data/*"
+  for = "/data/tiles/*.json.gz"
   [headers.values]
   Cache-Control = "public, max-age=86400"
+  Content-Type = "application/json"
+  Content-Encoding = "gzip"
   Access-Control-Allow-Origin = "*"
-  Cross-Origin-Resource-Policy = "cross-origin"
+
+[[headers]]
+  for = "/data/tiles/*.json"
+  [headers.values]
+  Cache-Control = "public, max-age=86400"
+  Content-Type = "application/json"
+  Access-Control-Allow-Origin = "*"

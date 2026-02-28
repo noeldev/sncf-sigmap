@@ -2,15 +2,15 @@
  * geojson.worker.js
  * Fetches tile files and filters signals off the main thread.
  *
- * Tile signal format (full field names, gzip-compressed):
- *   { lat, lng, type_if, code_ligne, nom_voie, sens, position, pk, idreseau, code_voie }
+ * Tile files are gzip-compressed JSON served with Content-Encoding: gzip
+ * (configured in netlify.toml), so fetch().json() decompresses automatically.
  *
  * Message IN:
  *   { type: 'fetch-tiles', urls, activeFilters, bounds: {swLat,swLng,neLat,neLng} }
  *
  * Messages OUT:
  *   { status: 'progress', msg }
- *   { status: 'done', signals }    — signals as { lat, lng, p: { all fields } }
+ *   { status: 'done', signals }
  *   { status: 'error', error }
  */
 
@@ -18,33 +18,34 @@ self.onmessage = async function (e) {
   const { type, urls, activeFilters, bounds } = e.data;
 
   if (type !== 'fetch-tiles') {
-    self.postMessage({ status: 'error', error: `Unknown type: ${type}` });
+    self.postMessage({ status: 'error', error: `Unknown message type: ${type}` });
     return;
   }
 
   try {
     self.postMessage({ status: 'progress', msg: `Loading ${urls.length} tile(s)…` });
 
-    // Fetch all tiles in parallel
-    const responses = await Promise.all(
-      urls.map(url =>
-        fetch(url)
-          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-          .catch(err => { console.warn('[Worker] tile error:', err.message); return []; })
-      )
-    );
+    const results = await Promise.all(urls.map(url =>
+      fetch(url)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+          return r.json();
+        })
+        .catch(err => {
+          console.warn('[Worker] tile fetch failed:', err.message);
+          return [];
+        })
+    ));
 
     self.postMessage({ status: 'progress', msg: 'Filtering…' });
 
     const { swLat, swLng, neLat, neLng } = bounds;
     const signals = [];
 
-    for (const tile of responses) {
+    for (const tile of results) {
       for (const s of tile) {
-        // Bounds check
         if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
 
-        // Wrap properties in a 'p' object (consistent with the rest of the app)
         const p = {
           type_if:    s.type_if    || '',
           code_ligne: s.code_ligne || '',
@@ -56,9 +57,7 @@ self.onmessage = async function (e) {
           code_voie:  s.code_voie  || '',
         };
 
-        // Attribute filter
         if (!_matches(p, activeFilters)) continue;
-
         signals.push({ lat: s.lat, lng: s.lng, p });
       }
     }
