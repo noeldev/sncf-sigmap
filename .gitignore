@@ -11,3 +11,4 @@ tools/TileBuilder/obj/
 *.log
 /.vs
 /tools/TileBuilder/.vs/TileBuilder
+/tools/TileBuilder/.vs/ProjectEvaluation
