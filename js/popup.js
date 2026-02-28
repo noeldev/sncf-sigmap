@@ -1,111 +1,84 @@
 /**
  * popup.js
- * Signal popup — display, multi-signal navigation,
- * OSM tag generation (signal-mapping.js), clipboard copy, JOSM Remote Control.
+ * Signal popup: display, multi-signal navigation,
+ * OSM tag generation, clipboard copy, JOSM Remote Control.
  */
 
-import { map }                                          from './map.js';
-import { SIGNAL_MAPPING, FIELD_CONVERTERS, SHARED_TAG_KEYS } from './signal-mapping.js';
+import { map } from './map.js';
+import { SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS } from './signal-mapping.js';
 
 const TYPE_COLORS = {
-  'CARRE':        '#e8321e', 'CARRE VIOLET': '#c084fc',
-  'S':            '#4ade80', 'DISQUE':       '#f87171',
-  'A':            '#facc15', 'GUIDON ARR':   '#a3e635',
-  'TIV D FIXE':   '#f5a623', 'TIV D MOB':   '#fb923c',
-  'TIV PENDIS':   '#fbbf24', 'TIV EXEC':    '#f97316',
-  'ARRET VOY':    '#60a5fa', 'ARRET TRAM':  '#38bdf8',
-  'HEURTOIR':     '#94a3b8', 'IDD':         '#a78bfa',
-  'CHEVRON':      '#fb923c', 'PN':          '#facc15',
-  'Z':            '#c084fc', 'ID':          '#94a3b8',
+  'CARRE':      '#e8321e', 'CV':         '#c084fc',
+  'S':          '#4ade80', 'DISQUE':     '#f87171',
+  'A':          '#facc15', 'DA':         '#eab308',
+  'GA':         '#a3e635', 'TIV D FIXE': '#f5a623',
+  'TIV D MOB':  '#fb923c', 'TIV PENDIS': '#fbbf24',
+  'TIV PENEXE': '#f97316', 'TIV PENREP': '#fdba74',
+  'TIV R MOB':  '#fed7aa', 'Z':          '#c084fc',
+  'R':          '#a78bfa', 'ARRET VOY':  '#60a5fa',
+  'HEURTOIR':   '#94a3b8', 'ID':         '#38bdf8',
+  'IDD':        '#a78bfa', 'CHEVRON':    '#fb923c',
+  'PN':         '#facc15',
 };
 
 export function getTypeColor(type) { return TYPE_COLORS[type] || '#94a3b8'; }
 
-// ── Tag resolution ────────────────────────────────────────────────────────
-
-/** Resolve a single template string "key=value" with signal data. */
+// Resolve a "key=value" template string with signal data
 function _resolve(template, p) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, field) => {
-    const raw  = p[field] ?? '';
     const conv = FIELD_CONVERTERS[field];
-    return conv ? conv(raw) : raw;
+    return conv ? conv(p[field] ?? '') : (p[field] ?? '');
   });
 }
 
-/** Parse "key=value" string into [key, value]. */
 function _parseTag(str) {
   const eq = str.indexOf('=');
   return eq < 0 ? [str, ''] : [str.slice(0, eq), str.slice(eq + 1)];
 }
 
-/**
- * Build merged OSM tags for one or more co-located signals.
- * Shared tags (position, direction, etc.) appear once.
- * Per-signal tags are each included, with idreseau disambiguating refs.
- */
+// Build OSM tags for a single signal (type-specific tags only, no common tags)
+function _resolveOne(s) {
+  const tags   = new Map();
+  const tmpls  = SIGNAL_MAPPING[s.p.type_if];
+  if (tmpls) {
+    for (const tmpl of tmpls) {
+      const [k, v] = _parseTag(_resolve(tmpl, s.p));
+      if (k) tags.set(k, v);
+    }
+  } else {
+    tags.set('note:SNCF:type_if', s.p.type_if || 'unknown');
+  }
+  return tags;
+}
+
+// Build merged OSM tags for one or more co-located signals
 function _buildOsmTags(feats) {
-  if (feats.length === 1) return _resolveOne(feats[0]);
-
-  // Multi-signal: collect per-signal tag lists, then merge
-  const perSignal = feats.map(s => _resolveOne(s));
-
   const merged = new Map();
 
-  // First pass: add shared tags (same key AND same value across all signals)
-  for (const [key, val] of perSignal[0]) {
-    if (!SHARED_TAG_KEYS.has(key)) continue;
-    const allSame = perSignal.every(m => m.get(key) === val);
-    if (allSame) merged.set(key, val);
+  // Common tags resolved from the first signal (pk, sens, position are shared)
+  for (const tmpl of COMMON_TAGS) {
+    const [k, v] = _parseTag(_resolve(tmpl, feats[0].p));
+    if (k) merged.set(k, v);
   }
 
-  // Second pass: add per-signal tags that are NOT shared
-  for (const tagMap of perSignal) {
-    for (const [key, val] of tagMap) {
-      if (merged.has(key)) continue;   // already added as shared
-      if (SHARED_TAG_KEYS.has(key)) continue;
-      // If key already exists from another signal, it stays (last-write wins for same key)
-      merged.set(key, val);
+  // Per-signal type-specific tags (all signals contribute their own tags)
+  for (const feat of feats) {
+    for (const [k, v] of _resolveOne(feat)) {
+      merged.set(k, v);
     }
   }
 
-  // Always add source
-  merged.set('source', 'SNCF - 03/2022');
+  // Line reference from first signal
+  if (feats[0].p.code_ligne) merged.set('ref:ligne', feats[0].p.code_ligne);
 
   return merged;
 }
 
-/** Resolve mapping for a single signal → Map<key,value>. */
-function _resolveOne(s) {
-  const p       = s.p;
-  const tmplArr = SIGNAL_MAPPING[p.type_if];
-  const result  = new Map();
-
-  if (tmplArr) {
-    for (const tmpl of tmplArr) {
-      const resolved    = _resolve(tmpl, p);
-      const [key, val]  = _parseTag(resolved);
-      if (key) result.set(key, val);
-    }
-  } else {
-    // Unknown type — emit minimal tags
-    result.set('railway', 'signal');
-    result.set('railway:position:exact', _resolve('{{pk}}', p));
-    result.set('railway:signal:direction', _resolve('{{sens}}', p));
-    result.set('note:SNCF:type_if', p.type_if || '');
-  }
-
-  // Always include SNCF line reference
-  if (p.code_ligne) result.set('ref:ligne', p.code_ligne);
-
-  return result;
-}
-
-/** Format Map<key,value> as "key=value\n..." string for clipboard. */
 function _tagsToText(tagMap) {
   return [...tagMap.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
 }
 
-// ── Popup ─────────────────────────────────────────────────────────────────
+// Popup
 
 let _currentPopup = null;
 
@@ -123,11 +96,8 @@ export function openSignalPopup(latlng, feats, idx = 0) {
     const nav  = e.target.closest('[data-nav]');
     if (nav)  { popup.setContent(_build(feats, parseInt(nav.dataset.nav))); return; }
 
-    const copy = e.target.closest('[data-action="copy"]');
-    if (copy) { _copyAll(feats, copy); return; }
-
-    const josm = e.target.closest('[data-action="josm"]');
-    if (josm) { _sendToJOSM(feats, latlng, josm); }
+    if (e.target.closest('[data-action="copy"]')) { _copyAll(feats, e.target.closest('[data-action="copy"]')); return; }
+    if (e.target.closest('[data-action="josm"]')) { _sendToJOSM(feats, latlng, e.target.closest('[data-action="josm"]')); }
   });
 }
 
@@ -146,7 +116,7 @@ function _build(feats, idx) {
 
   const fields = [
     ['type_if','TYPE IF'], ['code_ligne','CODE LIGNE'], ['nom_voie','NOM VOIE'],
-    ['sens','SENS'], ['position','POSITION'], ['pk','PK'],
+    ['sens','SENS'],       ['position','POSITION'],      ['pk','PK'],
     ['code_voie','CODE VOIE'], ['idreseau','ID RÉSEAU'],
   ];
   const rows = fields.map(([f, label]) => {
@@ -163,39 +133,38 @@ function _build(feats, idx) {
     <span class="pu-val pu-mono">${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}</span>
   </div>`;
 
-  // OSM preview shows the merged result for all co-located signals
   const tagMap  = _buildOsmTags(feats);
-  const osmRows = [...tagMap.entries()]
-    .map(([k, v]) => `<div class="pu-osm-row">
+  const osmRows = [...tagMap.entries()].map(([k, v]) =>
+    `<div class="pu-osm-row">
       <span class="pu-osm-key">${k}</span>
       <span class="pu-osm-val${v==='*'?' pu-osm-unknown':''}">${v}</span>
     </div>`).join('');
 
-  const osmNote = total > 1
-    ? `<div class="pu-osm-note">Merged tags for all ${total} co-located signals</div>` : '';
+  const mergeNote = total > 1
+    ? `<div class="pu-osm-note">Tags merged for ${total} co-located signals</div>` : '';
 
   return `
     <div class="pu-wrap">
       ${nav}
       <div class="pu-body">${rows}${coord}</div>
       <details class="pu-osm-preview">
-        <summary>OSM tags${total>1?` (${total} signals merged)`:''}</summary>
-        ${osmNote}
+        <summary>OSM tags${total > 1 ? ` (${total} signals)` : ''}</summary>
+        ${mergeNote}
         <div class="pu-osm-list">${osmRows}</div>
       </details>
       <div class="pu-footer">
-        <button class="pu-action-btn" data-action="copy" title="Copy merged OSM tags to clipboard">
+        <button class="pu-action-btn" data-action="copy"
+          title="Copy merged OSM tags — paste into JOSM tag editor">
           ${_svgCopy()} Copy tags
         </button>
         <button class="pu-action-btn pu-josm-btn" data-action="josm"
-          title="Add node in JOSM via Remote Control (enable in JOSM Preferences)">
-          <img src="./josm.svg" width="14" height="14" alt="JOSM" style="vertical-align:-2px;flex-shrink:0"> Open in JOSM
+          title="Add node in JOSM via Remote Control">
+          <img src="assets/svg/josm.svg" width="14" height="14" alt="JOSM"
+               style="vertical-align:-2px;flex-shrink:0"> Open in JOSM
         </button>
       </div>
     </div>`;
 }
-
-// ── Copy all merged tags to clipboard ─────────────────────────────────────
 
 function _copyAll(feats, btn) {
   const text = _tagsToText(_buildOsmTags(feats));
@@ -204,25 +173,18 @@ function _copyAll(feats, btn) {
     .catch(()  => prompt('Copy OSM tags:', text));
 }
 
-// ── JOSM Remote Control ───────────────────────────────────────────────────
-// Creates a node at the signal location with all merged OSM tags.
-// Changeset comment is pre-filled for the OSM upload dialog.
-
 function _sendToJOSM(feats, latlng, btn) {
   const tagMap  = _buildOsmTags(feats);
   const addtags = [...tagMap.entries()]
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('|');
-
   const comment = encodeURIComponent('Import signalisation permanente SNCF');
   const url     = `http://localhost:8111/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}&changeset_comment=${comment}`;
 
   fetch(url, { mode: 'no-cors' })
     .then(() => _flash(btn, `${_svgCheck()} Sent to JOSM`, '#4ade80', '#0b0e16'))
-    .catch(() => _flash(btn, '⚠ JOSM not reachable', '#f5a623', '#0b0e16'));
+    .catch(() => _flash(btn, '&#9888; JOSM not reachable', '#f5a623', '#0b0e16'));
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function _flash(btn, html, bg, fg) {
   if (!btn) return;
