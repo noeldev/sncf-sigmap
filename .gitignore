@@ -10,5 +10,4 @@ tools/TileBuilder/obj/
 # Logs
 *.log
 /.vs
-/tools/TileBuilder/.vs/TileBuilder
-/tools/TileBuilder/.vs/ProjectEvaluation
+/tools/TileBuilder/.vs

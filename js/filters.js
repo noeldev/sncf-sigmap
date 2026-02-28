@@ -1,7 +1,8 @@
 /**
  * filters.js
- * Filter panel: TYPE IF and CODE LIGNE as searchable combo-box dropdowns.
- * Values are pre-loaded from index.json; counts update as tiles load.
+ * Filter panel — searchable combo-box dropdowns.
+ * The dropdown list is updated in-place so the search input never loses focus.
+ * Values pre-loaded from index.json; counts update as tiles load.
  */
 
 export const FILTER_FIELDS = [
@@ -11,208 +12,239 @@ export const FILTER_FIELDS = [
 
 export let activeFilters = {};
 
-// All known values from index.json
 let _indexValues = { type_if: [], code_ligne: [] };
-
-// Counts accumulated from loaded tiles
-let _counts = { type_if: new Map(), code_ligne: new Map() };
-
-// Which dropdown is currently open
-let _openDropdown = null;
-
-let _filterDefs = [
+let _counts      = { type_if: new Map(), code_ligne: new Map() };
+let _defs        = [
   { field: 'type_if',    search: '' },
   { field: 'code_ligne', search: '' },
 ];
-
 let _onChange = null;
 
-// ---- Public API ----
+// ── Public API ────────────────────────────────────────────────────────────
 
 export function initFilters(onChange) {
   _onChange = onChange;
   activeFilters = {};
-  _render();
-  // Close dropdowns on outside click
+  _buildPanels();
   document.addEventListener('click', e => {
-    if (!e.target.closest('.fg-combo')) _closeAllDropdowns();
+    if (!e.target.closest('.fg-combo')) _closeAll();
   });
 }
 
 export async function loadFilterIndex(tilesBase) {
   try {
-    const res = await fetch(tilesBase + 'index.json');
+    const res  = await fetch(tilesBase + 'index.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     _indexValues.type_if    = data.type_if    || [];
     _indexValues.code_ligne = data.code_ligne || [];
-    _render();
+    _defs.forEach((_, i) => _refreshDropdown(i));
+    _defs.forEach((_, i) => _refreshTags(i));
   } catch (err) {
-    console.warn('[Filters] Could not load index.json:', err.message);
+    console.warn('[Filters] index.json:', err.message);
   }
 }
 
 export function indexSignals(signals) {
+  let changed = false;
   for (const s of signals) {
-    for (const field of ['type_if', 'code_ligne']) {
-      const v = s.p[field];
-      if (v) _counts[field].set(v, (_counts[field].get(v) || 0) + 1);
+    for (const f of ['type_if', 'code_ligne']) {
+      const v = s.p[f];
+      if (v) { _counts[f].set(v, (_counts[f].get(v) || 0) + 1); changed = true; }
     }
   }
-  _render();
+  if (changed) _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
 export function resetCounts() {
   _counts = { type_if: new Map(), code_ligne: new Map() };
+  _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
 export function resetFilters() {
   activeFilters = {};
-  _filterDefs.forEach(f => { f.search = ''; });
-  _closeAllDropdowns();
-  _render();
+  _defs.forEach(d => { d.search = ''; });
+  _closeAll();
+  _buildPanels();
   _onChange && _onChange();
 }
 
 export function getActiveFiltersForWorker() {
   const out = {};
-  for (const [field, vals] of Object.entries(activeFilters)) {
-    if (vals.size > 0) out[field] = [...vals];
+  for (const [f, vals] of Object.entries(activeFilters)) {
+    if (vals.size > 0) out[f] = [...vals];
   }
   return out;
 }
 
-// ---- Rendering ----
+export function initAddFilterButton(btn) {
+  if (!btn) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const used      = _defs.map(d => d.field);
+    const available = FILTER_FIELDS.filter(f => !used.includes(f.key));
+    if (!available.length) return;
+    document.querySelectorAll('.add-filter-menu').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'add-filter-menu';
+    const r = btn.getBoundingClientRect();
+    menu.style.cssText = `top:${r.bottom+4}px;left:${r.left}px`;
+    available.forEach(f => {
+      const opt       = document.createElement('div');
+      opt.className   = 'afm-option';
+      opt.textContent = f.label;
+      opt.addEventListener('click', () => {
+        _defs.push({ field: f.key, search: '' });
+        _buildPanels();
+        menu.remove();
+      });
+      menu.appendChild(opt);
+    });
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+  });
+}
 
-function _render() {
+// ── Full panel build (init / explicit reset only) ─────────────────────────
+
+function _buildPanels() {
   const container = document.getElementById('filters-container');
   if (!container) return;
   container.innerHTML = '';
 
-  _filterDefs.forEach((fd, idx) => {
-    const allValues = _indexValues[fd.field] || [];
-    const counts    = _counts[fd.field] || new Map();
-    const selected  = activeFilters[fd.field] || new Set();
-
-    // Selected values shown as removable tags at the top
-    const tags = [...selected].map(v => `
-      <span class="fg-tag">
-        ${_esc(v)}
-        <button class="fg-tag-remove" data-field="${fd.field}" data-val="${_esc(v)}">✕</button>
-      </span>`).join('');
-
-    const group = document.createElement('div');
-    group.className = 'filter-group';
-    group.innerHTML = `
+  _defs.forEach((def, idx) => {
+    const panel      = document.createElement('div');
+    panel.className  = 'filter-group';
+    panel.id         = `fg-panel-${idx}`;
+    panel.innerHTML  = `
       <div class="fg-header">
-        <span class="fg-title">${_label(fd.field)}</span>
-        <button class="fg-remove" data-idx="${idx}" title="Remove this filter">✕</button>
+        <span class="fg-title">${_label(def.field)}</span>
+        <button class="fg-remove" data-idx="${idx}" title="Remove filter">✕</button>
       </div>
-      <div class="fg-tags">${tags}</div>
-      <div class="fg-combo" data-idx="${idx}">
-        <div class="fg-combo-input" data-idx="${idx}">
-          <input class="fg-search" type="text"
-            placeholder="Search ${allValues.length} values…"
-            value="${_esc(fd.search)}" data-idx="${idx}" autocomplete="off">
+      <div class="fg-tags"  id="fg-tags-${idx}"></div>
+      <div class="fg-combo" id="fg-combo-${idx}">
+        <div class="fg-combo-input" id="fg-input-${idx}">
+          <input id="fg-search-${idx}" class="fg-search" type="text"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="Search ${(_indexValues[def.field]||[]).length} values…"
+                 value="${_esc(def.search)}">
           <span class="fg-combo-arrow">▾</span>
         </div>
-        <div class="fg-dropdown hidden" id="fgd-${idx}">
-          <div class="fg-dropdown-inner"></div>
+        <div class="fg-dropdown" id="fg-dd-${idx}" style="display:none">
+          <div class="fg-dropdown-inner" id="fg-list-${idx}"></div>
         </div>
-      </div>
-    `;
-    container.appendChild(group);
+      </div>`;
+    container.appendChild(panel);
 
-    // Populate dropdown list
-    _populateDropdown(group.querySelector(`#fgd-${idx} .fg-dropdown-inner`),
-                      allValues, counts, selected, fd.field, fd.search);
-  });
-
-  // Events
-  container.querySelectorAll('.fg-remove').forEach(btn =>
-    btn.addEventListener('click', () => _removeFilter(parseInt(btn.dataset.idx)))
-  );
-  container.querySelectorAll('.fg-tag-remove').forEach(btn =>
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      _toggle(btn.dataset.field, btn.dataset.val);
-    })
-  );
-  container.querySelectorAll('.fg-combo-input').forEach(div =>
-    div.addEventListener('click', e => {
-      e.stopPropagation();
-      const idx = parseInt(div.dataset.idx);
-      _toggleDropdown(idx);
-    })
-  );
-  container.querySelectorAll('.fg-search').forEach(input => {
-    input.addEventListener('click', e => e.stopPropagation());
-    input.addEventListener('input', () => {
-      const idx = parseInt(input.dataset.idx);
-      _filterDefs[idx].search = input.value;
-      const allValues = _indexValues[_filterDefs[idx].field] || [];
-      const counts    = _counts[_filterDefs[idx].field] || new Map();
-      const selected  = activeFilters[_filterDefs[idx].field] || new Set();
-      const inner     = document.querySelector(`#fgd-${idx} .fg-dropdown-inner`);
-      if (inner) _populateDropdown(inner, allValues, counts, selected, _filterDefs[idx].field, input.value);
+    panel.querySelector('.fg-remove').addEventListener('click', () => {
+      delete activeFilters[def.field];
+      _defs.splice(idx, 1);
+      _buildPanels();
+      _onChange && _onChange();
     });
+
+    const input = document.getElementById(`fg-search-${idx}`);
+
+    // Key events — update list in-place, never rebuild panels
+    input.addEventListener('input', () => {
+      def.search = input.value;
+      _refreshDropdown(idx);
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); _selectFirst(idx); }
+      if (e.key === 'Escape') { _closeDropdown(idx); input.blur(); }
+    });
+    input.addEventListener('focus', () => _openDropdown(idx));
+    input.addEventListener('click', e => { e.stopPropagation(); _openDropdown(idx); });
+
+    // Arrow / combo wrapper
+    document.getElementById(`fg-combo-${idx}`).addEventListener('click', e => {
+      e.stopPropagation();
+      const dd = document.getElementById(`fg-dd-${idx}`);
+      if (dd.style.display === 'none') { _openDropdown(idx); input.focus(); }
+      else                              { _closeDropdown(idx); }
+    });
+
+    _refreshTags(idx);
+    _refreshDropdown(idx);
   });
 
-  // Update status bar
-  const active = Object.values(activeFilters).filter(s => s.size > 0).length;
-  const el = document.getElementById('st-filters');
-  if (el) el.textContent = active;
+  _updateStatusBar();
 }
 
-function _populateDropdown(container, allValues, counts, selected, field, search) {
-  const q = search.toLowerCase();
-  const filtered = allValues
+// ── In-place refreshes ────────────────────────────────────────────────────
+
+function _refreshTags(idx) {
+  const def = _defs[idx];
+  const el  = document.getElementById(`fg-tags-${idx}`);
+  if (!el || !def) return;
+  const sel = activeFilters[def.field] || new Set();
+  el.innerHTML = [...sel].map(v => `
+    <span class="fg-tag">${_esc(v)}
+      <button class="fg-tag-remove" data-field="${def.field}" data-val="${_esc(v)}">✕</button>
+    </span>`).join('');
+  el.querySelectorAll('.fg-tag-remove').forEach(b =>
+    b.addEventListener('click', e => { e.stopPropagation(); _toggle(b.dataset.field, b.dataset.val); })
+  );
+}
+
+function _refreshDropdown(idx) {
+  const def   = _defs[idx];
+  const list  = document.getElementById(`fg-list-${idx}`);
+  const input = document.getElementById(`fg-search-${idx}`);
+  if (!list || !def) return;
+
+  const all    = _indexValues[def.field] || [];
+  const counts = _counts[def.field]      || new Map();
+  const sel    = activeFilters[def.field] || new Set();
+  const q      = def.search.toLowerCase();
+
+  if (input) input.placeholder = `Search ${all.length} values…`;
+
+  const filtered = all
     .filter(v => v.toLowerCase().includes(q))
-    .map(v => ({ v, count: counts.get(v) || 0 }))
+    .map(v    => ({ v, count: counts.get(v) || 0 }))
     .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
 
-  container.innerHTML = '';
-  if (filtered.length === 0) {
-    container.innerHTML = '<div class="fg-empty">No matching values</div>';
+  list.innerHTML = '';
+  if (!filtered.length) {
+    list.innerHTML = '<div class="fg-empty">No matching values</div>';
     return;
   }
-
   filtered.forEach(({ v, count }) => {
-    const isActive = selected.has(v);
-    const item = document.createElement('div');
-    item.className = 'fg-drop-item' + (isActive ? ' active' : '');
-    item.dataset.field = field;
+    const active = sel.has(v);
+    const item   = document.createElement('div');
+    item.className     = 'fg-drop-item' + (active ? ' active' : '');
+    item.dataset.field = def.field;
     item.dataset.val   = v;
-    item.innerHTML = `
-      <span class="fgi-check">${isActive ? '✓' : ''}</span>
+    item.innerHTML     = `
+      <span class="fgi-check">${active ? '✓' : ''}</span>
       <span class="fgi-name">${_esc(v)}</span>
-      <span class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</span>
-    `;
-    item.addEventListener('click', e => {
-      e.stopPropagation();
-      _toggle(field, v);
-    });
-    container.appendChild(item);
+      <span class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</span>`;
+    // mousedown prevents blur on the search input before the click fires
+    item.addEventListener('mousedown', e => { e.preventDefault(); _toggle(def.field, v); });
+    list.appendChild(item);
   });
 }
 
-function _toggleDropdown(idx) {
-  const dd = document.getElementById(`fgd-${idx}`);
-  if (!dd) return;
-  const isOpen = !dd.classList.contains('hidden');
-  _closeAllDropdowns();
-  if (!isOpen) {
-    dd.classList.remove('hidden');
-    _openDropdown = idx;
-    // Focus search input
-    dd.closest('.fg-combo')?.querySelector('.fg-search')?.focus();
-  }
+function _selectFirst(idx) {
+  const first = document.getElementById(`fg-list-${idx}`)?.querySelector('.fg-drop-item');
+  if (first) _toggle(first.dataset.field, first.dataset.val);
 }
 
-function _closeAllDropdowns() {
-  document.querySelectorAll('.fg-dropdown').forEach(d => d.classList.add('hidden'));
-  _openDropdown = null;
+// ── Open / close ──────────────────────────────────────────────────────────
+
+function _openDropdown(idx) {
+  const dd = document.getElementById(`fg-dd-${idx}`);
+  if (dd) dd.style.display = 'block';
 }
+function _closeDropdown(idx) {
+  const dd = document.getElementById(`fg-dd-${idx}`);
+  if (dd) dd.style.display = 'none';
+}
+function _closeAll() { _defs.forEach((_, i) => _closeDropdown(i)); }
+
+// ── Filter toggle ─────────────────────────────────────────────────────────
 
 function _toggle(field, val) {
   if (!activeFilters[field]) activeFilters[field] = new Set();
@@ -220,61 +252,20 @@ function _toggle(field, val) {
     ? activeFilters[field].delete(val)
     : activeFilters[field].add(val);
   if (activeFilters[field].size === 0) delete activeFilters[field];
-  _render();
-  // Re-open the dropdown for the affected field
-  const idx = _filterDefs.findIndex(f => f.field === field);
-  if (idx >= 0) {
-    const dd = document.getElementById(`fgd-${idx}`);
-    if (dd) dd.classList.remove('hidden');
-  }
+  const idx = _defs.findIndex(d => d.field === field);
+  if (idx >= 0) { _refreshTags(idx); _refreshDropdown(idx); _openDropdown(idx); }
+  _updateStatusBar();
   _onChange && _onChange();
 }
 
-function _removeFilter(idx) {
-  delete activeFilters[_filterDefs[idx].field];
-  _filterDefs.splice(idx, 1);
-  _closeAllDropdowns();
-  _render();
-  _onChange && _onChange();
+function _updateStatusBar() {
+  const el = document.getElementById('st-filters');
+  if (el) el.textContent = Object.values(activeFilters).filter(s => s.size > 0).length;
 }
 
 function _label(key) {
   return (FILTER_FIELDS.find(f => f.key === key) || { label: key.toUpperCase() }).label;
 }
-
 function _esc(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-export function initAddFilterButton(btn) {
-  if (!btn) return;
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    const used      = _filterDefs.map(f => f.field);
-    const available = FILTER_FIELDS.filter(f => !used.includes(f.key));
-    if (!available.length) return;
-
-    document.querySelectorAll('.add-filter-menu').forEach(m => m.remove());
-    const menu = document.createElement('div');
-    menu.className = 'add-filter-menu';
-    const rect = btn.getBoundingClientRect();
-    menu.style.cssText = `top:${rect.bottom+4}px;left:${rect.left}px`;
-
-    available.forEach(f => {
-      const opt = document.createElement('div');
-      opt.className   = 'afm-option';
-      opt.textContent = f.label;
-      opt.addEventListener('click', () => {
-        _filterDefs.push({ field: f.key, search: '' });
-        _render();
-        menu.remove();
-      });
-      menu.appendChild(opt);
-    });
-
-    document.body.appendChild(menu);
-    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
-  });
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

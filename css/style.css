@@ -461,3 +461,7 @@ input[type=file] { display: none; }
 .pu-osm-row:last-child { border-bottom: none; }
 .pu-osm-key { color: var(--text2); flex-shrink: 0; min-width: 120px; }
 .pu-osm-val { color: var(--text); word-break: break-all; }
+
+/* OSM tag value marked as unknown */
+.pu-osm-unknown { color: #f5a623; font-style: italic; }
+.pu-osm-note { font-size: 10px; color: var(--text3); font-style: italic; padding: 4px 0 6px; font-family: var(--mono); }
