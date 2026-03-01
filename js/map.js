@@ -1,10 +1,20 @@
 /**
- * map.js — Leaflet map initialisation, basemaps, geolocation, fullscreen.
+ * map.js — Leaflet map, basemaps, controls, legend.
  */
 
 import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
 
 export let map;
+
+export const SIGNAL_GROUPS = [
+  { key: 'main',     label: 'Main signals',          color: '#e85d5d' },
+  { key: 'distant',  label: 'Distant signals',        color: '#f5c842' },
+  { key: 'speed',    label: 'Speed limits',           color: '#fb923c' },
+  { key: 'route',    label: 'Route indicators',       color: '#38bdf8' },
+  { key: 'stop',     label: 'Stops & infrastructure', color: '#60a5fa' },
+  { key: 'crossing', label: 'Level crossings',        color: '#4ade80' },
+  { key: 'unknown',  label: 'Unsupported types',      color: '#6b7280' },
+];
 
 const BASEMAPS = {
   'jawg-transport': {
@@ -29,8 +39,6 @@ const BASEMAPS = {
 
 const _layers = {};
 let _current  = null;
-let _geolocMarker = null;
-let _geolocCircle = null;
 
 export function initMap(containerId) {
   map = L.map(containerId, { zoomControl: false, maxZoom: 22, preferCanvas: true })
@@ -45,6 +53,7 @@ export function initMap(containerId) {
   _layers[start].addTo(map);
 
   _buildLayerButtons();
+  _buildLegend();
   _buildControls();
   return map;
 }
@@ -54,12 +63,24 @@ function _buildLayerButtons() {
   if (!list) return;
   list.innerHTML = '';
   Object.entries(BASEMAPS).forEach(([key, def]) => {
-    const btn     = document.createElement('button');
-    btn.className = 'layer-btn' + (key === _current ? ' active' : '');
+    const btn = document.createElement('button');
+    btn.className = `layer-btn${key === _current ? ' active' : ''}`;
     btn.dataset.map = key;
     btn.innerHTML = `<span class="layer-dot" style="background:${def.color}"></span>${def.label}`;
     btn.addEventListener('click', () => _setBasemap(key));
     list.appendChild(btn);
+  });
+}
+
+function _buildLegend() {
+  const body = document.getElementById('legend-body');
+  if (!body) return;
+  body.innerHTML = '';
+  SIGNAL_GROUPS.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = `<span class="legend-dot" style="background:${g.color};border-color:rgba(0,0,0,.3)"></span>${g.label}`;
+    body.appendChild(row);
   });
 }
 
@@ -73,28 +94,23 @@ function _setBasemap(key) {
 }
 
 function _buildControls() {
-  // Custom zoom buttons
   document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
   document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
-
-  // Geolocation
   document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
-
-  // Fullscreen
   document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
+
   document.addEventListener('fullscreenchange', () => {
     document.getElementById('btn-fullscreen')
-      ?.classList.toggle('fs-active', !!document.fullscreenElement);
+      ?.classList.toggle('active', !!document.fullscreenElement);
   });
 
   // Sidebar toggle
   document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
-    sidebar?.classList.toggle('sidebar-closed');
-    setTimeout(() => map.invalidateSize(), 200);
+    document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
+    setTimeout(() => map.invalidateSize(), 210);
   });
 
-  // Sidebar tabs
+  // Tab switching
   document.querySelectorAll('.stab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
@@ -103,44 +119,80 @@ function _buildControls() {
       document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
     });
   });
+
+  // Language buttons
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Minimal language switch: French labels
+      _applyLang(btn.dataset.lang);
+    });
+  });
+
+  // Custom toggle switch visual sync
+  const chk = document.getElementById('chk-mapped-only');
+  const track = chk?.closest('label')?.querySelector('.toggle-track');
+  if (chk && track) {
+    const sync = () => track.classList.toggle('checked', chk.checked);
+    chk.addEventListener('change', sync);
+    sync();
+  }
+}
+
+function _applyLang(lang) {
+  const FR = {
+    'Filters': 'Filtres', 'Settings': 'Paramètres', 'About': 'À propos',
+    '+ Add filter': '+ Ajouter', 'Reset': 'Réinitialiser',
+    'Supported only': 'Supportés uniquement', 'Legend': 'Légende',
+    'Base Map': 'Fond de carte', 'Language': 'Langue',
+    'Signals': 'Signaux', 'Filters': 'Filtres', 'Zoom': 'Zoom',
+    'Main signals': 'Signaux principaux', 'Distant signals': 'Signaux de reprise',
+    'Speed limits': 'Limitations de vitesse', 'Route indicators': 'Indicateurs de voie',
+    'Stops & infrastructure': 'Arrêts & infrastructures', 'Level crossings': 'Passages à niveau',
+    'Unsupported types': 'Types non supportés',
+    'Base map': 'Fond de carte',
+  };
+  const EN = Object.fromEntries(Object.entries(FR).map(([k,v]) => [v,k]));
+  const dict = lang === 'fr' ? FR : EN;
+
+  const walk = el => {
+    if (!el) return;
+    if (el.children.length === 0 && el.textContent.trim()) {
+      const t = el.textContent.trim();
+      if (dict[t]) el.textContent = dict[t];
+    }
+    Array.from(el.children).forEach(walk);
+  };
+  // Re-build legend with translated labels
+  SIGNAL_GROUPS.forEach(g => { g._label_fr = g._label_fr || g.label; });
+  // Just walk the sidebar
+  walk(document.getElementById('sidebar'));
+  document.documentElement.lang = lang;
 }
 
 function _geolocate() {
-  if (!navigator.geolocation) { alert('Géolocalisation non disponible.'); return; }
+  if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
   const btn = document.getElementById('btn-geolocate');
   btn?.classList.add('active');
 
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-    if (_geolocMarker) { map.removeLayer(_geolocMarker); _geolocMarker = null; }
-    if (_geolocCircle) { map.removeLayer(_geolocCircle); _geolocCircle = null; }
-
-    _geolocCircle = L.circle([lat, lng], {
-      radius: accuracy, color: '#2589c7', fillColor: '#2589c7',
-      fillOpacity: 0.1, weight: 1,
-    }).addTo(map);
-
-    _geolocMarker = L.circleMarker([lat, lng], {
-      radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
-    }).addTo(map)
-      .bindPopup(`📍 Votre position — précision ±${Math.round(accuracy)} m`);
-
-    const zoom = Math.min(Math.max(map.getZoom(), 14), 17);
-    map.setView([lat, lng], zoom, { animate: false });
+    L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillColor: '#2589c7', fillOpacity: 0.1, weight: 1 }).addTo(map);
+    L.circleMarker([lat, lng], { radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2 })
+      .addTo(map).bindPopup(`My position — accuracy ±${Math.round(accuracy)} m`);
+    map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
     btn?.classList.remove('active');
-
   }, err => {
     btn?.classList.remove('active');
-    alert('Impossible de vous localiser : ' + err.message);
+    alert('Location error: ' + err.message);
   }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
 function _toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.getElementById('app')?.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
+  document.fullscreenElement
+    ? document.exitFullscreen()
+    : document.getElementById('app')?.requestFullscreen();
 }
 
 export function updateZoomStatus(zoom) {
