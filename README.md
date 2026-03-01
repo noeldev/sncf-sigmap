@@ -1,5 +1,7 @@
 # SNCF – Permanent Signalling
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
+
 On-demand map viewer for SNCF permanent signalling data.
 Only the tiles visible in the current viewport are fetched — no full dataset download.
 

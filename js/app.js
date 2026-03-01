@@ -25,8 +25,7 @@ import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js
 
 // Signal types shown in overview mode (prominent, meaningful at country/region scale)
 const OVERVIEW_TYPES = new Set([
-  'CARRE', 'CV', 'S', 'GA', 'D',
-  'A', 'TIV D FIXE', 'TIV D MOB', 'TIV PENDIS',
+  'CARRE', 'CV', 'S', 'GA', 'D', 'A', 'TIV D FIXE', 'TIV D MOB',
 ]);
 
 let manifest      = null;

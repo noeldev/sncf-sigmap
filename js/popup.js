@@ -154,13 +154,13 @@ function _build(feats, idx) {
       </details>
       <div class="pu-footer">
         <button class="pu-action-btn" data-action="copy"
-          title="Copy merged OSM tags — paste into JOSM tag editor">
-          ${_svgCopy()} Copy tags
+          title="Copy OSM tags to clipboard">
+          ${_svgCopy()}
         </button>
         <button class="pu-action-btn pu-josm-btn" data-action="josm"
-          title="Add node in JOSM via Remote Control">
-          <img src="assets/svg/josm.svg" width="14" height="14" alt="JOSM"
-               style="vertical-align:-2px;flex-shrink:0"> Open in JOSM
+          title="Export OSM tags to JOSM via Remote Control">
+          <img src="assets/svg/josm.svg" width="20" height="20" alt="JOSM"
+               style="vertical-align:middle;flex-shrink:0">
         </button>
       </div>
     </div>`;
