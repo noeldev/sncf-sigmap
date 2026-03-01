@@ -1,31 +1,24 @@
 /**
  * app.js — Main orchestration.
  *
- * Two display modes:
+ * OVERVIEW mode (zoom < OVERVIEW_MAX_ZOOM):
+ *   Only primary signal types are shown, spatially subsampled to ~100.
  *
- * OVERVIEW (zoom < OVERVIEW_MAX_ZOOM):
- *   Only primary signal types (CARRE, S, A, D, TIV…) are requested.
- *   The worker spatially subsamples to OVERVIEW_MAX_SIGNALS (~100).
- *   Gives a useful national/regional view without overloading the renderer.
- *
- * DETAIL (zoom >= OVERVIEW_MAX_ZOOM):
- *   All signals in the current viewport bbox are shown, all types.
- *   At zoom 11+ the viewport is small enough that there are rarely more
- *   than a few hundred signals visible even in dense areas.
- *   No subsampling — what you see is what's in the data.
+ * DETAIL mode (zoom >= OVERVIEW_MAX_ZOOM):
+ *   All signals within the current viewport bbox, all types, no limit.
  */
 
-import { initMap, map, updateZoomStatus }                      from './map.js';
+import { initMap, map, updateZoomStatus }                       from './map.js';
 import { loadManifest, getTileUrlsForBounds, getManifestStats } from './tiles.js';
 import { initFilters, loadFilterIndex, indexSignals, resetCounts,
          resetFilters, getActiveFiltersForWorker,
          initAddFilterButton }                                  from './filters.js';
-import { openSignalPopup, getTypeColor }                       from './popup.js';
-import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
+import { openSignalPopup, getTypeColor, buildTooltip }          from './popup.js';
+import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS }  from './config.js';
 
-// Signal types shown in overview mode (prominent, meaningful at country/region scale)
 const OVERVIEW_TYPES = new Set([
-  'CARRE', 'CV', 'S', 'GA', 'D', 'A', 'TIV D FIXE', 'TIV D MOB',
+  'CARRE', 'CV', 'S', 'GA', 'D', 'A',
+  'TIV D FIXE', 'TIV D MOB', 'TIV PENDIS',
 ]);
 
 let manifest      = null;
@@ -43,13 +36,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   initFilters(_onFilterChange);
   initAddFilterButton(document.getElementById('btn-add-filter'));
   document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
-    resetFilters();
-    _refresh(true);
+    resetFilters(); _refresh(true);
   });
 
   console.info('[App] TILES_BASE:', TILES_BASE);
-
   _setProgress(true, 'Loading index…');
+
   [manifest] = await Promise.all([
     loadManifest(),
     loadFilterIndex(TILES_BASE),
@@ -62,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const { tileCount, totalSignals } = getManifestStats(manifest);
-  console.info(`[App] ${totalSignals.toLocaleString()} signals in ${tileCount} tiles`);
+  console.info(`[App] ${totalSignals.toLocaleString()} signals, ${tileCount} tiles`);
   document.getElementById('record-count').textContent =
     `${totalSignals.toLocaleString()} signals — ${tileCount} tiles`;
 
@@ -73,22 +65,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   map.on('moveend zoomend', _debounce(() => {
     const z = map.getZoom();
     updateZoomStatus(z);
-    const zoomCrossedThreshold =
-      (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
-    const zoomChanged = zoomCrossedThreshold || Math.abs(z - _lastZoom) >= 2;
+    const crossedThreshold = (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
     _lastZoom = z;
-    _onMapMove(zoomChanged);
+    _onMapMove(crossedThreshold);
   }, 280));
 
-  _lastZoom = map.getZoom();
   _onMapMove(true);
 });
 
-function _onMapMove(force = false) {
-  _refresh(force);
-}
-
-function _onFilterChange() { _refresh(true); }
+function _onMapMove(force = false) { _refresh(force); }
+function _onFilterChange()         { _refresh(true); }
 
 function _refresh(force = false) {
   if (loadRunning) { loadPending = true; return; }
@@ -108,7 +94,6 @@ function _refresh(force = false) {
     _setSampledBadge(false);
     return;
   }
-
   _runWorker(bounds, tileUrls, zoom);
 }
 
@@ -117,21 +102,18 @@ function _runWorker(bounds, tileUrls, zoom) {
   loadRunning = true;
   _setProgress(true, `Loading ${tileUrls.length} tile(s)…`);
 
-  worker     = new Worker('./js/geojson.worker.js');
-  const sw   = bounds.getSouthWest();
-  const ne   = bounds.getNorthEast();
-  const overview = zoom < OVERVIEW_MAX_ZOOM;
+  worker           = new Worker('./js/geojson.worker.js');
+  const sw         = bounds.getSouthWest();
+  const ne         = bounds.getNorthEast();
+  const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
   worker.onmessage = e => {
     const { status, msg, signals, sampled, total } = e.data;
     if (status === 'progress') { _setProgress(true, msg); return; }
-
     worker.terminate(); worker = null;
     loadRunning = false;
     _setProgress(false);
-
     if (status === 'error') { console.error('[Worker]', e.data.error); return; }
-
     _renderSignals(signals);
     indexSignals(signals);
     _setSampledBadge(sampled, total);
@@ -148,15 +130,14 @@ function _runWorker(bounds, tileUrls, zoom) {
     urls:          tileUrls,
     activeFilters: getActiveFiltersForWorker(),
     bounds:        { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
-    overviewTypes: overview ? [...OVERVIEW_TYPES] : null,
-    maxSignals:    overview ? OVERVIEW_MAX_SIGNALS : null,
+    overviewTypes: isOverview ? [...OVERVIEW_TYPES] : null,
+    maxSignals:    isOverview ? OVERVIEW_MAX_SIGNALS : null,
   });
 }
 
 function _renderSignals(signals) {
   markersLayer.clearLayers();
 
-  // Group co-located signals (same physical location)
   const groups = {};
   for (const s of signals) {
     const key = (s.p.code_voie && s.p.pk)
@@ -176,6 +157,10 @@ function _renderSignals(signals) {
       iconAnchor: [multi ? 7 : 5,   multi ? 7 : 5],
     });
     L.marker([lat, lng], { icon })
+      .bindTooltip(buildTooltip(feats), {
+        direction: 'top', offset: [0, -6],
+        className: 'sig-tooltip', sticky: false,
+      })
       .on('click', () => openSignalPopup([lat, lng], feats, 0))
       .addTo(markersLayer);
   }
@@ -189,7 +174,7 @@ function _setSampledBadge(sampled, total) {
   if (!el) return;
   el.style.display = sampled ? 'inline' : 'none';
   if (sampled && total)
-    el.title = `Overview — ${total.toLocaleString()} matching signals, zoom in (≥${OVERVIEW_MAX_ZOOM}) to see all`;
+    el.title = `Overview — ${total.toLocaleString()} matching signals. Zoom ≥${OVERVIEW_MAX_ZOOM} for full detail.`;
 }
 
 function _setProgress(visible, msg = '') {
