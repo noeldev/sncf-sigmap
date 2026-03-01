@@ -1,11 +1,11 @@
 /**
- * app.js — Main orchestration.
+ * app.js — Main orchestration module.
  *
- * OVERVIEW mode (zoom < OVERVIEW_MAX_ZOOM):
- *   Only primary signal types are shown, spatially subsampled to ~100.
+ * Overview mode (zoom < OVERVIEW_MAX_ZOOM):
+ *   Only primary signal types are displayed, spatially subsampled to ~100 markers.
  *
- * DETAIL mode (zoom >= OVERVIEW_MAX_ZOOM):
- *   All signals within the current viewport bbox, all types, no limit.
+ * Detail mode (zoom >= OVERVIEW_MAX_ZOOM):
+ *   All signals in the current viewport bbox, all types, no count limit.
  */
 
 import { initMap, map, updateZoomStatus }                       from './map.js';
@@ -15,7 +15,9 @@ import { initFilters, loadFilterIndex, indexSignals, resetCounts,
          initAddFilterButton }                                  from './filters.js';
 import { openSignalPopup, getTypeColor, buildTooltip }          from './popup.js';
 import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS }  from './config.js';
+import { t }                                                    from './i18n.js';
 
+// Signal types shown in overview mode
 const OVERVIEW_TYPES = new Set([
   'CARRE', 'CV', 'S', 'GA', 'D', 'A',
   'TIV D FIXE', 'TIV D MOB', 'TIV PENDIS',
@@ -40,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   console.info('[App] TILES_BASE:', TILES_BASE);
-  _setProgress(true, 'Loading index…');
+  _setProgress(true, t('progress.index'));
 
   [manifest] = await Promise.all([
     loadManifest(),
@@ -54,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const { tileCount, totalSignals } = getManifestStats(manifest);
-  console.info(`[App] ${totalSignals.toLocaleString()} signals, ${tileCount} tiles`);
+  console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
   document.getElementById('record-count').textContent =
     `${totalSignals.toLocaleString()} signals — ${tileCount} tiles`;
 
@@ -74,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function _onMapMove(force = false) { _refresh(force); }
-function _onFilterChange()         { _refresh(true); }
+function _onFilterChange()         { _refresh(true);  }
 
 function _refresh(force = false) {
   if (loadRunning) { loadPending = true; return; }
@@ -100,7 +102,7 @@ function _refresh(force = false) {
 function _runWorker(bounds, tileUrls, zoom) {
   if (worker) { worker.terminate(); worker = null; }
   loadRunning = true;
-  _setProgress(true, `Loading ${tileUrls.length} tile(s)…`);
+  _setProgress(true, t('progress.tiles', tileUrls.length));
 
   worker           = new Worker('./js/geojson.worker.js');
   const sw         = bounds.getSouthWest();
@@ -138,6 +140,7 @@ function _runWorker(bounds, tileUrls, zoom) {
 function _renderSignals(signals) {
   markersLayer.clearLayers();
 
+  // Group co-located signals by track + PK (or fallback to exact coordinates)
   const groups = {};
   for (const s of signals) {
     const key = (s.p.code_voie && s.p.pk)
@@ -154,7 +157,7 @@ function _renderSignals(signals) {
       className:  '',
       html:       `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color}"></div>`,
       iconSize:   [multi ? 14 : 10, multi ? 14 : 10],
-      iconAnchor: [multi ? 7 : 5,   multi ? 7 : 5],
+      iconAnchor: [multi ? 7  : 5,  multi ? 7  : 5 ],
     });
     L.marker([lat, lng], { icon })
       .bindTooltip(buildTooltip(feats), {
@@ -174,7 +177,7 @@ function _setSampledBadge(sampled, total) {
   if (!el) return;
   el.style.display = sampled ? 'inline' : 'none';
   if (sampled && total)
-    el.title = `Overview — ${total.toLocaleString()} matching signals. Zoom ≥${OVERVIEW_MAX_ZOOM} for full detail.`;
+    el.title = `Overview sample — ${total.toLocaleString()} matching signals. Zoom ≥${OVERVIEW_MAX_ZOOM} for full detail.`;
 }
 
 function _setProgress(visible, msg = '') {
@@ -184,7 +187,8 @@ function _setProgress(visible, msg = '') {
 }
 
 function _debounce(fn, ms) {
-  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
 function _eqSets(a, b) {

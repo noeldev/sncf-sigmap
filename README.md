@@ -1,32 +1,40 @@
-# SNCF – Permanent Signalling
+# SNCF Signalisation Permanente
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
 
-On-demand map viewer for SNCF permanent signalling data.
-Only the tiles visible in the current viewport are fetched — no full dataset download.
+Interactive map viewer for the [SNCF permanent railway signalling](https://data.sncf.com/) open dataset, with OpenStreetMap integration via JOSM Remote Control or clipboard copy.
 
----
+Only tiles visible in the current viewport are fetched — no full dataset download.
 
-## How it works
+## Features
+
+- **123,870 signals** across France, split into ~289 gzip-compressed tiles (0.5° × 0.5°)
+- Progressive display: overview mode at low zoom (major signal types only), full detail at zoom ≥ 10
+- Hover tooltips and click popups with signal metadata
+- OSM existence check per signal via Overpass API (✓ / ✗ badge in popup)
+- Export to JOSM via Remote Control (`127.0.0.1:8111`) or copy tags to clipboard
+- Filters by type, line code, track name, direction, position
+- Three basemaps: Jawg Transport, OpenStreetMap, Satellite
+- EN / FR interface
+
+## Architecture
 
 ```
-signalisation-permanente.geojson   (anywhere on your machine, never committed)
+signalisation-permanente.geojson   (never committed — 102 MB)
         │
-        ▼  TileBuilder  (C# tool, run once or after a data update)
+        ▼  TileBuilder  (C# tool)
         │
 data/tiles/
-  manifest.json       ← tile index, ~20 KB
-  5_10.json.gz        ← ~800 files, 5–30 KB each (gzip-compressed)
+  manifest.json       ← tile index (~20 KB)
+  index.json          ← filter index (type_if, code_ligne values)
+  -4_97.json.gz       ← one tile per 0.5° cell, 5–30 KB each
         │
-        ▼  Git commit + push  →  Netlify auto-deploys
+        ▼  git commit + push  →  Netlify auto-deploys
         │
-https://your-site.netlify.app
+https://sncf-sigmap.netlify.app
 ```
 
-The tiles are committed to Git alongside the source code.
-Netlify picks them up automatically on every push.
-
----
+Tiles are committed to Git and deployed by Netlify alongside the source code. The `netlify.toml` sets `Content-Encoding: gzip` headers so the browser decompresses tiles transparently.
 
 ## First-time setup
 
@@ -34,78 +42,101 @@ Netlify picks them up automatically on every push.
 
 Open `tools/TileBuilder/TileBuilder.csproj` in Visual Studio 2022.
 
-Configure the debug profile:
-*Project → Properties → Debug → Open debug launch profiles UI*
+Set the debug profile arguments (*Project → Properties → Debug → Open debug launch profiles UI*):
 
 | Field | Value |
 |-------|-------|
-| Command line arguments | `"C:\path\to\signalisation-permanente.geojson"  "C:\path\to\sncf-sigmap\data\tiles"` |
-| Working directory | *(leave blank — paths are absolute)* |
+| Command line arguments | `"C:\path\to\signalisation-permanente.geojson" "C:\path\to\sncf-sigmap\data\tiles"` |
 
-Press **Ctrl+F5**. Takes ~10 s.
-Output: `data\tiles\manifest.json` + ~800 `.json.gz` files.
+Press **Ctrl+F5** — takes about 10 s. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
 
 ### 2. Set your Jawg API key
 
 Edit `js/config.js`:
+
 ```js
 export const JAWG_API_KEY = 'your-token-here';
 ```
 
-**Important — restrict your key to your domain:**
-1. Go to https://lab.jawg.io → your token → **Restrictions**
-2. Add your Netlify domain: `https://your-site.netlify.app`
+Restrict the key to your domain at [lab.jawg.io](https://lab.jawg.io) → token → Restrictions → add your Netlify URL.
 
-This prevents anyone from using your key on another site even if they read your source code.
+The app falls back to OpenStreetMap tiles automatically if the token is the default placeholder.
 
-### 3. Commit and push
+### 3. Commit and deploy
 
-In VS 2022: *Git → Commit All* → message (e.g. `Add tiles and Jawg key`) → **Commit All and Push**.
+```
+git add data/tiles js/config.js
+git commit -m "Add tiles and config"
+git push
+```
 
-Netlify will deploy automatically within ~30 seconds.
+Netlify deploys within ~30 s.
 
----
+## Updating tiles
 
-## Updating tiles  *(only needed if the source data changes)*
-
-1. Re-run TileBuilder with the new GeoJSON
-2. *Git → Commit All* → `Update tiles` → **Commit All and Push**
-
----
+Re-run TileBuilder after a source data update, then commit and push. Only changed tiles are re-deployed (Netlify caches unchanged files).
 
 ## JOSM integration
 
+### Prerequisites
+
+JOSM → Edit → Preferences → Remote Control → **Enable remote control**
+
 ### Copy tags
-Click **Copy tags** in the signal popup.
-In JOSM: select a node → Tags panel → paste (`key=value` lines, one per tag).
 
-### Open in JOSM  *(Remote Control)*
-1. JOSM → Edit → Preferences → Remote Control → **Enable remote control** → OK
-2. Click **Open in JOSM** — a new node is created at the exact signal coordinates with all OSM tags.
+Click **Copy tags** in the signal popup. In JOSM: select or create a node → Tags panel → paste.
 
----
+### Open in JOSM
+
+Click **Open in JOSM** — a node is created at the signal's exact coordinates with all OSM tags pre-filled. Requires Firefox or Chrome (they allow HTTP requests to `127.0.0.1` from HTTPS pages; Safari does not).
+
+If a signal is already in OSM (✓ badge), a confirmation dialog appears before exporting.
+
+### OSM existence check
+
+Each signal popup queries the [Overpass API](https://overpass-api.de/) to check whether a node with the corresponding `railway:signal:*:ref` tag already exists in OSM:
+
+- **✓ OSM** — signal found, export will show a confirmation prompt
+- **✗ OSM** — not yet mapped
+- **…** — check in progress
+
+Results are cached for the session.
 
 ## Project structure
 
 ```
 sncf-sigmap/
 ├── index.html
-├── favicon.svg / .png / signal-avl.svg
-├── robots.txt / netlify.toml / .gitignore / .gitattributes
+├── netlify.toml            ← gzip Content-Encoding headers for tiles
 ├── css/style.css
 ├── js/
-│   ├── config.js            ← ⚠ Set JAWG_API_KEY + restrict it on lab.jawg.io
-│   ├── app.js               ← Orchestration, tile loading, marker rendering
-│   ├── map.js               ← Leaflet, basemaps, geolocation
-│   ├── tiles.js             ← Manifest loader, tile URL calculator
-│   ├── filters.js           ← TYPE IF / CODE LIGNE filter panel
-│   ├── popup.js             ← Signal popup, Copy tags, Open in JOSM
-│   └── geojson.worker.js    ← Tile fetch + spatial/attribute filter (off-thread)
-├── data/tiles/              ← Generated by TileBuilder, committed to Git
+│   ├── config.js           ← JAWG_API_KEY, tile constants
+│   ├── app.js              ← orchestration, tile loading, marker rendering
+│   ├── map.js              ← Leaflet, basemaps, controls, legend
+│   ├── tiles.js            ← manifest loader, tile URL calculator
+│   ├── filters.js          ← filter panel (type, line, track, direction…)
+│   ├── popup.js            ← signal popup, copy tags, JOSM export
+│   ├── osm-check.js        ← Overpass API existence check
+│   ├── i18n.js             ← EN / FR translations
+│   ├── signal-mapping.js   ← SNCF type_if → OSM tag mapping
+│   └── geojson.worker.js   ← tile fetch + spatial/attribute filtering (Web Worker)
+├── assets/
+│   ├── png/                ← SNCF logo, favicon
+│   └── svg/                ← favicon, JOSM, OSM, basemap icons
+├── data/tiles/             ← generated by TileBuilder, committed to Git
 │   ├── manifest.json
+│   ├── index.json
 │   └── *.json.gz
 └── tools/
-    └── TileBuilder/
+    └── TileBuilder/        ← C# tile generator
         ├── Program.cs
         └── TileBuilder.csproj
 ```
+
+## Data sources
+
+| Source | Licence |
+|--------|---------|
+| [Signalisation permanente SNCF](https://data.sncf.com/) | [Licence Ouverte 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence) |
+| [OpenStreetMap](https://www.openstreetmap.org/) | [ODbL](https://opendatacommons.org/licenses/odbl/) |
+| [Jawg Maps](https://jawg.io/) | Commercial (free tier) |

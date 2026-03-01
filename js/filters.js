@@ -1,56 +1,54 @@
 /**
  * filters.js — Filter panel with combo-box dropdowns.
  *
- * _buildPanels() creates DOM once. _refreshDropdown() / _refreshTags()
- * mutate existing elements — focus is never lost on keystroke.
- * mousedown on items calls e.preventDefault() to prevent input blur.
+ * Starts empty; the user adds filters via the "+ Add filter" button.
+ * Available fields: type_if, code_ligne, nom_voie, sens, position.
+ * The "Supported only" toggle is rendered inside the type_if filter group.
  */
 
-import { SIGNAL_MAPPING } from './signal-mapping.js';
+import { SIGNAL_MAPPING }       from './signal-mapping.js';
+import { t, applyTranslations } from './i18n.js';
 
-export const FILTER_FIELDS = [
-  { key: 'type_if',    label: 'TYPE IF' },
-  { key: 'code_ligne', label: 'CODE LIGNE' },
+export const ALL_FILTER_FIELDS = [
+  { key: 'type_if',    labelKey: 'field.type_if'    },
+  { key: 'code_ligne', labelKey: 'field.code_ligne'  },
+  { key: 'nom_voie',   labelKey: 'field.nom_voie'    },
+  { key: 'sens',       labelKey: 'field.sens'        },
+  { key: 'position',   labelKey: 'field.position'    },
 ];
 
 export let activeFilters = {};
 
-let _indexValues = { type_if: [], code_ligne: [] };
-let _counts      = { type_if: new Map(), code_ligne: new Map() };
-let _defs        = [
-  { field: 'type_if',    search: '' },
-  { field: 'code_ligne', search: '' },
-];
+let _indexValues = {};
+let _counts      = {};
+let _defs        = [];   // starts empty; user adds via "+ Add filter"
 let _mappedOnly  = false;
 let _mappedTypes = new Set(Object.keys(SIGNAL_MAPPING));
 let _onChange    = null;
+
+ALL_FILTER_FIELDS.forEach(f => {
+  _indexValues[f.key] = [];
+  _counts[f.key]      = new Map();
+});
 
 export function initFilters(onChange) {
   _onChange = onChange;
   activeFilters = {};
   _buildPanels();
+
   document.addEventListener('click', e => {
     if (!e.target.closest('.fg-combo')) _closeAll();
   });
-  const chk = document.getElementById('chk-mapped-only');
-  if (chk) {
-    chk.addEventListener('change', () => {
-      _mappedOnly = chk.checked;
-      activeFilters = {};
-      _defs.forEach(d => { d.search = ''; });
-      _buildPanels();
-      _onChange?.();
-    });
-  }
 }
 
 export async function loadFilterIndex(tilesBase) {
   try {
-    const res  = await fetch(tilesBase + 'index.json');
+    const res = await fetch(tilesBase + 'index.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    _indexValues.type_if    = data.type_if    || [];
-    _indexValues.code_ligne = data.code_ligne || [];
+    ALL_FILTER_FIELDS.forEach(f => {
+      if (data[f.key]) _indexValues[f.key] = data[f.key];
+    });
     _defs.forEach((_, i) => _refreshDropdown(i));
   } catch (err) {
     console.warn('[Filters] index.json:', err.message);
@@ -60,20 +58,21 @@ export async function loadFilterIndex(tilesBase) {
 export function indexSignals(signals) {
   let changed = false;
   for (const s of signals) {
-    for (const f of ['type_if', 'code_ligne']) {
-      const v = s.p[f];
-      if (v) { _counts[f].set(v, (_counts[f].get(v) || 0) + 1); changed = true; }
-    }
+    ALL_FILTER_FIELDS.forEach(f => {
+      const v = s.p[f.key];
+      if (v) { _counts[f.key].set(v, (_counts[f.key].get(v) || 0) + 1); changed = true; }
+    });
   }
   if (changed) _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
 export function resetCounts() {
-  _counts = { type_if: new Map(), code_ligne: new Map() };
+  ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
 }
 
 export function resetFilters() {
   activeFilters = {};
+  _mappedOnly   = false;
   _defs.forEach(d => { d.search = ''; });
   _buildPanels();
   _onChange?.();
@@ -91,20 +90,25 @@ export function initAddFilterButton(btn) {
   if (!btn) return;
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    const used      = _defs.map(d => d.field);
-    const available = FILTER_FIELDS.filter(f => !used.includes(f.key));
+    const used      = new Set(_defs.map(d => d.field));
+    const available = ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
     if (!available.length) return;
 
     document.querySelectorAll('.add-filter-menu').forEach(m => m.remove());
     const menu = document.createElement('div');
     menu.className = 'add-filter-menu';
     const r = btn.getBoundingClientRect();
-    Object.assign(menu.style, { top: r.bottom + 4 + 'px', left: r.left + 'px' });
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top:  (r.bottom + 4) + 'px',
+      left: r.left + 'px',
+      zIndex: '9999',
+    });
 
     available.forEach(f => {
       const opt = document.createElement('div');
       opt.className   = 'afm-option';
-      opt.textContent = f.label;
+      opt.textContent = t(f.labelKey);
       opt.addEventListener('mousedown', e2 => {
         e2.preventDefault();
         _defs.push({ field: f.key, search: '' });
@@ -113,14 +117,15 @@ export function initAddFilterButton(btn) {
       });
       menu.appendChild(opt);
     });
+
     document.body.appendChild(menu);
-    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+    setTimeout(() => {
+      document.addEventListener('click', () => menu.remove(), { once: true });
+    }, 10);
   });
 }
 
-// ---------------------------------------------------------------------------
-// Panel construction (once per reset or structural change)
-// ---------------------------------------------------------------------------
+/* ===== Panel DOM ===== */
 
 function _buildPanels() {
   const container = document.getElementById('filters-container');
@@ -128,24 +133,43 @@ function _buildPanels() {
   container.innerHTML = '';
 
   _defs.forEach((def, idx) => {
+    const isTypeIf = def.field === 'type_if';
+    const label    = t(ALL_FILTER_FIELDS.find(f => f.key === def.field)?.labelKey || def.field);
+
     const panel = document.createElement('div');
     panel.className = 'filter-group';
+
+    // Render the "Supported only" toggle inside the type_if filter group only
+    const supportedHtml = isTypeIf ? `
+      <div class="supported-only-row">
+        <label class="supported-only-label">
+          <input type="checkbox" id="chk-mapped-only" class="sr-only"${_mappedOnly ? ' checked' : ''}>
+          <span class="toggle-track${_mappedOnly ? ' checked' : ''}">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="toggle-label" data-i18n="toggle.supported">${t('toggle.supported')}</span>
+        </label>
+      </div>` : '';
+
     panel.innerHTML = `
       <div class="fg-header">
-        <span class="fg-title">${_label(def.field)}</span>
-        <button class="fg-remove" title="Remove filter">&#10005;</button>
+        <span class="fg-title">${label}</span>
+        <button class="fg-remove" title="${t('dropdown.remove')}">&#10005;</button>
       </div>
       <div class="fg-tags" id="fgt-${idx}"></div>
       <div class="fg-combo" id="fgc-${idx}">
         <div class="fg-combo-input" id="fgci-${idx}">
           <input id="fgi-${idx}" class="fg-search" type="text"
-                 autocomplete="off" spellcheck="false" placeholder="Search…">
+                 autocomplete="off" spellcheck="false"
+                 placeholder="${t('dropdown.search', 0)}">
           <span class="fg-combo-arrow">&#9662;</span>
         </div>
         <div class="fg-dropdown" id="fgd-${idx}" style="display:none">
           <div id="fgl-${idx}" class="fg-dropdown-inner"></div>
         </div>
-      </div>`;
+      </div>
+      ${supportedHtml}`;
+
     container.appendChild(panel);
 
     panel.querySelector('.fg-remove').addEventListener('click', () => {
@@ -156,20 +180,35 @@ function _buildPanels() {
     });
 
     const input = document.getElementById(`fgi-${idx}`);
-    input.addEventListener('input', () => { def.search = input.value; _refreshDropdown(idx); });
+    input.addEventListener('input',   () => { def.search = input.value; _refreshDropdown(idx); });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter')  { e.preventDefault(); _selectFirst(idx); }
       if (e.key === 'Escape') { _closeDropdown(idx); }
     });
     input.addEventListener('focus', () => _openDropdown(idx));
 
-    document.getElementById(`fgci-${idx}`).addEventListener('mousedown', e => {
-      if (e.target === input) return;
-      e.preventDefault();
-      document.getElementById(`fgd-${idx}`).style.display === 'none'
-        ? (_openDropdown(idx), input.focus())
-        : _closeDropdown(idx);
-    });
+    document.getElementById(`fgci-${idx}`)
+      .addEventListener('mousedown', e => {
+        if (e.target === input) return;
+        e.preventDefault();
+        document.getElementById(`fgd-${idx}`).style.display === 'none'
+          ? (_openDropdown(idx), input.focus())
+          : _closeDropdown(idx);
+      });
+
+    if (isTypeIf) {
+      const chk = panel.querySelector('#chk-mapped-only');
+      if (chk) {
+        chk.addEventListener('change', () => {
+          _mappedOnly = chk.checked;
+          _syncToggle(_mappedOnly);
+          delete activeFilters['type_if'];
+          _defs.forEach(d => { if (d.field === 'type_if') d.search = ''; });
+          _buildPanels();
+          _onChange?.();
+        });
+      }
+    }
 
     _refreshTags(idx);
     _refreshDropdown(idx);
@@ -178,9 +217,12 @@ function _buildPanels() {
   _updateStatusBar();
 }
 
-// ---------------------------------------------------------------------------
-// In-place DOM updates (no rebuild, no focus loss)
-// ---------------------------------------------------------------------------
+function _syncToggle(checked) {
+  const track = document.querySelector('.toggle-track');
+  if (track) track.classList.toggle('checked', checked);
+}
+
+/* ===== In-place DOM updates (avoid losing focus) ===== */
 
 function _refreshTags(idx) {
   const def = _defs[idx];
@@ -192,9 +234,8 @@ function _refreshTags(idx) {
     const tag = document.createElement('span');
     tag.className = 'fg-tag';
     tag.innerHTML = `${_esc(v)} <button class="fg-tag-remove">&#10005;</button>`;
-    tag.querySelector('.fg-tag-remove').addEventListener('mousedown', e => {
-      e.preventDefault(); _toggle(def.field, v);
-    });
+    tag.querySelector('.fg-tag-remove')
+      .addEventListener('mousedown', e => { e.preventDefault(); _toggle(def.field, v); });
     el.appendChild(tag);
   }
 }
@@ -205,38 +246,35 @@ function _refreshDropdown(idx) {
   const input = document.getElementById(`fgi-${idx}`);
   if (!list || !def) return;
 
-  let all      = _indexValues[def.field] || [];
-  const counts = _counts[def.field] || new Map();
-  const sel    = activeFilters[def.field] || new Set();
-  const q      = (def.search || '').toLowerCase();
+  let all  = _indexValues[def.field] || [];
+  const sel = activeFilters[def.field] || new Set();
+  const q   = (def.search || '').toLowerCase();
 
-  // When "mapped only" is active for type_if, filter the list
-  // AND suppress the mapped-indicator dot (it's implicit, all items are mapped)
   const isMappedOnlyActive = _mappedOnly && def.field === 'type_if';
   if (isMappedOnlyActive) all = all.filter(v => _mappedTypes.has(v));
 
-  if (input) input.placeholder = `Search ${all.length} values…`;
+  if (input) input.placeholder = t('dropdown.search', all.length);
 
   const filtered = all
     .filter(v => v.toLowerCase().includes(q))
-    .map(v => ({ v, count: counts.get(v) || 0, mapped: _mappedTypes.has(v) }))
+    .map(v => ({ v, count: _counts[def.field]?.get(v) || 0, mapped: _mappedTypes.has(v) }))
     .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
 
   list.innerHTML = '';
   if (!filtered.length) {
-    list.innerHTML = `<div class="fg-empty">No matching values</div>`;
+    list.innerHTML = `<div class="fg-empty">${t('dropdown.noMatch')}</div>`;
     return;
   }
 
   filtered.forEach(({ v, count, mapped }) => {
-    const active = sel.has(v);
-    const item   = document.createElement('div');
-    // Show mapped dot only when "mapped only" checkbox is NOT active
+    const active  = sel.has(v);
     const showDot = mapped && !isMappedOnlyActive;
+    const item    = document.createElement('div');
     item.className     = `fg-drop-item${active ? ' active' : ''}${showDot ? ' mapped' : ''}`;
     item.dataset.field = def.field;
     item.dataset.val   = v;
     item.innerHTML     = `
+      <span class="fgi-check${active ? ' checked' : ''}"></span>
       <span class="fgi-name">${_esc(v)}</span>
       <span class="fgi-count">${count > 0 ? count.toLocaleString() : ''}</span>`;
     item.addEventListener('mousedown', e => { e.preventDefault(); _toggle(def.field, v); });
@@ -249,13 +287,11 @@ function _selectFirst(idx) {
   if (first) _toggle(first.dataset.field, first.dataset.val);
 }
 
-function _openDropdown(idx) {
-  const dd = document.getElementById(`fgd-${idx}`);
-  if (dd) dd.style.display = 'block';
+function _openDropdown(idx)  {
+  const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.style.display = 'block';
 }
 function _closeDropdown(idx) {
-  const dd = document.getElementById(`fgd-${idx}`);
-  if (dd) dd.style.display = 'none';
+  const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.style.display = 'none';
 }
 function _closeAll() { _defs.forEach((_, i) => _closeDropdown(i)); }
 
@@ -265,7 +301,6 @@ function _toggle(field, val) {
     ? activeFilters[field].delete(val)
     : activeFilters[field].add(val);
   if (activeFilters[field].size === 0) delete activeFilters[field];
-
   const idx = _defs.findIndex(d => d.field === field);
   if (idx >= 0) { _refreshTags(idx); _refreshDropdown(idx); _openDropdown(idx); }
   _updateStatusBar();
@@ -277,10 +312,8 @@ function _updateStatusBar() {
   if (el) el.textContent = Object.values(activeFilters).filter(s => s.size > 0).length;
 }
 
-function _label(key) {
-  return (FILTER_FIELDS.find(f => f.key === key) || { label: key.toUpperCase() }).label;
-}
 function _esc(str) {
   return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
