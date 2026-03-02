@@ -84,6 +84,8 @@ async function _fetchTile(url) {
 /**
  * Spatial grid subsampling.
  * Divides the bounding box into a grid, keeps the first signal per cell.
+ * No early exit — all signals are scanned so that all geographic areas are represented.
+ * (An early break would cause western signals to fill the grid before eastern ones arrive.)
  */
 function _spatialSample(signals, maxCount) {
   let minLat = Infinity, maxLat = -Infinity;

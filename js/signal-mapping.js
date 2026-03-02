@@ -17,8 +17,149 @@
  *   railway:signal:position={{position}}
  *   source=SNCF - 03/2022
  *
+ * ORM signal categories: main, distant, shunting, crossing_info, electricity,
+ *   speed_limit, speed_limit_distant, speed_limit_reminder, whistle, route,
+ *   route_distant, wrong_road, stop, station_distant, train_protection, departure
+ *
  * Reference: https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
+
+// ===== Display categories -> colour =====
+// These are the application-level display categories shown in the legend and on markers.
+// They deliberately group ORM signal categories for readability (e.g. all speed_limit*
+// variants share one colour). ORM tag categories in SIGNAL_MAPPING are not affected.
+
+export const CATEGORY_COLORS = {
+    "main":          "#e85d5d",   // red    — main signals (carré, S, GA, …)
+    "distant":       "#f5c842",   // yellow — distant / approach (A, D, …)
+    "speed_limit":   "#fb923c",   // orange — all speed_limit* variants
+    "route":         "#38bdf8",   // sky blue — route* (ID, IDD, CHEVRON, …)
+    "stop":          "#60a5fa",   // blue   — stop (arrêt voyageurs, GA, …)
+    "shunting":      "#a78bfa",   // violet — shunting / manœuvres
+    "crossing":      "#4ade80",   // green  — crossing* (PN, …)
+    "electricity":   "#e879f9",   // magenta — traction electricity
+    "train_protection": "#f43f5e", // rose  — cab signalling / ETCS
+    "wrong_road":    "#ef4444",   // red    — contre-sens (TECS, TSCS)
+    "station":       "#64748b",   // grey-blue — station / stop approach
+    "miscellaneous": "#94a3b8",   // slate  — departure, whistle, gabarit, …
+    "unsupported":   "#4b5563",   // dark grey — types not yet mapped
+};
+
+// ===== type_if -> ORM category =====
+// Sources: SIGNAL_MAPPING entries + PDF mapping table.
+// Used for marker colour and legend.
+
+export const SIGNAL_TYPE_CATEGORY = {
+    // Main signals
+    "CARRE":        "main",
+    "S":            "main",
+    "GA":           "main",
+    "R30":          "main",
+    "RR30":         "main",
+
+    // CV is a shunting signal (carré violet = violet square)
+    "CV":           "main",
+
+    // Distant signals
+    "A":            "distant",
+    "D":            "distant",
+    "CARRE A":      "distant",
+
+    // Speed limit (execution)
+    "Z":            "speed_limit",
+    "R":            "speed_limit",
+    "TIV PENEXE":   "speed_limit",
+    "TIV PENREP":   "speed_limit",
+    "TIVD B FIX":   "speed_limit",
+    "TIVD C FIX":   "speed_limit",
+
+    // Speed limit (reminder)
+    "TIV R MOB":    "speed_limit_reminder",
+
+    // Speed limit (advance / distant)
+    "TIV D FIXE":   "speed_limit_distant",
+    "TIV D MOB":    "speed_limit_distant",
+    "TIV PENDIS":   "speed_limit_distant",
+    "P":            "speed_limit_distant",
+
+    // Route
+    "ID":           "route",
+    "CHEVRON":      "route",
+
+    // Route distant
+    "IDD":          "route_distant",
+    "IDP":          "route_distant",
+    "TLD":          "route_distant",
+
+    // Stop
+    "ARRET VOY":    "stop",
+    "ARRET":        "stop",
+    "STOP":         "stop",
+    "ATC":          "stop",
+    "GA_STOP":      "stop",
+    "JAL ARRET":    "stop",
+
+    // Shunting
+    "HEURTOIR":     "shunting",
+    "DEPOT":        "shunting",
+    "G":            "shunting",
+    "IMP":          "shunting",
+    "JAL MAN":      "shunting",
+    "LGR":          "shunting",
+    "LM":           "shunting",
+    "MV":           "shunting",
+    "SLM":          "shunting",
+
+    // Crossing
+    "PN":           "crossing_info",
+    "PN...":        "crossing_info",
+
+    // Electricity / traction
+    "BP DIS":       "electricity",
+    "BP EXE":       "electricity",
+    "BP FIN":       "electricity",
+    "CC EXE":       "electricity",
+    "CC FIN":       "electricity",
+    "REV":          "electricity",
+    "SECT":         "electricity",
+    "GIVRE":        "electricity",
+    "FIN CAT":      "electricity",
+    "BIMODE":       "electricity",
+    "BIMODE A":     "electricity",
+
+    // Cab signalling / train protection
+    "CAB E":        "train_protection",
+    "CAB R":        "train_protection",
+    "CAB S":        "train_protection",
+
+    // Wrong road
+    "TECS":         "wrong_road",
+    "TSCS":         "wrong_road",
+
+    // Departure
+    "DD":           "departure",
+    "MIBLAN VER":   "departure",
+    "SLD":          "departure",
+
+    // Whistle
+    "SIFFLER":      "whistle",
+
+    // Station / stop approach
+    "APPROCHETS":   "station_distant",
+    "APPROETSA":    "station_distant",
+    "ARRET A":      "station_distant",
+    "GARE":         "station_distant",
+};
+
+export function getTypeCategory(type_if) {
+    return SIGNAL_TYPE_CATEGORY[type_if] || "unsupported";
+}
+
+export function getTypeColor(type_if) {
+    return CATEGORY_COLORS[getTypeCategory(type_if)];
+}
+
+// ===== OSM tag mapping (supported types only) =====
 
 export const SIGNAL_MAPPING = {
 
@@ -99,7 +240,7 @@ export const SIGNAL_MAPPING = {
     ],
 
     "TIV PENEXE": [
-        "railway:signal:speed_limit=FR:TIV_PENEXE",
+        "railway:signal:speed_limit=FR:TIV-PENEXE",
         "railway:signal:speed_limit:form=sign",
         "railway:signal:speed_limit:function=entry",
         "railway:signal:speed_limit:speed=60",
@@ -107,11 +248,25 @@ export const SIGNAL_MAPPING = {
     ],
 
     "TIV PENREP": [
-        "railway:signal:speed_limit=FR:TIV_PENREP",
+        "railway:signal:speed_limit=FR:TIV-PENREP",
         "railway:signal:speed_limit:form=sign",
         "railway:signal:speed_limit:function=exit",
         "railway:signal:speed_limit:speed=none",
         "railway:signal:speed_limit:ref={{idreseau}}",
+    ],
+
+    "TIVD B FIX": [
+        "railway:signal:speed_limit_distant=FR:TIV-D_B_FIXE",
+        "railway:signal:speed_limit_distant:form=sign",
+        "railway:signal:speed_limit_distant:shape=square",
+        "railway:signal:speed_limit_distant:ref={{idreseau}}",
+    ],
+
+    "TIVD C FIX": [
+        "railway:signal:speed_limit_distant=FR:TIV-D_C_FIXE",
+        "railway:signal:speed_limit_distant:form=sign",
+        "railway:signal:speed_limit_distant:shape=square",
+        "railway:signal:speed_limit_distant:ref={{idreseau}}",
     ],
 
     // Speed restriction markers
@@ -130,13 +285,13 @@ export const SIGNAL_MAPPING = {
         "railway:signal:speed_limit:ref={{idreseau}}",
     ],
 
+    // Route signals
+
     "CHEVRON": [
         "railway:signal:route=FR:CHEVRON_BAS",
         "railway:signal:route:form=sign",
         "railway:signal:route:ref={{idreseau}}",
     ],
-
-    // Route signals
 
     "ID": [
         "railway:signal:route=FR:ID",
@@ -174,9 +329,87 @@ export const SIGNAL_MAPPING = {
         "railway:signal:crossing_info:form=sign",
         "railway:signal:crossing_info:ref={{idreseau}}",
     ],
+
+    // Electricity / traction
+
+    "BP DIS": [
+        "railway:signal:electricity=FR:BP_DIS",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    "BP EXE": [
+        "railway:signal:electricity=FR:BP_EXE",
+        "railway:signal:electricity:function=entry",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    "BP FIN": [
+        "railway:signal:electricity=FR:BP_FIN",
+        "railway:signal:electricity:function=exit",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    "CC EXE": [
+        "railway:signal:electricity=FR:CC_EXE",
+        "railway:signal:electricity:function=entry",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    "CC FIN": [
+        "railway:signal:electricity=FR:CC_FIN",
+        "railway:signal:electricity:function=exit",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    "REV": [
+        "railway:signal:electricity=FR:REV",
+        "railway:signal:electricity:ref={{idreseau}}",
+    ],
+
+    // Cab signalling / train protection
+
+    "CAB E": [
+        "railway:signal:train_protection=FR:CAB_E",
+        "railway:signal:train_protection:function=entry",
+        "railway:signal:train_protection:ref={{idreseau}}",
+    ],
+
+    "CAB S": [
+        "railway:signal:train_protection=FR:CAB_S",
+        "railway:signal:train_protection:function=exit",
+        "railway:signal:train_protection:ref={{idreseau}}",
+    ],
+
+    // Wrong road / contre-sens
+
+    "TECS": [
+        "railway:signal:wrong_road=FR:TECS",
+        "railway:signal:wrong_road:function=entry",
+        "railway:signal:wrong_road:ref={{idreseau}}",
+    ],
+
+    "TSCS": [
+        "railway:signal:wrong_road=FR:TSCS",
+        "railway:signal:wrong_road:function=exit",
+        "railway:signal:wrong_road:ref={{idreseau}}",
+    ],
+
+    // Whistle
+
+    "SIFFLER": [
+        "railway:signal:whistle=yes",
+        "railway:signal:whistle:ref={{idreseau}}",
+    ],
+
+    // Departure
+
+    "SLD": [
+        "railway:signal:departure=FR:SLD",
+        "railway:signal:departure:ref={{idreseau}}",
+    ],
 };
 
-// Field value converters applied when resolving {{field}} placeholders
+// ===== Field value converters for {{placeholder}} resolution =====
 
 export const FIELD_CONVERTERS = {
 
@@ -186,18 +419,18 @@ export const FIELD_CONVERTERS = {
         const m = raw.match(/^(\d+)\+(\d+)$/);
         if (!m) return raw;
         const km = parseInt(m[1], 10);
-        const dec = m[2].padEnd(3, '0').slice(0, 3);
+        const dec = m[2].padEnd(3, "0").slice(0, 3);
         return `${km}.${dec}`;
     },
 
     // C->forward, D->backward, B->both
     sens: (raw) => {
-        return { C: 'forward', D: 'backward', B: 'both' }[raw] || raw;
+        return { C: "forward", D: "backward", B: "both" }[raw] || raw;
     },
 
     // A->bridge, D->right, G->left
     position: (raw) => {
-        return { A: 'bridge', D: 'right', G: 'left' }[raw] || raw;
+        return { A: "bridge", D: "right", G: "left" }[raw] || raw;
     },
 };
 

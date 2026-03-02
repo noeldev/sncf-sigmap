@@ -26,7 +26,7 @@
           <div class="logo-title" data-i18n="subtitle2">Permanente</div>
         </div>
       </div>
-      <div id="record-count" class="record-count" data-i18n="loading">Loading…</div>
+      <div id="record-count" class="record-count">…</div>
     </div>
 
     <nav id="sidebar-tabs">
@@ -43,7 +43,7 @@
       </div>
       <div id="filters-container"></div>
       <div class="legend-spacer"></div>
-      <details id="legend">
+      <details id="legend" open>
         <summary class="legend-summary">
           <svg class="legend-arrow" viewBox="0 0 8 8" width="8" height="8"
                fill="currentColor" aria-hidden="true"><polygon points="0,0 8,4 0,8"/></svg>
@@ -96,17 +96,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Hamburger toggle: absolute on sidebar right edge, always visible -->
-    <button id="btn-sidebar-toggle" class="sidebar-toggle"
-            data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
-      <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true">
-        <rect y="2.5"  width="20" height="2" rx="1"/>
-        <rect y="9"    width="20" height="2" rx="1"/>
-        <rect y="15.5" width="20" height="2" rx="1"/>
-      </svg>
-    </button>
-
   </aside>
 
   <!-- Map -->
@@ -115,6 +104,11 @@
 
     <!-- Map controls: top-right, counterweight to the left sidebar -->
     <div id="map-controls">
+      <button id="btn-sidebar-toggle" class="mc-btn"
+              data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
+        <img src="assets/svg/icon-hamburger.svg" width="15" height="15" alt="" class="mc-icon">
+      </button>
+      <div class="mc-sep"></div>
       <button id="btn-zoom-in"  class="mc-btn mc-zoom"
               data-i18n-title="ctrl.zoomIn"  title="Zoom in">+</button>
       <button id="btn-zoom-out" class="mc-btn mc-zoom"

@@ -1,38 +1,54 @@
 /**
- * map.js — Leaflet map initialisation, basemaps, controls, legend, language picker.
+ * map.js — Leaflet initialisation, basemaps, controls, legend, language picker.
  */
 
 import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
 import { LANGS, getLang, setLang, applyTranslations, t }  from './i18n.js';
+import { CATEGORY_COLORS, SIGNAL_TYPE_CATEGORY }          from './signal-mapping.js';
 
 export let map;
 
-// Signal type groups with their display colour — must match popup.js TYPE_GROUPS
-export const SIGNAL_GROUPS = [
-  { key: 'main',     color: '#e85d5d' },
-  { key: 'distant',  color: '#f5c842' },
-  { key: 'speed',    color: '#fb923c' },
-  { key: 'route',    color: '#38bdf8' },
-  { key: 'stop',     color: '#60a5fa' },
-  { key: 'crossing', color: '#4ade80' },
-  { key: 'unknown',  color: '#6b7280' },
+// Display categories shown in the legend, in logical order
+const LEGEND_CATEGORIES = [
+  'main', 'distant',
+  'speed_limit',
+  'route',
+  'stop', 'shunting',
+  'crossing',
+  'electricity', 'train_protection',
+  'wrong_road',
+  'station',
+  'miscellaneous',
+  'unsupported',
 ];
 
 const BASEMAPS = {
   'jawg-transport': {
     labelKey: 'basemap.jawg',
+    thumb:    'assets/png/thumb-jawg-transport-thumb.png',
     url:  `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`,
-    opts: { attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 22 },
+    opts: {
+      attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+      maxZoom: 22,
+    },
   },
   'osm': {
     labelKey: 'basemap.osm',
+    thumb:    'assets/png/thumb-osm-thumb.png',
     url:  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    opts: { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 20 },
+    opts: {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+      maxZoom: 20,
+    },
   },
   'satellite': {
     labelKey: 'basemap.satellite',
+    thumb:    'assets/png/thumb-satellite-thumb.png',
     url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    opts: { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: 20 },
+    opts: {
+      attribution: '© Esri, Maxar, Earthstar Geographics',
+      maxZoom: 20,
+    },
   },
 };
 
@@ -47,7 +63,6 @@ export function initMap(containerId) {
     _tileLayers[key] = L.tileLayer(def.url, def.opts);
   });
 
-  // Fall back to OSM if no Jawg key is configured
   _current = (JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN') ? 'osm' : DEFAULT_BASEMAP;
   _tileLayers[_current].addTo(map);
 
@@ -65,10 +80,13 @@ function _buildLayerButtons() {
   list.innerHTML = '';
   Object.entries(BASEMAPS).forEach(([key, def]) => {
     const btn = document.createElement('button');
-    btn.className    = `layer-btn${key === _current ? ' active' : ''}`;
-    btn.dataset.map  = key;
-    btn.innerHTML    = `<img src="assets/svg/${key}.svg" width="20" height="20" alt=""
-                             class="layer-icon" style="opacity:.85"> ${t(def.labelKey)}`;
+    btn.className   = `layer-btn${key === _current ? ' active' : ''}`;
+    btn.dataset.map = key;
+    // Map thumbnail image (cropped PNG) with rounded corners
+    btn.innerHTML = `
+      <img src="${def.thumb}" width="36" height="36" alt=""
+           class="layer-thumb" onerror="this.style.display='none'">
+      <span>${t(def.labelKey)}</span>`;
     btn.addEventListener('click', () => _setBasemap(key));
     list.appendChild(btn);
   });
@@ -78,11 +96,12 @@ function _buildLegend() {
   const body = document.getElementById('legend-body');
   if (!body) return;
   body.innerHTML = '';
-  SIGNAL_GROUPS.forEach(g => {
-    const row = document.createElement('div');
+  LEGEND_CATEGORIES.forEach(cat => {
+    const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.unknown;
+    const row   = document.createElement('div');
     row.className = 'legend-row';
-    row.innerHTML = `<span class="legend-dot" style="background:${g.color}"></span>
-                     <span data-i18n="group.${g.key}">${t('group.' + g.key)}</span>`;
+    row.innerHTML = `<span class="legend-dot" style="background:${color}"></span>
+                     <span data-i18n="cat.${cat}">${t('cat.' + cat)}</span>`;
     body.appendChild(row);
   });
 }
@@ -90,17 +109,22 @@ function _buildLegend() {
 function _buildLangPicker() {
   const dropdown = document.getElementById('lang-dropdown');
   const btn      = document.getElementById('lang-select-btn');
-  const flag     = document.getElementById('lang-flag');
-  const label    = document.getElementById('lang-label');
   if (!dropdown || !btn) return;
 
   const _updateBtn = () => {
     const lang = getLang();
     const def  = LANGS.find(l => l.code === lang) || LANGS[0];
-    if (flag)  flag.textContent  = _flagEmoji(def.code);
-    if (label) label.textContent = def.label;
-    dropdown.querySelectorAll('.lang-option').forEach(o =>
-      o.classList.toggle('active', o.dataset.lang === lang));
+    const flag = document.getElementById('lang-flag');
+    const lbl  = document.getElementById('lang-label');
+    if (flag) {
+      // SVG flag as <img>
+      flag.innerHTML = `<img src="assets/svg/flag-${def.code}.svg"
+                             width="20" height="14" alt="${def.label}"
+                             style="border-radius:2px;object-fit:cover;border:1px solid rgba(255,255,255,.15)">`;
+    }
+    if (lbl)  lbl.textContent = def.label;
+    dropdown.querySelectorAll('.lang-option')
+      .forEach(o => o.classList.toggle('active', o.dataset.lang === lang));
   };
 
   dropdown.innerHTML = '';
@@ -108,7 +132,10 @@ function _buildLangPicker() {
     const li = document.createElement('li');
     li.className    = `lang-option${lang.code === getLang() ? ' active' : ''}`;
     li.dataset.lang = lang.code;
-    li.innerHTML    = `<span class="lang-flag-img">${_flagEmoji(lang.code)}</span> ${lang.label}`;
+    li.innerHTML    = `<img src="assets/svg/flag-${lang.code}.svg"
+                            width="20" height="14" alt="${lang.label}"
+                            style="border-radius:2px;object-fit:cover;border:1px solid rgba(255,255,255,.15)">
+                       ${lang.label}`;
     li.addEventListener('mousedown', e => {
       e.preventDefault();
       setLang(lang.code);
@@ -122,14 +149,7 @@ function _buildLangPicker() {
 
   btn.addEventListener('click', e => { e.stopPropagation(); dropdown.classList.toggle('open'); });
   document.addEventListener('click', () => dropdown.classList.remove('open'));
-
   _updateBtn();
-}
-
-function _flagEmoji(code) {
-  // Emoji flag map avoids CSS font dependency (works on Edge/Windows)
-  const flags = { en: '🇬🇧', fr: '🇫🇷' };
-  return flags[code] || code.toUpperCase();
 }
 
 function _setBasemap(key) {
@@ -146,14 +166,13 @@ function _buildControls() {
   document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
   document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
   document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
-
-  document.addEventListener('fullscreenchange', () =>
-    document.getElementById('btn-fullscreen')?.classList.toggle('active', !!document.fullscreenElement));
-
   document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
     document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
     setTimeout(() => map.invalidateSize(), 210);
   });
+
+  document.addEventListener('fullscreenchange', () =>
+    document.getElementById('btn-fullscreen')?.classList.toggle('active', !!document.fullscreenElement));
 
   document.querySelectorAll('.stab').forEach(tab =>
     tab.addEventListener('click', () => {
@@ -171,7 +190,7 @@ function _geolocate() {
   navigator.geolocation.getCurrentPosition(
     pos => {
       const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-      L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillColor: '#2589c7', fillOpacity: .1, weight: 1 }).addTo(map);
+      L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1 }).addTo(map);
       L.circleMarker([lat, lng], { radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2 })
         .addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
       map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });

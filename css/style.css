@@ -54,28 +54,10 @@ a:hover { text-decoration: underline; }
   width: 0; min-width: 0;
   border-right-color: transparent;
 }
-/* Hide inner content when closed, but leave the toggle tab protruding */
-#sidebar.sidebar-closed > *:not(.sidebar-toggle) {
-  overflow: hidden; opacity: 0; pointer-events: none;
-}
 
 #map-container { flex: 1; position: relative; overflow: hidden; }
 #map { width: 100%; height: 100%; }
 
-/* ===== Hamburger toggle ===== */
-
-/* Attached to the right edge of the sidebar; slides with it and stays visible when closed */
-.sidebar-toggle {
-  position: absolute; top: 50%; right: -28px; transform: translateY(-50%);
-  width: 28px; height: 52px; z-index: 10;
-  background: var(--panel); border: 1px solid var(--border2); border-left: none;
-  border-radius: 0 var(--radius) var(--radius) 0;
-  color: var(--text2); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 2px 0 8px rgba(0,0,0,.3);
-  transition: background .15s, color .15s;
-}
-.sidebar-toggle:hover { background: var(--panel2); color: var(--text); }
 
 /* ===== Header ===== */
 
@@ -279,17 +261,6 @@ a:hover { text-decoration: underline; }
   letter-spacing: .7px; font-family: var(--mono); color: var(--text3); margin-bottom: 8px;
 }
 
-.layer-btn {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  background: var(--panel2); border: 1px solid var(--border);
-  color: var(--text2); font-size: 12px;
-  padding: 8px 10px; border-radius: var(--radius);
-  cursor: pointer; text-align: left; margin-bottom: 4px;
-  transition: border-color .15s, color .15s;
-}
-.layer-btn:hover  { border-color: var(--border2); color: var(--text); }
-.layer-btn.active { border-color: var(--accent2); color: var(--text); }
-.layer-icon { object-fit: contain; flex-shrink: 0; }
 
 /* Language dropdown */
 .lang-select-wrap { position: relative; }
@@ -414,7 +385,6 @@ a:hover { text-decoration: underline; }
 .leaflet-tooltip.sig-tooltip::before,
 .leaflet-tooltip.sig-tooltip::after { display: none !important; }
 .tt-row   { display: flex; align-items: baseline; gap: 7px; }
-.tt-types { margin-bottom: 2px; }
 .tt-key   { color: var(--text2); min-width: 68px; font-size: 10px; }
 
 /* ===== Leaflet overrides ===== */
@@ -440,12 +410,20 @@ a:hover { text-decoration: underline; }
 .leaflet-popup-close-button  { display: none !important; }
 
 /* Signal popup tip pointing to the marker */
-.pu-leaflet .leaflet-popup-tip-container { display: block; }
+/* Signal popup tip: overlaps with popup border so it looks like a true pointer */
+.pu-leaflet .leaflet-popup-tip-container {
+  display: block;
+  height: 10px;       /* clip the lower half of the rotated square */
+  overflow: hidden;
+  margin-top: -1px;   /* flush with popup content wrapper */
+}
 .pu-leaflet .leaflet-popup-tip {
   width: 14px; height: 14px; margin: 0 auto;
   background: var(--panel) !important;
-  /* box-shadow simulates a border on the two visible rotated sides */
+  /* border on the two sides visible after 45deg rotation */
   box-shadow: 1px 1px 0 0 var(--border2) !important;
+  transform: rotate(45deg);
+  margin-top: -8px;   /* pull up so only tip pokes out of the container */
 }
 
 .pu-wrap { min-width: 280px; max-width: 340px; }
@@ -536,3 +514,40 @@ a.pu-osm-indicator:hover { opacity: .7; }
 }
 .pu-action-btn:hover      { background: var(--accent);  border-color: var(--accent); }
 .pu-josm-btn:hover        { background: var(--success); border-color: var(--success); }
+
+/* ===== Tooltip multi-signal layout ===== */
+
+.tt-multi     { margin-bottom: 3px; }
+.tt-pair      { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tt-type      { font-weight: 700; font-size: 11px; }
+.tt-id        { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+.tt-single-type { font-size: 12px; margin-bottom: 2px; }
+
+/* ===== Layer button thumbnail ===== */
+
+.layer-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: var(--panel2); border: 1px solid var(--border);
+  color: var(--text2); font-size: 12px;
+  padding: 6px 10px; border-radius: var(--radius);
+  cursor: pointer; text-align: left; margin-bottom: 4px;
+  transition: border-color .15s, color .15s;
+}
+.layer-btn:hover  { border-color: var(--border2); color: var(--text); }
+.layer-btn.active { border-color: var(--accent2); color: var(--text); }
+.layer-thumb {
+  border-radius: 4px; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,.12);
+  object-fit: cover;
+}
+
+/* ===== Button icon alignment ===== */
+
+.btn-icon   { vertical-align: -2px; flex-shrink: 0; }
+.mc-icon    { display: block; }
+
+/* ===== Disabled footer button ===== */
+
+.pu-action-btn:disabled {
+  opacity: .35; cursor: not-allowed; pointer-events: none;
+}

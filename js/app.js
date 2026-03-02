@@ -57,8 +57,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const { tileCount, totalSignals } = getManifestStats(manifest);
   console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-  document.getElementById('record-count').textContent =
-    `${totalSignals.toLocaleString()} signals — ${tileCount} tiles`;
+  const count = `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
+  document.getElementById('record-count').textContent = count;
+  // Store for language refresh
+  window._sncfRecordCount = { totalSignals, tileCount };
 
   _setProgress(false);
   _lastZoom = map.getZoom();
