@@ -3,29 +3,15 @@
  */
 
 import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
-import { LANGS, getLang, setLang, applyTranslations, t }  from './i18n.js';
-import { CATEGORY_COLORS, SIGNAL_TYPE_CATEGORY }          from './signal-mapping.js';
+import { LANGS, getLang, setLang, applyTranslations, t } from './i18n.js';
+import { CATEGORY_INFO } from './signal-mapping.js';
 
 export let map;
-
-// Display categories shown in the legend, in logical order
-const LEGEND_CATEGORIES = [
-  'main', 'distant',
-  'speed_limit',
-  'route',
-  'stop', 'shunting',
-  'crossing',
-  'electricity', 'train_protection',
-  'wrong_road',
-  'station',
-  'miscellaneous',
-  'unsupported',
-];
 
 const BASEMAPS = {
   'jawg-transport': {
     labelKey: 'basemap.jawg',
-    thumb:    'assets/png/thumb-jawg-transport-thumb.png',
+    thumb:    'assets/png/jawg-transport-thumb.png',
     url:  `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`,
     opts: {
       attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
@@ -34,7 +20,7 @@ const BASEMAPS = {
   },
   'osm': {
     labelKey: 'basemap.osm',
-    thumb:    'assets/png/thumb-osm-thumb.png',
+    thumb:    'assets/png/osm-thumb.png',
     url:  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     opts: {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
@@ -43,7 +29,7 @@ const BASEMAPS = {
   },
   'satellite': {
     labelKey: 'basemap.satellite',
-    thumb:    'assets/png/thumb-satellite-thumb.png',
+    thumb:    'assets/png/satellite-thumb.png',
     url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     opts: {
       attribution: '© Esri, Maxar, Earthstar Geographics',
@@ -92,12 +78,13 @@ function _buildLayerButtons() {
   });
 }
 
+// Legend order derived from CATEGORY_INFO key order
 function _buildLegend() {
   const body = document.getElementById('legend-body');
   if (!body) return;
   body.innerHTML = '';
-  LEGEND_CATEGORIES.forEach(cat => {
-    const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.unknown;
+  Object.keys(CATEGORY_INFO).forEach(cat => {
+    const color = CATEGORY_INFO[cat] || CATEGORY_INFO.unknown;
     const row   = document.createElement('div');
     row.className = 'legend-row';
     row.innerHTML = `<span class="legend-dot" style="background:${color}"></span>

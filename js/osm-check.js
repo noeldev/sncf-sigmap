@@ -8,44 +8,8 @@
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const FRANCE_BBOX  = '41.3,-5.5,51.2,9.6';
 
-// For each type_if, the OSM tag that stores the SNCF idreseau.
-// Derived from the :ref tag in SIGNAL_MAPPING.
-const TYPE_REF_TAG = {
-  'CARRE':      'railway:signal:main:ref',
-  'CV':         'railway:signal:main:ref',
-  'S':          'railway:signal:main:ref',
-  'GA':         'railway:signal:main:ref',
-  'A':          'railway:signal:distant:ref',
-  'D':          'railway:signal:distant:ref',
-  'TIV D FIXE':'railway:signal:speed_limit_distant:ref',
-  'TIV D MOB': 'railway:signal:speed_limit_distant:ref',
-  'TIV PENDIS':'railway:signal:speed_limit_distant:ref',
-  'TIV PENEXE':'railway:signal:speed_limit:ref',
-  'TIV PENREP':'railway:signal:speed_limit:ref',
-  'TIV R MOB': 'railway:signal:speed_limit_reminder:ref',
-  'TIVD B FIX':'railway:signal:speed_limit_distant:ref',
-  'TIVD C FIX':'railway:signal:speed_limit_distant:ref',
-  'Z':         'railway:signal:speed_limit:ref',
-  'R':         'railway:signal:speed_limit:ref',
-  'CHEVRON':   'railway:signal:route:ref',
-  'ID':        'railway:signal:route:ref',
-  'IDD':       'railway:signal:route_distant:ref',
-  'ARRET VOY': 'railway:signal:stop:ref',
-  'HEURTOIR':  'railway:signal:shunting:ref',
-  'PN':        'railway:signal:crossing_info:ref',
-  'BP DIS':    'railway:signal:electricity:ref',
-  'BP EXE':    'railway:signal:electricity:ref',
-  'BP FIN':    'railway:signal:electricity:ref',
-  'CC EXE':    'railway:signal:electricity:ref',
-  'CC FIN':    'railway:signal:electricity:ref',
-  'REV':       'railway:signal:electricity:ref',
-  'CAB E':     'railway:signal:train_protection:ref',
-  'CAB S':     'railway:signal:train_protection:ref',
-  'TECS':      'railway:signal:wrong_road:ref',
-  'TSCS':      'railway:signal:wrong_road:ref',
-  'SIFFLER':   'railway:signal:whistle:ref',
-  'SLD':       'railway:signal:departure:ref',
-};
+// TYPE_REF_TAG is auto-derived from signal-mapping.js
+import { TYPE_REF_TAG } from './signal-mapping.js';
 
 /**
  * Result shape:

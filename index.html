@@ -106,27 +106,21 @@
     <div id="map-controls">
       <button id="btn-sidebar-toggle" class="mc-btn"
               data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
-        <img src="assets/svg/icon-hamburger.svg" width="15" height="15" alt="" class="mc-icon">
+        <span class="icon icon-hamburger" aria-hidden="true"></span>
       </button>
       <div class="mc-sep"></div>
-      <button id="btn-zoom-in"  class="mc-btn mc-zoom"
-              data-i18n-title="ctrl.zoomIn"  title="Zoom in">+</button>
-      <button id="btn-zoom-out" class="mc-btn mc-zoom"
-              data-i18n-title="ctrl.zoomOut" title="Zoom out">−</button>
+      <button id="btn-zoom-in"  class="mc-btn"
+              data-i18n-title="ctrl.zoomIn"  title="Zoom in"><span class="icon icon-zoom-in" aria-hidden="true"></span></button>
+      <button id="btn-zoom-out" class="mc-btn"
+              data-i18n-title="ctrl.zoomOut" title="Zoom out"><span class="icon icon-zoom-out" aria-hidden="true"></span></button>
       <div class="mc-sep"></div>
       <button id="btn-geolocate"  class="mc-btn"
               data-i18n-title="ctrl.locate" title="My location">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
-             stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-          <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-        </svg>
+        <span class="icon icon-locate" aria-hidden="true"></span>
       </button>
       <button id="btn-fullscreen" class="mc-btn"
               data-i18n-title="ctrl.fullscreen" title="Fullscreen">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-             stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-        </svg>
+        <span class="icon icon-fullscreen" aria-hidden="true"></span>
       </button>
     </div>
 

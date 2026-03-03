@@ -6,8 +6,6 @@
  *   import { t, setLang, applyTranslations } from './i18n.js'
  *
  * HTML pattern: <div data-i18n="key">Fallback text</div>
- *   The inline fallback is intentional — it is shown before JS runs (no flash
- *   of untranslated content). applyTranslations() overwrites it immediately.
  *   Use data-i18n-html for strings containing HTML markup.
  *   Use data-i18n-title for title attributes.
  */
@@ -89,12 +87,13 @@ const STRINGS = {
     'osm.inOsm':      'Already in OpenStreetMap',
     'osm.notInOsm':   'Not yet in OpenStreetMap',
     'osm.error':      'OSM check failed (network error)',
+    'osm.retry':      'Retry OSM check',
     'osm.warnSingle': 'This signal appears to already be in OpenStreetMap. Export anyway?',
     'osm.warnMulti':  'One or more signals in this group appear to already be in OpenStreetMap. Export anyway?',
 
-    // Display categories (legend) — coarser than ORM tag categories, used for colours only
+    // Display categories (legend)
     'cat.main':             'Main signals',
-    'cat.distant':          'Distant / approach',
+    'cat.distant':          'Distant signals',
     'cat.speed_limit':      'Speed limits',
     'cat.route':            'Route indicators',
     'cat.stop':             'Stop signals',
@@ -103,7 +102,7 @@ const STRINGS = {
     'cat.electricity':      'Traction electricity',
     'cat.train_protection': 'Cab signalling / ETCS',
     'cat.wrong_road':       'Wrong-road (contre-sens)',
-    'cat.station':          'Station approach',
+    'cat.station':          'Station and facilities',
     'cat.miscellaneous':    'Miscellaneous',
     'cat.unsupported':      'Unsupported types',
 
@@ -113,65 +112,75 @@ const STRINGS = {
     'about.usage.text':    'Zoom in to load signals. At low zoom only major types are shown; zoom ≥10 displays all types in the viewport. Click any marker to view properties and export OSM tags.',
     'about.links.title':   'Links',
     'about.credits.title': 'Credits',
+    'about.credits': 'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
 
     // JOSM changeset comment
-    'josm.comment': 'Integration of railway signals from SNCF Open Data',
+    'josm.comment': 'Integration of railway signals #SNCF #OpenData',
 
     // Record count (lowercase for inline use)
     'status.signals_lower': 'signals',
     'status.tiles_lower':   'tiles',
-
-
-    'about.credits':       'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
   },
 
 
   fr: {
+      // Sidebar header
     'subtitle1': 'Signalisation',
     'subtitle2': 'Permanente',
     'loading':   'Chargement…',
 
+      // Tabs
     'tab.filters':  'Filtres',
     'tab.settings': 'Paramètres',
     'tab.about':    'À propos',
 
+    // Filter toolbar
     'btn.addFilter':    '+ Ajouter',
     'btn.reset':        'Réinitialiser',
     'toggle.supported': 'Supportés uniquement',
 
+    // Legend
     'legend.title': 'Légende',
 
+    // Filter field labels
     'field.type_if':    'TYPE IF',
     'field.code_ligne': 'CODE LIGNE',
     'field.nom_voie':   'NOM VOIE',
     'field.sens':       'SENS',
     'field.position':   'POSITION',
 
+    // Dropdown
     'dropdown.search':  n => `Rechercher parmi ${n} valeurs…`,
     'dropdown.noMatch': 'Aucune valeur',
     'dropdown.remove':  'Supprimer le filtre',
 
+    // Settings
     'settings.basemap':  'Fond de carte',
     'settings.language': 'Langue',
 
+    // Basemap names
     'basemap.jawg':      'Jawg Transport',
     'basemap.osm':       'OpenStreetMap',
     'basemap.satellite': 'Satellite',
 
+    // Controls
     'ctrl.toggle':     'Afficher/masquer le panneau',
     'ctrl.zoomIn':     'Zoom avant',
     'ctrl.zoomOut':    'Zoom arrière',
     'ctrl.locate':     'Ma position',
     'ctrl.fullscreen': 'Plein écran',
 
+    // Status bar
     'status.signals': 'Signaux',
     'status.filters': 'Filtres',
     'status.zoom':    'Zoom',
 
+    // Progress messages
     'progress.index':     'Chargement de l\'index…',
     'progress.tiles':     n => `Chargement de ${n} tuile(s)…`,
     'progress.filtering': 'Filtrage…',
 
+    // Popup
     'popup.of':       'sur',
     'popup.osmTags':  n => n > 1 ? `Tags OSM (${n} signaux)` : 'Tags OSM',
     'popup.merged':   n => `Tags fusionnés pour ${n} signaux co-localisés`,
@@ -180,24 +189,18 @@ const STRINGS = {
     'popup.copied':   'Copié !',
     'popup.josmSent': 'Envoyé à JOSM',
 
+    // OSM existence check
     'osm.checking':   'Vérification dans OpenStreetMap…',
     'osm.inOsm':      'Déjà dans OpenStreetMap',
     'osm.notInOsm':   'Pas encore dans OpenStreetMap',
     'osm.error':      'Échec de la vérification OSM (erreur réseau)',
-    'osm.warnSingle': 'Ce signal semble déjà être dans OpenStreetMap. Exporter quand même ?',
-    'osm.warnMulti':  'Un ou plusieurs signaux de ce groupe semblent déjà être dans OpenStreetMap. Exporter quand même ?',
+    'osm.retry':      'Relancer la vérification OSM',
+    'osm.warnSingle': 'Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?',
+    'osm.warnMulti':  'Un ou plusieurs signaux de ce groupe semblent déjà présents dans OpenStreetMap. Exporter quand même ?',
 
-    'group.main':     'Signaux principaux',
-    'group.distant':  'Signaux de reprise',
-    'group.speed':    'Limitations de vitesse',
-    'group.route':    'Indicateurs de voie',
-    'group.stop':     'Arrêts & infrastructures',
-    'group.crossing': 'Passages à niveau',
-    'group.unknown':  'Types non supportés',
-
-    // Catégories d'affichage (légende) — plus larges que les catégories ORM, pour les couleurs
+    // Display categories (legend)
     'cat.main':             'Signaux principaux',
-    'cat.distant':          'Signaux de reprise',
+    'cat.distant':          'Signaux distants',
     'cat.speed_limit':      'Limitations de vitesse',
     'cat.route':            'Indicateurs de direction',
     'cat.stop':             'Signaux d\'arrêt',
@@ -206,30 +209,24 @@ const STRINGS = {
     'cat.electricity':      'Traction électrique',
     'cat.train_protection': 'Signalisation cabine / ETCS',
     'cat.wrong_road':       'Contre-sens',
-    'cat.station':          'Approche de gare',
+    'cat.station':          'Gares et établissements',
     'cat.miscellaneous':    'Divers',
     'cat.unsupported':      'Types non supportés',
 
+    // About
     'about.intro':         'Visualisation des données open data de la <strong>signalisation permanente SNCF</strong> avec intégration OSM via JOSM ou presse-papiers.',
     'about.usage.title':   'Utilisation',
     'about.usage.text':    'Zoomez pour charger les signaux. En vue d\'ensemble, seuls les types principaux sont affichés ; zoom ≥10 affiche tous les types dans la vue. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
     'about.links.title':   'Liens',
     'about.credits.title': 'Crédits',
+    'about.credits': 'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
 
     // JOSM changeset comment
+    'josm.comment': 'Intégration de signaux ferroviaires #SNCF #OpenData',
 
     // Record count (lowercase for inline use)
-    'status.signals_lower': 'signals',
-    'status.tiles_lower':   'tiles',
-
-
-
-    'josm.comment': 'Intégration de signaux ferroviaires depuis les données Open Data de la SNCF',
     'status.signals_lower': 'signaux',
     'status.tiles_lower':   'tuiles',
-
-
-    'about.credits':       'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
   },
 };
 
@@ -276,4 +273,10 @@ export function applyTranslations() {
     const el = document.getElementById('record-count');
     if (el) el.textContent = `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
   }
+  // Notify registered listeners (e.g. filters panel) of the language change
+  _langListeners.forEach(fn => fn());
 }
+
+const _langListeners = [];
+/** Register a callback to be called whenever the active language changes. */
+export function onLangChange(fn) { _langListeners.push(fn); }

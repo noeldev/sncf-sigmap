@@ -7,7 +7,7 @@
  */
 
 import { SIGNAL_MAPPING }       from './signal-mapping.js';
-import { t, applyTranslations } from './i18n.js';
+import { t, applyTranslations, onLangChange } from './i18n.js';
 
 export const ALL_FILTER_FIELDS = [
   { key: 'type_if',    labelKey: 'field.type_if'    },
@@ -31,6 +31,11 @@ ALL_FILTER_FIELDS.forEach(f => {
   _counts[f.key]      = new Map();
 });
 
+export function refreshFilterLabels() {
+  // Re-render all filter panel labels and dropdown placeholders after a language change
+  _buildPanels();
+}
+
 export function initFilters(onChange) {
   _onChange = onChange;
   activeFilters = {};
@@ -39,6 +44,9 @@ export function initFilters(onChange) {
   document.addEventListener('click', e => {
     if (!e.target.closest('.fg-combo')) _closeAll();
   });
+
+  // Rebuild panels when language changes so placeholders update
+  onLangChange(() => _buildPanels());
 }
 
 export async function loadFilterIndex(tilesBase) {
@@ -246,7 +254,13 @@ function _refreshDropdown(idx) {
   const input = document.getElementById(`fgi-${idx}`);
   if (!list || !def) return;
 
-  let all  = _indexValues[def.field] || [];
+  // _indexValues is pre-loaded from index.json; for fields not included there (nom_voie,
+  // sens, position) fall back to the keys seen in the loaded tiles (_counts).
+  const fromIndex  = _indexValues[def.field] || [];
+  const fromCounts = [...(_counts[def.field]?.keys() || [])];
+  let all = fromIndex.length > 0
+    ? [...new Set([...fromIndex, ...fromCounts])]  // merge: index values + live counts
+    : fromCounts;
   const sel = activeFilters[def.field] || new Set();
   const q   = (def.search || '').toLowerCase();
 

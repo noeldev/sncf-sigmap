@@ -31,6 +31,33 @@ a { color: var(--accent2); text-decoration: none; }
 a:hover { text-decoration: underline; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
+
+/* ===== Monochrome icon system (CSS mask) =====
+ * SVG files loaded as mask over a background-color div.
+ * The icon inherits the parent element's 'color' via currentColor on background-color.
+ * This replaces <img src="...svg"> which cannot inherit CSS color. */
+
+.icon {
+  display: inline-block;
+  width: 1em; height: 1em;
+  background-color: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+}
+.icon-hamburger  { -webkit-mask-image: url(../svg/icon-hamburger.svg);  mask-image: url(../svg/icon-hamburger.svg);  width: 15px; height: 15px; }
+.icon-locate     { -webkit-mask-image: url(../svg/icon-locate.svg);     mask-image: url(../svg/icon-locate.svg);     width: 15px; height: 15px; }
+.icon-fullscreen { -webkit-mask-image: url(../svg/icon-fullscreen.svg); mask-image: url(../svg/icon-fullscreen.svg); width: 14px; height: 14px; }
+.icon-zoom-in    { -webkit-mask-image: url(../svg/icon-zoom-in.svg);    mask-image: url(../svg/icon-zoom-in.svg);    width: 14px; height: 14px; }
+.icon-zoom-out   { -webkit-mask-image: url(../svg/icon-zoom-out.svg);   mask-image: url(../svg/icon-zoom-out.svg);  width: 14px; height: 14px; }
+.icon-copy       { -webkit-mask-image: url(../svg/icon-copy.svg);       mask-image: url(../svg/icon-copy.svg);      width: 13px; height: 13px; }
+.icon-check      { -webkit-mask-image: url(../svg/icon-check.svg);      mask-image: url(../svg/icon-check.svg);     width: 13px; height: 13px; }
+
 /* ===== Scrollbars ===== */
 
 ::-webkit-scrollbar            { width: 6px; height: 6px; }
@@ -187,7 +214,7 @@ a:hover { text-decoration: underline; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .fg-drop-item.mapped .fgi-name::after {
-  content: ' ●'; color: var(--success); font-size: 8px; vertical-align: 1px;
+  content: ' ●'; color: var(--accent2); font-size: 8px; vertical-align: 1px;
 }
 .fgi-count { font-size: 10px; color: var(--text2); flex-shrink: 0; }
 .fg-empty {
@@ -197,7 +224,7 @@ a:hover { text-decoration: underline; }
 
 /* "Supported only" toggle — rendered inside the type_if filter group */
 .supported-only-row {
-  margin-top: 6px; padding: 5px 0; border-top: 1px solid var(--border);
+  margin-top: 6px; padding: 5px 0;
 }
 .supported-only-label {
   display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
@@ -322,7 +349,6 @@ a:hover { text-decoration: underline; }
 }
 .mc-btn:hover  { background: var(--panel2); color: var(--text); }
 .mc-btn.active { color: var(--accent2); }
-.mc-zoom { font-size: 20px; }
 .mc-sep  { width: 60%; height: 1px; background: var(--border); margin: 0 auto; }
 
 /* ===== Progress overlay ===== */
@@ -384,8 +410,15 @@ a:hover { text-decoration: underline; }
 }
 .leaflet-tooltip.sig-tooltip::before,
 .leaflet-tooltip.sig-tooltip::after { display: none !important; }
-.tt-row   { display: flex; align-items: baseline; gap: 7px; }
-.tt-key   { color: var(--text2); min-width: 68px; font-size: 10px; }
+/* Tooltip rows */
+.tt-row   { display: flex; align-items: baseline; gap: 8px; padding: 1px 0; }
+.tt-sig   { justify-content: space-between; }     /* type + idreseau spread */
+.tt-type  { font-weight: 700; font-size: 11px; flex-shrink: 0; }
+.tt-id    { font-size: 10px; color: var(--text2); text-align: right; }
+.tt-key   { color: var(--text2); min-width: 72px; font-size: 10px; flex-shrink: 0; }
+.tt-val   { font-size: 11px; color: var(--text); }
+/* Thin separator between signal list and common properties */
+.tt-sep   { height: 1px; background: rgba(255,255,255,.08); margin: 4px 0 3px; }
 
 /* ===== Leaflet overrides ===== */
 
@@ -515,13 +548,6 @@ a.pu-osm-indicator:hover { opacity: .7; }
 .pu-action-btn:hover      { background: var(--accent);  border-color: var(--accent); }
 .pu-josm-btn:hover        { background: var(--success); border-color: var(--success); }
 
-/* ===== Tooltip multi-signal layout ===== */
-
-.tt-multi     { margin-bottom: 3px; }
-.tt-pair      { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.tt-type      { font-weight: 700; font-size: 11px; }
-.tt-id        { font-family: var(--mono); font-size: 10px; color: var(--text2); }
-.tt-single-type { font-size: 12px; margin-bottom: 2px; }
 
 /* ===== Layer button thumbnail ===== */
 
@@ -537,14 +563,13 @@ a.pu-osm-indicator:hover { opacity: .7; }
 .layer-btn.active { border-color: var(--accent2); color: var(--text); }
 .layer-thumb {
   border-radius: 4px; flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,.12);
+  border: 2px solid rgba(255,255,255,.18);
+  border-radius: 5px;
   object-fit: cover;
 }
 
 /* ===== Button icon alignment ===== */
 
-.btn-icon   { vertical-align: -2px; flex-shrink: 0; }
-.mc-icon    { display: block; }
 
 /* ===== Disabled footer button ===== */
 

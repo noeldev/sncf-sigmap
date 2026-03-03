@@ -15,12 +15,11 @@
 
 import { map }                                                                   from './map.js';
 import { SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS,
-         getTypeColor, getTypeCategory, CATEGORY_COLORS }                        from './signal-mapping.js';
+         getTypeColor, getTypeCategory, CATEGORY_COLORS, isSupported }           from './signal-mapping.js';
 import { t }                                                                     from './i18n.js';
 import { checkOsm }                                                              from './osm-check.js';
 
 export { getTypeColor };
-export function isSupported(type) { return !!SIGNAL_MAPPING[type]; }
 
 // Display categories whose background colour is light — use dark badge text
 const LIGHT_CATEGORIES = new Set([
@@ -42,7 +41,7 @@ function _parseTag(s) { const i = s.indexOf('='); return i < 0 ? [s,''] : [s.sli
 
 function _resolveOne(feat) {
   const tags = new Map();
-  for (const tmpl of (SIGNAL_MAPPING[feat.p.type_if] || [])) {
+  for (const tmpl of (SIGNAL_MAPPING[feat.p.type_if]?.tags || [])) {
     const [k, v] = _parseTag(_resolve(tmpl, feat.p)); if (k) tags.set(k, v);
   }
   return tags;
@@ -67,26 +66,28 @@ function _tagsToText(m) { return [...m.entries()].map(([k,v]) => `${k}=${v}`).jo
 export function buildTooltip(feats) {
   const p = feats[0].p;
 
-  // For multiple signals: show type + idreseau paired on each line
-  if (feats.length > 1) {
-    const rows = feats.map(f => {
-      const color = getTypeColor(f.p.type_if);
-      const id    = f.p.idreseau ? `<span class="tt-id">${f.p.idreseau}</span>` : '';
-      return `<div class="tt-pair">
-        <span class="tt-type" style="color:${color}">${f.p.type_if}</span>${id}
-      </div>`;
-    }).join('');
-    return `<div class="tt-multi">${rows}</div>`
-      + _ttRow('Voie', p.code_voie || p.nom_voie)
-      + _ttRow('PK', p.pk);
-  }
+  // Signal rows: one per signal — type_if on the left, idreseau on the right
+  const sigRows = feats.map(f => {
+    const color = getTypeColor(f.p.type_if);
+    const id    = f.p.idreseau
+      ? `<span class="tt-val tt-id">${f.p.idreseau}</span>`
+      : '<span class="tt-val tt-id"></span>';
+    return `<div class="tt-row tt-sig">
+      <span class="tt-type" style="color:${color}">${f.p.type_if || '?'}</span>${id}
+    </div>`;
+  }).join('');
 
-  // Single signal: standard layout
-  const color = getTypeColor(p.type_if);
-  return `<div class="tt-single-type" style="color:${color};font-weight:700">${p.type_if || '?'}</div>`
-    + _ttRow('ID réseau', p.idreseau)
-    + _ttRow('Voie', p.code_voie || p.nom_voie)
-    + _ttRow('PK', p.pk);
+  // Common properties shared by all signals at this location
+  const sep = '<div class="tt-sep"></div>';
+  const common = [
+    _ttRow('Code voie', p.code_voie),
+    _ttRow('Nom voie',  p.nom_voie),
+    _ttRow('Sens',      p.sens),
+    _ttRow('Position',  p.position),
+    _ttRow('PK',        p.pk),
+  ].filter(Boolean).join('');
+
+  return sigRows + (common ? sep + common : '');
 }
 
 function _ttRow(label, val) {
@@ -129,6 +130,15 @@ export function openSignalPopup(latlng, feats, idx = 0) {
       _copyTags(feats, e.target.closest('[data-action="copy"]'));
     if (e.target.closest('[data-action="josm"]'))
       _sendToJOSM(feats, latlng, e.target.closest('[data-action="josm"]'));
+    if (e.target.closest('[data-action="osm-retry"]')) {
+      // Re-run OSM check for all signals and refresh popup
+      _statuses = null;
+      if (_popup?.isOpen()) _popup.setContent(_build(feats, idx));
+      Promise.all(feats.map(f => checkOsm(f.p.idreseau, f.p.type_if, true))).then(results => {
+        _statuses = results;
+        if (_popup?.isOpen()) _popup.setContent(_build(feats, idx));
+      });
+    }
   });
 }
 
@@ -209,7 +219,7 @@ function _build(feats, idx) {
     <div class="pu-footer">
       <button class="pu-action-btn" data-action="copy"
               ${!anySupported ? 'disabled title="No supported signals at this location"' : `title="${t('popup.copy')}"`}>
-        <img src="assets/svg/icon-copy.svg" width="13" height="13" alt="" class="btn-icon">
+        <span class="icon icon-copy" aria-hidden="true"></span>
         ${t('popup.copy')}
       </button>
       <button class="pu-action-btn pu-josm-btn" data-action="josm"${josmDisabled}
@@ -239,7 +249,8 @@ function _osmIndicator({ status, nodeId }) {
                   style="vertical-align:-3px;filter:grayscale(1) opacity(.3)"></span>`;
   }
   if (status === 'error') {
-    return `<span class="pu-osm-indicator osm-error" title="${t('osm.error')}">?</span>`;
+    return `<button class="pu-osm-indicator osm-retry" data-action="osm-retry"
+                    title="${t('osm.retry')}">↻</button>`;
   }
   return '';
 }
@@ -250,7 +261,7 @@ function _copyTags(feats, btn) {
   const m = _buildOsmTags(feats);
   if (!m.size) return;
   navigator.clipboard.writeText(_tagsToText(m))
-    .then(() => _flash(btn, t('popup.copied'), '#4ade80', '#0b0e16', 'icon-check.svg'))
+    .then(() => _flash(btn, t('popup.copied'), '#4ade80', '#0b0e16'))
     .catch(()  => prompt('Copy OSM tags:', _tagsToText(m)));
 }
 
@@ -271,28 +282,24 @@ function _sendToJOSM(feats, latlng, btn) {
 
   const comment = encodeURIComponent(t('josm.comment'));
 
-  // Set changeset comment via a separate JOSM call first
-  const commentUrl = `http://127.0.0.1:8111/open_changeset?changeset_comment=${comment}`;
+  // /open_changeset sets the default comment for the next upload dialog in JOSM
+  const commentUrl = `http://127.0.0.1:8111/open_changeset?changeset_comment=${comment}&changeset_source=SNCF Open Data`;
   const addUrl     = `http://127.0.0.1:8111/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
 
-  // Use fetch — works from HTTPS to 127.0.0.1 in Firefox and Chrome
-  fetch(commentUrl, { mode: 'no-cors' }).catch(() => {});
-  fetch(addUrl, { mode: 'no-cors' })
-    .then(() => _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16', 'icon-check.svg'))
-    .catch(err => {
-      console.warn('[JOSM]', err.message);
-      // Fallback to Image() for environments that block fetch mixed-content
-      const img = new Image();
-      img.onload = img.onerror = () =>
-        _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16', 'icon-check.svg');
-      img.src = addUrl;
-    });
+  // fetch() to 127.0.0.1 works from HTTPS in Firefox and Chrome (mixed-content exception)
+  const run = async () => {
+    await fetch(commentUrl, { mode: 'no-cors' }).catch(() => {});
+    await fetch(addUrl, { mode: 'no-cors' });
+  };
+  run()
+    .then(() => _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16'))
+    .catch(err => { console.warn('[JOSM]', err.message); alert('JOSM not reachable: ' + err.message); });
 }
 
-function _flash(btn, label, bg, fg, iconFile) {
+function _flash(btn, label, bg, fg) {
   if (!btn) return;
   const orig = btn.innerHTML;
-  btn.innerHTML = `<img src="assets/svg/${iconFile}" width="13" height="13" alt="" class="btn-icon"> ${label}`;
+  btn.innerHTML = `<span class="icon icon-check" aria-hidden="true"></span> ${label}`;
   btn.style.background = bg; btn.style.color = fg;
   setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; btn.style.color = ''; }, 2400);
 }
