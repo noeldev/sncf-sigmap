@@ -57,16 +57,6 @@ export const SIGNAL_MAPPING = {
             "railway:signal:main:ref={{idreseau}}",
         ],
     },
-    "CARRE A": {
-        group: "main",
-        tags: [
-            "railway:signal:main=FR:CARRE",
-            "railway:signal:main:form=light",
-            "railway:signal:main:shape=FR:C",
-            "railway:signal:main:states=FR:C;FR:VL;FR:A",
-            "railway:signal:main:ref={{idreseau}}",
-        ],
-    },
     "R30": {
         group: "main",
         tags: [
@@ -118,6 +108,14 @@ export const SIGNAL_MAPPING = {
 
     // Distant
 
+    "CARRE A": {
+        group: "distant",
+        tags: [
+            "railway:signal:distant=FR:CARRE_A",
+            "railway:signal:distant:form=sign",
+            "railway:signal:distant:ref={{idreseau}}",
+        ],
+    },
     "A": {
         group: "distant",
         tags: [

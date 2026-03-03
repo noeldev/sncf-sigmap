@@ -1,21 +1,13 @@
 /**
  * popup.js
  * Signal popup: display, navigation, OSM tag export, JOSM Remote Control.
- *
- * JOSM URL encoding:
- *   The addtags parameter requires each "key=value" pair to be encoded as a unit,
- *   with pairs separated by encoded pipes. The full value must be URI-encoded:
- *   addtags=key%3Dvalue%7Ckey2%3Dvalue2
- *
- * JOSM / Mixed Content:
- *   Browsers allow HTTP to 127.0.0.1 (not "localhost") from HTTPS pages in
- *   Firefox and Chrome. fetch() works correctly here — there is no need for
- *   the Image() workaround once the encoding is correct.
  */
 
 import { map }                                                                   from './map.js';
-import { SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS,
-         getTypeColor, getTypeCategory, CATEGORY_COLORS, isSupported }           from './signal-mapping.js';
+import {
+    SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS,
+    getTypeColor, getTypeCategory, isSupported
+} from './signal-mapping.js';
 import { t }                                                                     from './i18n.js';
 import { checkOsm }                                                              from './osm-check.js';
 

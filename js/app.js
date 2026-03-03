@@ -20,7 +20,7 @@ import { t }                                                    from './i18n.js'
 // Signal types shown in overview mode
 const OVERVIEW_TYPES = new Set([
   'CARRE', 'CV', 'S', 'GA', 'D', 'A',
-  'TIV D FIXE', 'TIV D MOB', 'TIV PENDIS',
+  'TIV D FIXE', 'TIV D MOB', 'TIV R MOB',
 ]);
 
 let manifest      = null;
