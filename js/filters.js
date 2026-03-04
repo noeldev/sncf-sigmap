@@ -42,7 +42,11 @@ export function initFilters(onChange) {
   _buildPanels();
 
   document.addEventListener('click', e => {
+    // Close filter dropdowns when clicking outside any fg-combo
     if (!e.target.closest('.fg-combo')) _closeAll();
+    // Dismiss the add-filter menu when clicking outside it (and outside the button)
+    if (!e.target.closest('.add-filter-menu') && !e.target.closest('#btn-add-filter'))
+        document.querySelector('.add-filter-menu')?.remove();
   });
 
   // Rebuild panels when language changes so placeholders update
@@ -98,11 +102,15 @@ export function initAddFilterButton(btn) {
   if (!btn) return;
   btn.addEventListener('click', e => {
     e.stopPropagation();
+
+    // Toggle: if the menu is already open, just close it
+    const existing = document.querySelector('.add-filter-menu');
+    if (existing) { existing.remove(); return; }
+
     const used      = new Set(_defs.map(d => d.field));
     const available = ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
     if (!available.length) return;
 
-    document.querySelectorAll('.add-filter-menu').forEach(m => m.remove());
     const menu = document.createElement('div');
     menu.className = 'add-filter-menu';
     const r = btn.getBoundingClientRect();
@@ -119,6 +127,7 @@ export function initAddFilterButton(btn) {
       opt.textContent = t(f.labelKey);
       opt.addEventListener('mousedown', e2 => {
         e2.preventDefault();
+        e2.stopPropagation();
         _defs.push({ field: f.key, search: '' });
         _buildPanels();
         menu.remove();
@@ -127,9 +136,6 @@ export function initAddFilterButton(btn) {
     });
 
     document.body.appendChild(menu);
-    setTimeout(() => {
-      document.addEventListener('click', () => menu.remove(), { once: true });
-    }, 10);
   });
 }
 
