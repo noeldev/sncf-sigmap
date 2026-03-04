@@ -114,9 +114,6 @@ const STRINGS = {
     'about.credits.title': 'Credits',
     'about.credits': 'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
 
-    // JOSM changeset comment
-    'josm.comment': 'Integration of railway signals #SNCF #OpenData',
-
     // Record count (lowercase for inline use)
     'status.signals_lower': 'signals',
     'status.tiles_lower':   'tiles',
@@ -220,9 +217,6 @@ const STRINGS = {
     'about.links.title':   'Liens',
     'about.credits.title': 'Crédits',
     'about.credits': 'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-
-    // JOSM changeset comment
-    'josm.comment': 'Intégration de signaux ferroviaires #SNCF #OpenData',
 
     // Record count (lowercase for inline use)
     'status.signals_lower': 'signaux',

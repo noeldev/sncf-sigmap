@@ -6,7 +6,7 @@
  * The "Supported only" toggle is rendered inside the type_if filter group.
  */
 
-import { SIGNAL_MAPPING }       from './signal-mapping.js';
+import { SIGNAL_MAPPING } from './signal-mapping.js';
 import { t, applyTranslations, onLangChange } from './i18n.js';
 
 export const ALL_FILTER_FIELDS = [
@@ -172,7 +172,7 @@ function _buildPanels() {
                  placeholder="${t('dropdown.search', 0)}">
           <span class="fg-combo-arrow">&#9662;</span>
         </div>
-        <div class="fg-dropdown" id="fgd-${idx}" style="display:none">
+        <div class="fg-dropdown is-hidden" id="fgd-${idx}">
           <div id="fgl-${idx}" class="fg-dropdown-inner"></div>
         </div>
       </div>
@@ -199,7 +199,7 @@ function _buildPanels() {
       .addEventListener('mousedown', e => {
         if (e.target === input) return;
         e.preventDefault();
-        document.getElementById(`fgd-${idx}`).style.display === 'none'
+          document.getElementById(`fgd-${idx}`).classList.contains('is-hidden')
           ? (_openDropdown(idx), input.focus())
           : _closeDropdown(idx);
       });
@@ -310,10 +310,10 @@ function _selectFirst(idx) {
 }
 
 function _openDropdown(idx)  {
-  const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.style.display = 'block';
+    const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.classList.remove('is-hidden');
 }
 function _closeDropdown(idx) {
-  const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.style.display = 'none';
+    const dd = document.getElementById(`fgd-${idx}`); if (dd) dd.classList.add('is-hidden');
 }
 function _closeAll() { _defs.forEach((_, i) => _closeDropdown(i)); }
 

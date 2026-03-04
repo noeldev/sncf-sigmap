@@ -12,6 +12,54 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+<!--
+  SVG symbol library — display:none, zero HTTP requests.
+  All icons reference currentColor so they inherit the parent element's CSS color.
+  Icons that carry their own colour (josm.svg, osm.svg, flag-*.svg) are loaded
+  as <img> elements and are not included here.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <!-- Three horizontal bars -->
+  <symbol id="icon-hamburger" viewBox="0 0 20 20" fill="currentColor">
+    <rect y="2.5"  width="20" height="2" rx="1"/>
+    <rect y="9"    width="20" height="2" rx="1"/>
+    <rect y="15.5" width="20" height="2" rx="1"/>
+  </symbol>
+  <!-- Crosshair / geolocate -->
+  <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+  </symbol>
+  <!-- Fullscreen corners -->
+  <symbol id="icon-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+  </symbol>
+  <!-- Plus / zoom in -->
+  <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <!-- Minus / zoom out -->
+  <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <!-- Copy to clipboard -->
+  <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </symbol>
+  <!-- Check mark -->
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </symbol>
+  <!-- Circular refresh arrows (clockwise) -->
+  <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23 4v6h-6"/>
+    <path d="M1 20v-6h6"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </symbol>
+</svg>
+
 <div id="app">
 
   <!-- Sidebar (left) -->
@@ -101,25 +149,29 @@
   <div id="map-container">
     <div id="map"></div>
 
-    <!-- Map controls: top-right, counterweight to the left sidebar -->
+    <!-- Map controls: top-right -->
     <div id="map-controls">
       <button id="btn-sidebar-toggle" class="mc-btn"
               data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
-        <span class="icon icon-hamburger" aria-hidden="true"></span>
+        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-hamburger"></use></svg>
       </button>
       <div class="mc-sep"></div>
       <button id="btn-zoom-in"  class="mc-btn"
-              data-i18n-title="ctrl.zoomIn"  title="Zoom in"><span class="icon icon-zoom-in" aria-hidden="true"></span></button>
+              data-i18n-title="ctrl.zoomIn"  title="Zoom in">
+        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-in"></use></svg>
+      </button>
       <button id="btn-zoom-out" class="mc-btn"
-              data-i18n-title="ctrl.zoomOut" title="Zoom out"><span class="icon icon-zoom-out" aria-hidden="true"></span></button>
+              data-i18n-title="ctrl.zoomOut" title="Zoom out">
+        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-out"></use></svg>
+      </button>
       <div class="mc-sep"></div>
       <button id="btn-geolocate"  class="mc-btn"
               data-i18n-title="ctrl.locate" title="My location">
-        <span class="icon icon-locate" aria-hidden="true"></span>
+        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-locate"></use></svg>
       </button>
       <button id="btn-fullscreen" class="mc-btn"
               data-i18n-title="ctrl.fullscreen" title="Fullscreen">
-        <span class="icon icon-fullscreen" aria-hidden="true"></span>
+        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-fullscreen"></use></svg>
       </button>
     </div>
 
@@ -132,7 +184,7 @@
       <span class="sb-item">
         <span class="sb-label" data-i18n="status.signals">Signals</span>
         <span class="sb-val" id="st-visible">0</span>
-        <span id="st-sampled" class="sb-sampled" style="display:none">~</span>
+        <span id="st-sampled" class="sb-sampled is-hidden">~</span>
       </span>
       <span class="sb-sep"></span>
       <span class="sb-item">

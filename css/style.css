@@ -32,24 +32,35 @@ a:hover { text-decoration: underline; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 
-/* ===== Monochrome icon system (CSS mask) =====
- * SVG data URIs are injected at runtime by js/icons.js (eliminates HTTP requests).
- * The rules below define the base .icon behaviour; per-icon size + mask-image are
- * added dynamically so changing an icon only requires editing icons.js. */
+/* ===== SVG icon system =====
+ * All toolbar/button icons are defined as <symbol> elements in index.html and
+ * referenced with <svg class="icon"><use href="#icon-*"></use></svg>.
+ * They inherit currentColor for both fill and stroke.
+ * No HTTP requests — zero latency, works before any JS executes. */
 
-.icon {
+svg.icon {
   display: inline-block;
-  width: 1em; height: 1em;
-  background-color: currentColor;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
   vertical-align: -0.15em;
   flex-shrink: 0;
+  overflow: visible;
 }
+
+/* ===== Utility classes ===== */
+
+/* Generic hidden state — toggled via classList.toggle('is-hidden', bool) */
+.is-hidden { display: none; }
+
+/* Flag images: fixed width, natural height, thin border for contrast */
+.flag-img {
+  width: 20px; height: auto;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.15);
+}
+
+/* OSM logo aligned with surrounding text baseline */
+.osm-img     { vertical-align: -3px; }
+/* Same, dimmed — used when the signal is known to not be in OSM yet */
+.osm-img-dim { vertical-align: -3px; filter: grayscale(1) opacity(.3); }
 
 /* ===== Scrollbars ===== */
 
@@ -488,7 +499,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--mono); font-size: 9px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .5px; color: var(--text2); flex-shrink: 0; width: 78px;
 }
-.pu-val   { font-family: var(--mono); color: var(--text); }
+.pu-val         { font-family: var(--mono); color: var(--text); }
 .pu-badge {
   display: inline-block; font-size: 10px; font-weight: 700;
   padding: 1px 8px; border-radius: 3px; color: #fff; font-family: var(--mono);
@@ -504,28 +515,17 @@ a.pu-osm-indicator:hover { opacity: .7; }
 .osm-checking { font-family: var(--mono); font-size: 11px; color: var(--text3); }
 .osm-error    { font-family: var(--mono); font-size: 11px; color: var(--warn); }
 
-/* OSM retry button: square, bordered, OSM logo faded behind a centered refresh arrow */
+/* OSM retry button: square, orange border, refresh icon inherits color */
 button.osm-retry {
-  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel2); border: 1px solid var(--warn);
   border-radius: 3px; width: 22px; height: 22px;
   cursor: pointer; padding: 0; margin-left: 6px;
+  color: var(--warn);
   transition: background .15s, border-color .15s;
-  flex-shrink: 0; overflow: hidden;
+  flex-shrink: 0;
 }
 button.osm-retry:hover { background: rgba(210,153,34,.18); border-color: #f0b429; }
-.osm-retry-img {
-  position: absolute; inset: 0; margin: auto;
-  display: block; opacity: .22; pointer-events: none;
-}
-.osm-retry-arrow {
-  position: relative; z-index: 1;
-  font-size: 15px; line-height: 1;
-  color: var(--warn);
-  text-shadow: 0 0 4px rgba(0,0,0,.9);
-  pointer-events: none;
-}
 
 /* OSM tags section */
 .pu-osm-preview { border-top: 1px solid var(--border); }
@@ -584,10 +584,7 @@ button.osm-retry:hover { background: rgba(210,153,34,.18); border-color: #f0b429
   object-fit: cover;
 }
 
-/* ===== Button icon alignment ===== */
-
-
-/* ===== Disabled footer button ===== */
+/* ===== Disabled popup action button ===== */
 
 .pu-action-btn:disabled {
   opacity: .35; cursor: not-allowed; pointer-events: none;

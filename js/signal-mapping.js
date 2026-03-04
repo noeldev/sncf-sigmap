@@ -37,8 +37,8 @@ export const CATEGORY_INFO = {
     "shunting":         "#a050e0",   // Shunting
     "electricity":      "#a00060",   // Traction electricity
     "station":          "#008040",   // Station and facility signals (approche, SLD, …)
-    "miscellaneous":    "#607070",   // Gabarit, whistle, …
-    "unsupported":      "#a0b0c0",   // Types not yet mapped
+    "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
+    "unsupported":      "#607070",   // Types not yet mapped
 };
 
 // Each entry defines both the display category (group) and the OSM tags (tags).
@@ -53,6 +53,8 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:main=FR:CARRE",
             "railway:signal:main:form=light",
+            "railway:signal:main:plate=FR:NF",
+            "railway:signal:main:shape=FR:C",
             "railway:signal:main:states=FR:C;FR:VL",
             "railway:signal:main:ref={{idreseau}}",
         ],
@@ -62,6 +64,7 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:main=FR:CARRE",
             "railway:signal:main:form=light",
+            "railway:signal:main:plate=FR:NF",
             "railway:signal:main:shape=FR:F",
             "railway:signal:main:states=FR:C;FR:VL;FR:R",
             "railway:signal:main:ref={{idreseau}}",
@@ -72,6 +75,7 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:main=FR:CARRE",
             "railway:signal:main:form=light",
+            "railway:signal:main:plate=FR:NF",
             "railway:signal:main:shape=FR:H",
             "railway:signal:main:states=FR:C;FR:VL;FR:RR",
             "railway:signal:main:ref={{idreseau}}",
@@ -82,6 +86,8 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:main=FR:CV",
             "railway:signal:main:form=light",
+            "railway:signal:main:plate=FR:NF",
+            "railway:signal:main:shape=FR:C",
             "railway:signal:main:states=FR:CV;FR:M",
             "railway:signal:main:ref={{idreseau}}",
         ],
@@ -91,6 +97,8 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:main=FR:S",
             "railway:signal:main:form=light",
+            "railway:signal:main:plate=FR:F",
+            "railway:signal:main:shape=FR:C",
             "railway:signal:main:states=FR:S;FR:VL",
             "railway:signal:main:ref={{idreseau}}",
         ],
@@ -142,6 +150,7 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:speed_limit_distant=FR:TIV-D_MOB",
             "railway:signal:speed_limit_distant:form=light",
+            "railway:signal:speed_limit_distant:states=open;closed",
             "railway:signal:speed_limit_distant:ref={{idreseau}}",
         ],
     },
@@ -150,6 +159,7 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:speed_limit_reminder=FR:TIV-R_MOB",
             "railway:signal:speed_limit_reminder:form=light",
+            "railway:signal:speed_limit_reminder:states=open;closed",
             "railway:signal:speed_limit_reminder:ref={{idreseau}}",
         ],
     },
@@ -209,7 +219,7 @@ export const SIGNAL_MAPPING = {
     "CHEVRON": {
         group: "speed_limit",
         tags: [
-            "railway:signal:speed_limit=FR:CHEVRON_BAS",
+            "railway:signal:speed_limit=FR:CHEVRON",
             "railway:signal:speed_limit:type=downwards",
             "railway:signal:speed_limit:form=sign",
             "railway:signal:speed_limit:ref={{idreseau}}",
@@ -267,6 +277,7 @@ export const SIGNAL_MAPPING = {
         tags: [
             "railway:signal:route_distant=FR:TIDD",
             "railway:signal:route_distant:form=light",
+            "railway:signal:route_distant:states=off;left;right",
             "railway:signal:route_distant:ref={{idreseau}}",
         ],
     },
@@ -708,9 +719,8 @@ export function isSupported(type_if) {
     return (SIGNAL_MAPPING[type_if]?.tags?.length ?? 0) > 0;
 }
 
-// The :ref tag used in OSM for each type_if (for Overpass existence checks)
-// Derived from the last :ref tag in each entry's tags array.
-
+// The :ref tag used in OSM for each type_if (for Overpass existence checks).
+// Derived from the :ref={{idreseau}} tag in each entry's tags array.
 export const TYPE_REF_TAG = (() => {
     const map = {};
     for (const [type, entry] of Object.entries(SIGNAL_MAPPING)) {

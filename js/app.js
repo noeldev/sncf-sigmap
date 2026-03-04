@@ -18,10 +18,6 @@ import { initFilters, loadFilterIndex, indexSignals,
 import { openSignalPopup, getTypeColor, buildTooltip }          from './popup.js';
 import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS }  from './config.js';
 import { t }                                                    from './i18n.js';
-import { injectIconStyles }                                     from './icons.js';
-
-// Inject inline SVG icon styles immediately — eliminates HTTP requests for icon-*.svg files
-injectIconStyles();
 
 
 let manifest      = null;
@@ -177,7 +173,7 @@ function _renderSignals(signals) {
 function _setSampledBadge(sampled, total) {
   const el = document.getElementById('st-sampled');
   if (!el) return;
-  el.style.display = sampled ? 'inline' : 'none';
+  el.classList.toggle('is-hidden', !sampled);
   if (sampled && total)
     el.title = `Overview sample — ${total.toLocaleString()} matching signals. Zoom ≥${OVERVIEW_MAX_ZOOM} for full detail.`;
 }

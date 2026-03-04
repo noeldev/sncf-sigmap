@@ -10,7 +10,6 @@ import {
 } from './signal-mapping.js';
 import { t }                                                  from './i18n.js';
 import { checkOsmBatch }                                      from './osm-check.js';
-import { JOSM_CHANGESET_SOURCE }                              from './config.js';
 
 export { getTypeColor };
 
@@ -203,7 +202,7 @@ function _build(feats, idx) {
 
     const coord = `<div class="pu-row">
     <span class="pu-label">COORDS</span>
-    <span class="pu-val" style="font-size:10px">${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}</span>
+    <span class="pu-val">${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}</span>
   </div>`;
 
     let osmSection = '';
@@ -230,7 +229,7 @@ function _build(feats, idx) {
     <div class="pu-footer">
       <button class="pu-action-btn" data-action="copy"
               ${!anySupported ? 'disabled title="No supported signals at this location"' : `title="${t('popup.copy')}"`}>
-        <span class="icon icon-copy" aria-hidden="true"></span>
+        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
         ${t('popup.copy')}
       </button>
       <button class="pu-action-btn pu-josm-btn" data-action="josm"${josmDisabled}
@@ -252,18 +251,17 @@ function _osmIndicator({ status, nodeId }) {
         return `<a class="pu-osm-indicator" href="${href}" target="_blank" rel="noopener"
                title="${t('osm.inOsm')} — node #${nodeId}"
              ><img src="assets/svg/osm.svg" width="16" height="16" alt="OSM"
-                   style="vertical-align:-3px"></a>`;
+                   class="osm-img"></a>`;
     }
     if (status === 'not-in-osm') {
         return `<span class="pu-osm-indicator" title="${t('osm.notInOsm')}"
             ><img src="assets/svg/osm.svg" width="16" height="16" alt=""
-                  style="vertical-align:-3px;filter:grayscale(1) opacity(.3)"></span>`;
+                  class="osm-img-dim"></span>`;
     }
     if (status === 'error') {
         return `<button class="pu-osm-indicator osm-retry" data-action="osm-retry"
                         title="${t('osm.retry')}">
-          <img src="assets/svg/osm.svg" width="14" height="14" alt="" class="osm-retry-img">
-          <span class="osm-retry-arrow">↻</span>
+          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
         </button>`;
     }
     return '';
@@ -293,15 +291,9 @@ function _sendToJOSM(feats, latlng, btn) {
         .map(([k, v]) => encodeURIComponent(`${k}=${v}`))
         .join(encodeURIComponent('|'));
 
-    const comment    = encodeURIComponent(t('josm.comment'));
-    const commentUrl = `http://127.0.0.1:8111/open_changeset?changeset_comment=${comment}&changeset_source=${encodeURIComponent(JOSM_CHANGESET_SOURCE)}`;
-    const addUrl     = `http://127.0.0.1:8111/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
+    const addUrl = `http://127.0.0.1:8111/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
 
-    const run = async () => {
-        await fetch(commentUrl, { mode: 'no-cors' }).catch(() => {});
-        await fetch(addUrl,     { mode: 'no-cors' });
-    };
-    run()
+    fetch(addUrl, { mode: 'no-cors' })
         .then(() => _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16'))
         .catch(err => { console.warn('[JOSM]', err.message); alert('JOSM not reachable: ' + err.message); });
 }
@@ -309,7 +301,7 @@ function _sendToJOSM(feats, latlng, btn) {
 function _flash(btn, label, bg, fg) {
     if (!btn) return;
     const orig = btn.innerHTML;
-    btn.innerHTML = `<span class="icon icon-check" aria-hidden="true"></span> ${label}`;
+    btn.innerHTML = `<svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg> ${label}`;
     btn.style.background = bg; btn.style.color = fg;
     setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; btn.style.color = ''; }, 2400);
 }

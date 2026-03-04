@@ -21,8 +21,3 @@ export const MAP_INITIAL_VIEW = { center: [46.8, 2.3], zoom: 6 };
 
 // Default basemap key: 'jawg-transport' | 'osm' | 'satellite'
 export const DEFAULT_BASEMAP = 'jawg-transport';
-
-// Source tag value used for the JOSM changeset_source parameter.
-// The signal nodes already carry source=SNCF - 03/2022 individually,
-// but this lets the JOSM upload dialog show a meaningful default source.
-export const JOSM_CHANGESET_SOURCE = 'SNCF - 03/2022';
