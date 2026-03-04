@@ -26,19 +26,19 @@
 // Only used for marker colours and the legend; ORM tags are independent.
 
 export const CATEGORY_INFO = {
-    "main":             "#e85d5d",   // Main signals (carré, S, GA, …)
-    "distant":          "#f5c842",   // Distant signals (A, D)
-    "speed_limit":      "#fb923c",   // All speed_limit* variants
-    "route":            "#38bdf8",   // Route* (ID, IDD, CHEVRON, …)
-    "stop":             "#f43f5e",   // Stop signals
-    "shunting":         "#a78bfa",   // Shunting
-    "crossing":         "#4ade80",   // Level crossings
-    "electricity":      "#e879f9",   // Traction electricity
-    "train_protection": "#2f5496",   // Cab signalling / ETCS
-    "wrong_road":       "#375623",   // Contre-sens
-    "station":          "#82316d",   // Station and facility signals (approche, SLD, …)
-    "miscellaneous":    "#94a3b8",   // Gabarit, whistle, …
-    "unsupported":      "#6a748a",   // Types not yet mapped
+    "main":             "#e00000",   // Main signals (carré, S, GA, …)
+    "stop":             "#b09000",   // Stop signals
+    "distant":          "#ffc010",   // Distant signals (A, D)
+    "speed_limit":      "#f88000",   // All speed_limit* variants
+    "route":            "#00b0d0",   // Route* (ID, IDD, CHEVRON, …)
+    "train_protection": "#4060c0",   // Cab signalling / ETCS
+    "crossing":         "#d04020",   // Level crossings
+    "wrong_road":       "#00a0a0",   // Contre-sens
+    "shunting":         "#a050e0",   // Shunting
+    "electricity":      "#a00060",   // Traction electricity
+    "station":          "#008040",   // Station and facility signals (approche, SLD, …)
+    "miscellaneous":    "#607070",   // Gabarit, whistle, …
+    "unsupported":      "#a0b0c0",   // Types not yet mapped
 };
 
 // Each entry defines both the display category (group) and the OSM tags (tags).

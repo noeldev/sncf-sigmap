@@ -109,7 +109,7 @@ const STRINGS = {
     // About
     'about.intro':         'Viewer for <strong>SNCF permanent railway signalling</strong> open data, with OSM integration via JOSM or clipboard.',
     'about.usage.title':   'How to use',
-    'about.usage.text':    'Zoom in to load signals. At low zoom only major types are shown; zoom ≥10 displays all types in the viewport. Click any marker to view properties and export OSM tags.',
+    'about.usage.text':    'Zoom in to load signals. At low zoom, results are spatially sampled to keep the map readable; zoom ≥10 shows all signals in the viewport without limit. Active filters always apply regardless of zoom level. Click any marker to view properties and export OSM tags.',
     'about.links.title':   'Links',
     'about.credits.title': 'Credits',
     'about.credits': 'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
@@ -216,7 +216,7 @@ const STRINGS = {
     // About
     'about.intro':         'Visualisation des données open data de la <strong>signalisation permanente SNCF</strong> avec intégration OSM via JOSM ou presse-papiers.',
     'about.usage.title':   'Utilisation',
-    'about.usage.text':    'Zoomez pour charger les signaux. En vue d\'ensemble, seuls les types principaux sont affichés ; zoom ≥10 affiche tous les types dans la vue. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
+    'about.usage.text':    'Zoomez pour charger les signaux. À faible zoom, les résultats sont spatialement échantillonnés pour garder la carte lisible ; zoom ≥10 affiche tous les signaux dans la vue sans limite. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
     'about.links.title':   'Liens',
     'about.credits.title': 'Crédits',
     'about.credits': 'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',

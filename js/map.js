@@ -106,8 +106,8 @@ function _buildLangPicker() {
     if (flag) {
       // SVG flag as <img>
       flag.innerHTML = `<img src="assets/svg/flag-${def.code}.svg"
-                             width="20" height="14" alt="${def.label}"
-                             style="border-radius:2px;object-fit:cover;border:1px solid rgba(255,255,255,.15)">`;
+                             alt="${def.label}"
+                             style="height:1em;width:auto;object-fit:cover;border:1px solid rgba(255,255,255,.15)">`;
     }
     if (lbl)  lbl.textContent = def.label;
     dropdown.querySelectorAll('.lang-option')
@@ -120,8 +120,8 @@ function _buildLangPicker() {
     li.className    = `lang-option${lang.code === getLang() ? ' active' : ''}`;
     li.dataset.lang = lang.code;
     li.innerHTML    = `<img src="assets/svg/flag-${lang.code}.svg"
-                            width="20" height="14" alt="${lang.label}"
-                            style="border-radius:2px;object-fit:cover;border:1px solid rgba(255,255,255,.15)">
+                            alt="${lang.label}"
+                            style="height:1em;width:auto;object-fit:cover;border:1px solid rgba(255,255,255,.15)">
                        ${lang.label}`;
     li.addEventListener('mousedown', e => {
       e.preventDefault();

@@ -33,9 +33,9 @@ a:hover { text-decoration: underline; }
 
 
 /* ===== Monochrome icon system (CSS mask) =====
- * SVG files loaded as mask over a background-color div.
- * The icon inherits the parent element's 'color' via currentColor on background-color.
- * This replaces <img src="...svg"> which cannot inherit CSS color. */
+ * SVG data URIs are injected at runtime by js/icons.js (eliminates HTTP requests).
+ * The rules below define the base .icon behaviour; per-icon size + mask-image are
+ * added dynamically so changing an icon only requires editing icons.js. */
 
 .icon {
   display: inline-block;
@@ -50,13 +50,6 @@ a:hover { text-decoration: underline; }
   vertical-align: -0.15em;
   flex-shrink: 0;
 }
-.icon-hamburger  { -webkit-mask-image: url(../assets/svg/icon-hamburger.svg);  mask-image: url(../svg/icon-hamburger.svg);  width: 15px; height: 15px; }
-.icon-locate     { -webkit-mask-image: url(../assets/svg/icon-locate.svg);     mask-image: url(../svg/icon-locate.svg);     width: 15px; height: 15px; }
-.icon-fullscreen { -webkit-mask-image: url(../assets/svg/icon-fullscreen.svg); mask-image: url(../svg/icon-fullscreen.svg); width: 14px; height: 14px; }
-.icon-zoom-in    { -webkit-mask-image: url(../assets/svg/icon-zoom-in.svg);    mask-image: url(../svg/icon-zoom-in.svg);    width: 14px; height: 14px; }
-.icon-zoom-out   { -webkit-mask-image: url(../assets/svg/icon-zoom-out.svg);   mask-image: url(../svg/icon-zoom-out.svg);  width: 14px; height: 14px; }
-.icon-copy       { -webkit-mask-image: url(../assets/svg/icon-copy.svg);       mask-image: url(../svg/icon-copy.svg);      width: 13px; height: 13px; }
-.icon-check      { -webkit-mask-image: url(../assets/svg/icon-check.svg);      mask-image: url(../svg/icon-check.svg);     width: 13px; height: 13px; }
 
 /* ===== Scrollbars ===== */
 
@@ -412,9 +405,9 @@ a:hover { text-decoration: underline; }
 .leaflet-tooltip.sig-tooltip::after { display: none !important; }
 /* Tooltip rows */
 .tt-row   { display: flex; align-items: baseline; gap: 8px; padding: 1px 0; }
-.tt-sig   { justify-content: space-between; }     /* type + idreseau spread */
-.tt-type  { font-weight: 700; font-size: 11px; flex-shrink: 0; }
-.tt-id    { font-size: 10px; color: var(--text2); text-align: right; }
+.tt-sig   { }                                                /* type + idreseau, same column layout as other rows */
+.tt-type  { font-weight: 700; font-size: 11px; min-width: 72px; flex-shrink: 0; }
+.tt-id    { font-size: 10px; color: var(--text2); }
 .tt-key   { color: var(--text2); min-width: 72px; font-size: 10px; flex-shrink: 0; }
 .tt-val   { font-size: 11px; color: var(--text); }
 /* Thin separator between signal list and common properties */
@@ -510,6 +503,29 @@ a.pu-osm-indicator { cursor: pointer; transition: opacity .15s; }
 a.pu-osm-indicator:hover { opacity: .7; }
 .osm-checking { font-family: var(--mono); font-size: 11px; color: var(--text3); }
 .osm-error    { font-family: var(--mono); font-size: 11px; color: var(--warn); }
+
+/* OSM retry button: square, bordered, OSM logo faded behind a centered refresh arrow */
+button.osm-retry {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel2); border: 1px solid var(--warn);
+  border-radius: 3px; width: 22px; height: 22px;
+  cursor: pointer; padding: 0; margin-left: 6px;
+  transition: background .15s, border-color .15s;
+  flex-shrink: 0; overflow: hidden;
+}
+button.osm-retry:hover { background: rgba(210,153,34,.18); border-color: #f0b429; }
+.osm-retry-img {
+  position: absolute; inset: 0; margin: auto;
+  display: block; opacity: .22; pointer-events: none;
+}
+.osm-retry-arrow {
+  position: relative; z-index: 1;
+  font-size: 15px; line-height: 1;
+  color: var(--warn);
+  text-shadow: 0 0 4px rgba(0,0,0,.9);
+  pointer-events: none;
+}
 
 /* OSM tags section */
 .pu-osm-preview { border-top: 1px solid var(--border); }

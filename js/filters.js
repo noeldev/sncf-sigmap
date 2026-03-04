@@ -264,15 +264,21 @@ function _refreshDropdown(idx) {
   const sel = activeFilters[def.field] || new Set();
   const q   = (def.search || '').toLowerCase();
 
-  const isMappedOnlyActive = _mappedOnly && def.field === 'type_if';
+  const isTypeIf           = def.field === 'type_if';
+  const isMappedOnlyActive = _mappedOnly && isTypeIf;
   if (isMappedOnlyActive) all = all.filter(v => _mappedTypes.has(v));
 
   if (input) input.placeholder = t('dropdown.search', all.length);
 
+  // code_ligne values are numeric — sort by numeric value.
+  // All other fields sort alphabetically (localeCompare handles mixed nom_voie well).
+  const numericSort = def.field === 'code_ligne';
   const filtered = all
     .filter(v => v.toLowerCase().includes(q))
     .map(v => ({ v, count: _counts[def.field]?.get(v) || 0, mapped: _mappedTypes.has(v) }))
-    .sort((a, b) => b.count - a.count || a.v.localeCompare(b.v));
+    .sort(numericSort
+      ? (a, b) => (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) || a.v.localeCompare(b.v)
+      : (a, b) => a.v.localeCompare(b.v));
 
   list.innerHTML = '';
   if (!filtered.length) {
@@ -282,7 +288,9 @@ function _refreshDropdown(idx) {
 
   filtered.forEach(({ v, count, mapped }) => {
     const active  = sel.has(v);
-    const showDot = mapped && !isMappedOnlyActive;
+    // Supported-type dot indicator only makes sense for the type_if field;
+    // isTypeIf is hoisted above the loop to avoid re-evaluating the field name each iteration.
+    const showDot = isTypeIf && mapped && !isMappedOnlyActive;
     const item    = document.createElement('div');
     item.className     = `fg-drop-item${active ? ' active' : ''}${showDot ? ' mapped' : ''}`;
     item.dataset.field = def.field;

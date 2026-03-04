@@ -2,7 +2,9 @@
  * app.js — Main orchestration module.
  *
  * Overview mode (zoom < OVERVIEW_MAX_ZOOM):
- *   Only primary signal types are displayed, spatially subsampled to ~100 markers.
+ *   All signal types are loaded; results are spatially sampled to ~100 markers
+ *   when no filters are active, so the map stays readable at national scale.
+ *   When filters are active, all matching signals are shown regardless of zoom.
  *
  * Detail mode (zoom >= OVERVIEW_MAX_ZOOM):
  *   All signals in the current viewport bbox, all types, no count limit.
@@ -10,18 +12,17 @@
 
 import { initMap, map, updateZoomStatus }                       from './map.js';
 import { loadManifest, getTileUrlsForBounds, getManifestStats } from './tiles.js';
-import { initFilters, loadFilterIndex, indexSignals, resetCounts,
+import { initFilters, loadFilterIndex, indexSignals,
          resetFilters, getActiveFiltersForWorker,
          initAddFilterButton }                                  from './filters.js';
 import { openSignalPopup, getTypeColor, buildTooltip }          from './popup.js';
 import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS }  from './config.js';
 import { t }                                                    from './i18n.js';
+import { injectIconStyles }                                     from './icons.js';
 
-// Signal types shown in overview mode
-const OVERVIEW_TYPES = new Set([
-  'CARRE', 'CV', 'S', 'GA', 'D', 'A',
-  'TIV D FIXE', 'TIV D MOB', 'TIV R MOB',
-]);
+// Inject inline SVG icon styles immediately — eliminates HTTP requests for icon-*.svg files
+injectIconStyles();
+
 
 let manifest      = null;
 let markersLayer  = null;
@@ -134,7 +135,6 @@ function _runWorker(bounds, tileUrls, zoom) {
     urls:          tileUrls,
     activeFilters: getActiveFiltersForWorker(),
     bounds:        { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
-    overviewTypes: isOverview ? [...OVERVIEW_TYPES] : null,
     maxSignals:    isOverview ? OVERVIEW_MAX_SIGNALS : null,
   });
 }
