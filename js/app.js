@@ -28,8 +28,9 @@ let loadRunning   = false;
 let _lastTileKeys = new Set();
 let _lastZoom     = -1;
 
-document.addEventListener('DOMContentLoaded', async () => {
-  initMap('map');
+// ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
+async function _boot() {
+  await initMap('map');
   markersLayer = L.layerGroup().addTo(map);
 
   initFilters(_onFilterChange);
@@ -72,7 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 280));
 
   _onMapMove(true);
-});
+}
+
+_boot();
 
 function _onMapMove(force = false) { _refresh(force); }
 function _onFilterChange()         { _refresh(true);  }

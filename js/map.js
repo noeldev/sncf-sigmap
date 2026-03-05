@@ -1,8 +1,8 @@
 /**
  * map.js — Leaflet initialisation, basemaps, controls, legend, language picker.
  *
- * The Jawg API key is loaded via a dynamic import of config.secret.js (git-ignored).
- * If that file is absent or the key is empty the app silently falls back to OSM tiles.
+ * The Jawg API key is loaded inside initMap() via a dynamic import of
+ * config.secret.js (git-ignored). If that file is absent or the key is empty
  */
 
 import { MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
@@ -11,19 +11,13 @@ import { CATEGORY_INFO } from './signal-mapping.js';
 
 export let map;
 
-// Load Jawg key at module evaluation time. Dynamic import resolves before
-// initMap() is called because app.js awaits the module graph sequentially.
-let _jawgKey = '';
-try {
-    const secret = await import('./config.secret.js');
-    _jawgKey = (secret.JAWG_API_KEY || '').trim();
-} catch { /* config.secret.js absent — OSM fallback */ }
-
+// Basemap definitions. {jawg_api_key} is substituted in initMap() after the
+// key is loaded from config.secret.js — consistent with Leaflet's own {z}/{x}/{y} convention.
 const BASEMAPS = {
   'jawg-transport': {
     labelKey: 'basemap.jawg',
     thumb:    'assets/png/jawg-transport-thumb.png',
-    url:  `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${_jawgKey}`,
+    url:  'https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token={jawg_api_key}',
     opts: {
       attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
       maxZoom: 22,
@@ -52,15 +46,25 @@ const BASEMAPS = {
 const _tileLayers = {};
 let _current = null;
 
-export function initMap(containerId) {
+export async function initMap(containerId) {
+  let jawgKey = '';
+  try {
+      const secret = await import('./config.secret.js');
+      jawgKey = (secret.JAWG_API_KEY || '').trim();
+  } catch { /* config.secret.js absent — OSM fallback */ }
+
   map = L.map(containerId, { zoomControl: false, maxZoom: 22, preferCanvas: true })
          .setView(MAP_INITIAL_VIEW.center, MAP_INITIAL_VIEW.zoom);
 
+  // Substitute {jawg_api_key} via Leaflet's native placeholder mechanism.
   Object.entries(BASEMAPS).forEach(([key, def]) => {
-    _tileLayers[key] = L.tileLayer(def.url, def.opts);
+      const opts = key === 'jawg-transport'
+          ? { ...def.opts, jawg_api_key: jawgKey }
+          : def.opts;
+      _tileLayers[key] = L.tileLayer(def.url, opts);
   });
 
-  _current = _jawgKey ? DEFAULT_BASEMAP : 'osm';
+  _current = jawgKey ? DEFAULT_BASEMAP : 'osm';
   _tileLayers[_current].addTo(map);
 
   _buildLayerButtons();
