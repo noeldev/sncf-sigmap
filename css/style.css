@@ -456,10 +456,10 @@ svg.icon {
 
 /* Signal popup tip: matches the wrapper border (default subtle, accent when focused) */
 .pu-leaflet .leaflet-popup-tip-container {
-  display: block;
-  height: 10px;
-  overflow: hidden;
-  margin-top: -1px;
+    display: block;
+    height: 10px;
+    overflow: hidden;
+    margin-top: -2px; /* must match the wrapper border-width */
 }
 .pu-leaflet .leaflet-popup-tip {
   width: 14px; height: 14px; margin: 0 auto;
