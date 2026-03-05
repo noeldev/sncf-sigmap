@@ -154,15 +154,26 @@ export function openSignalPopup(latlng, feats, idx = 0) {
         }
     });
 
-    // Focus tracking: accent border while popup has keyboard focus
+    // Focus tracking: accent border while popup has keyboard focus.
+    // tabIndex=-1 makes the wrapper programmatically focusable without entering
+    // the tab order, so clicking non-interactive areas doesn't lose focus.
     const popupEl = _popup.getElement();
     if (popupEl) {
-        popupEl.addEventListener('focusin', () => popupEl.classList.add('pu-focused'));
+        popupEl.tabIndex = -1;
+        popupEl.addEventListener('focusin',  () => popupEl.classList.add('pu-focused'));
         popupEl.addEventListener('focusout', e => {
             // relatedTarget is null when focus leaves the document entirely,
             // or points outside the popup — either way remove the class.
             if (!popupEl.contains(e.relatedTarget))
                 popupEl.classList.remove('pu-focused');
+        });
+        // Give the popup focus immediately on open so keyboard nav works right away.
+        // requestAnimationFrame waits for Leaflet to finish positioning the element.
+        requestAnimationFrame(() => {
+            const first = popupEl.querySelector(
+                'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
+            );
+            (first ?? popupEl).focus();
         });
     }
 

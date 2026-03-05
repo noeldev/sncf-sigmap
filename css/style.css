@@ -437,16 +437,16 @@ svg.icon {
 
 .leaflet-popup-content-wrapper {
   background: var(--panel) !important;
-  border: 1px solid var(--border2) !important;
+  border: 2px solid var(--border2) !important;
   border-radius: var(--radius) !important;
   box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
   padding: 0 !important; overflow: hidden;
-  transition: border-color .15s !important;
+  transition: border-color .15s, box-shadow .15s !important;
 }
 /* Accent border when the popup (or anything inside it) has keyboard focus */
 .pu-leaflet.pu-focused .leaflet-popup-content-wrapper {
   border-color: var(--accent2) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(37,137,199,.15) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 8px 1px rgba(37,137,199,.35) !important;
 }
 .leaflet-popup-content { margin: 0 !important; width: auto !important; }
 
@@ -464,13 +464,13 @@ svg.icon {
 .pu-leaflet .leaflet-popup-tip {
   width: 14px; height: 14px; margin: 0 auto;
   background: var(--panel) !important;
-  box-shadow: 1px 1px 0 0 var(--border2) !important;
+  box-shadow: 2px 2px 0 0 var(--border2) !important;
   transform: rotate(45deg);
   margin-top: -8px;
   transition: box-shadow .15s;
 }
 .pu-leaflet.pu-focused .leaflet-popup-tip {
-  box-shadow: 1px 1px 0 0 var(--accent2) !important;
+  box-shadow: 2px 2px 0 0 var(--accent2) !important;
 }
 
 .pu-wrap { min-width: 280px; max-width: 340px; }
