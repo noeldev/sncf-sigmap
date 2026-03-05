@@ -1,18 +1,29 @@
 /**
  * map.js — Leaflet initialisation, basemaps, controls, legend, language picker.
+ *
+ * The Jawg API key is loaded via a dynamic import of config.secret.js (git-ignored).
+ * If that file is absent or the key is empty the app silently falls back to OSM tiles.
  */
 
-import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
+import { MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
 import { LANGS, getLang, setLang, applyTranslations, t } from './i18n.js';
 import { CATEGORY_INFO } from './signal-mapping.js';
 
 export let map;
 
+// Load Jawg key at module evaluation time. Dynamic import resolves before
+// initMap() is called because app.js awaits the module graph sequentially.
+let _jawgKey = '';
+try {
+    const secret = await import('./config.secret.js');
+    _jawgKey = (secret.JAWG_API_KEY || '').trim();
+} catch { /* config.secret.js absent — OSM fallback */ }
+
 const BASEMAPS = {
   'jawg-transport': {
     labelKey: 'basemap.jawg',
     thumb:    'assets/png/jawg-transport-thumb.png',
-    url:  `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`,
+    url:  `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${_jawgKey}`,
     opts: {
       attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
       maxZoom: 22,
@@ -49,7 +60,7 @@ export function initMap(containerId) {
     _tileLayers[key] = L.tileLayer(def.url, def.opts);
   });
 
-  _current = (JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN') ? 'osm' : DEFAULT_BASEMAP;
+  _current = _jawgKey ? DEFAULT_BASEMAP : 'osm';
   _tileLayers[_current].addTo(map);
 
   _buildLayerButtons();

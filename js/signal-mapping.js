@@ -22,21 +22,21 @@
  * Reference: https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
 
-// Application-level categories coarser than ORM tag categories.
-// Only used for marker colours and the legend; ORM tags are independent.
+// Application-level categories are coarser than ORM tag categories.
+// Used only for marker colors and the legend; ORM tags remain independent.
 
 export const CATEGORY_INFO = {
-    "main":             "#e00000",   // Main signals (carré, S, GA, …)
+    "main":             "#e00000",   // Main signals (Carré, S, GA, …)
     "stop":             "#b09000",   // Stop signals
     "distant":          "#ffc010",   // Distant signals (A, D)
     "speed_limit":      "#f88000",   // All speed_limit* variants
-    "route":            "#00b0d0",   // Route* (ID, IDD, CHEVRON, …)
+    "route":            "#00b0d0",   // Route* (ID, IDD, …)
     "train_protection": "#4060c0",   // Cab signalling / ETCS
     "crossing":         "#d04020",   // Level crossings
-    "wrong_road":       "#00a0a0",   // Contre-sens
+    "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
     "shunting":         "#a050e0",   // Shunting
     "electricity":      "#a00060",   // Traction electricity
-    "station":          "#008040",   // Station and facility signals (approche, SLD, …)
+    "station":          "#008040",   // Station and facility signals
     "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
     "unsupported":      "#607070",   // Types not yet mapped
 };

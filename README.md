@@ -1,21 +1,25 @@
 # SNCF Signalisation Permanente
 
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-f7df1e?logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-compatible-7ebc6f?logo=openstreetmap&logoColor=white)](https://www.openstreetmap.org/)
+[![Leaflet](https://img.shields.io/badge/Leaflet-1.9-199900?logo=leaflet&logoColor=white)](https://leafletjs.com/)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
 
-Interactive map viewer for the [SNCF permanent railway signalling](https://data.sncf.com/) open dataset, with OpenStreetMap integration via JOSM Remote Control or clipboard copy.
+Interactive map viewer for the [SNCF permanent railway signalling](https://data.sncf.com/) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or exported via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
 Only tiles visible in the current viewport are fetched — no full dataset download.
 
 ## Features
 
 - **123,870 signals** across France, split into ~289 gzip-compressed tiles (0.5° × 0.5°)
-- Progressive display: overview mode at low zoom (major signal types only), full detail at zoom ≥ 10
-- Hover tooltips and click popups with signal metadata
-- OSM existence check per signal via Overpass API (✓ / ✗ badge in popup)
+- Progressive display: spatial sampling at low zoom, full detail at zoom ≥ 10
+- Hover tooltips and click popups with signal information and OSM tags
+- OSM existence check per signal via Overpass API (live badge in popup)
 - Export to JOSM via Remote Control (`127.0.0.1:8111`) or copy tags to clipboard
-- Filters by type, line code, track name, direction, position
+- Filters by signal type, line code, track name, direction, position
+- "Supported types only" toggle to highlight signals already mapped in `signal-mapping.js`
 - Three basemaps: Jawg Transport, OpenStreetMap, Satellite
-- EN / FR interface
+- Bilingual interface (EN / FR)
 
 ## Architecture
 
@@ -34,13 +38,13 @@ data/tiles/
 https://sncf-sigmap.netlify.app
 ```
 
-Tiles are committed to Git and deployed by Netlify alongside the source code. The `netlify.toml` sets `Content-Encoding: gzip` headers so the browser decompresses tiles transparently.
+Tiles are committed to GitHub and deployed by Netlify alongside the source code. The `netlify.toml` file sets `Content-Encoding: gzip` headers so the browser decompresses tiles transparently.
 
 ## First-time setup
 
-### 1. Generate tiles
+### Generate tiles
 
-Open `tools/TileBuilder/TileBuilder.csproj` in Visual Studio 2022.
+Open `tools/TileBuilder/TileBuilder.csproj` in [Microsoft Visual Studio](https://visualstudio.microsoft.com/downloads/).
 
 Set the debug profile arguments (*Project → Properties → Debug → Open debug launch profiles UI*):
 
@@ -48,87 +52,100 @@ Set the debug profile arguments (*Project → Properties → Debug → Open debu
 |-------|-------|
 | Command line arguments | `"C:\path\to\signalisation-permanente.geojson" "C:\path\to\sncf-sigmap\data\tiles"` |
 
-Press **Ctrl+F5** — takes about 10 s. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
+Press **Ctrl+F5**. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
 
-### 2. Set your Jawg API key
+### Configure the Jawg API key (optional)
 
-Edit `js/config.js`:
+The app works without a Jawg key — it falls back to standard OpenStreetMap tiles automatically.
 
+To enable it:
+- Copy `js/config.secret.example.js` to `js/config.secret.js`
+- Edit `js/config.secret.js` and fill in your key:
 ```js
 export const JAWG_API_KEY = 'your-token-here';
 ```
 
-Restrict the key to your domain at [lab.jawg.io](https://lab.jawg.io) → token → Restrictions → add your Netlify URL.
-
-The app falls back to OpenStreetMap tiles automatically if the token is the default placeholder.
-
-### 3. Commit and deploy
-
-```
-git add data/tiles js/config.js
-git commit -m "Add tiles and config"
-git push
-```
-
-Netlify deploys within ~30 s.
+Get a free key at [lab.jawg.io](https://lab.jawg.io). `config.secret.js` is listed in `.gitignore` and will never be committed.
 
 ## Updating tiles
 
 Re-run TileBuilder after a source data update, then commit and push. Only changed tiles are re-deployed (Netlify caches unchanged files).
 
-## JOSM integration
+## Signal popup user interface
 
-### Prerequisites
-
-JOSM → Edit → Preferences → Remote Control → **Enable remote control**
-
-### Copy tags
-
-Click **Copy tags** in the signal popup. In JOSM: select or create a node → Tags panel → paste.
-
-### Open in JOSM
-
-Click **Open in JOSM** — a node is created at the signal's exact coordinates with all OSM tags pre-filled. Requires Firefox or Chrome (they allow HTTP requests to `127.0.0.1` from HTTPS pages; Safari does not).
-
-If a signal is already in OSM (✓ badge), a confirmation dialog appears before exporting.
+Click a signal marker to open a popup with detailed information and OSM tags.
 
 ### OSM existence check
 
 Each signal popup queries the [Overpass API](https://overpass-api.de/) to check whether a node with the corresponding `railway:signal:*:ref` tag already exists in OSM:
 
-- **✓ OSM** — signal found, export will show a confirmation prompt
-- **✗ OSM** — not yet mapped
-- **…** — check in progress
+| Badge | Meaning |
+|-------|---------|
+| OSM | Signal found — export will show a confirmation prompt |
+| OSM (dimmed) | Not yet mapped |
+| … | Check in progress |
+| ↻ | Check failed — click to retry |
 
 Results are cached for the session.
+
+### View on OpenStreetMap
+
+Click the **⊕** button next to the coordinates to open OpenStreetMap centered on the signal's location at zoom 18.
+
+### Copy tags button
+
+Click **Copy tags** to copy the tags of the signal(s) to the clipboard.
+
+### Open in JOSM
+
+Click **Open in JOSM** to create a node at the signal's exact coordinates with all OSM tags pre-filled. 
+The browser must allow HTTP requests to `127.0.0.1` from HTTPS pages. 
+There will be a confirmation message box in the browser and in JOSM.
+
+If a signal is already in OSM, a confirmation dialog also appears before exporting.
+
+## JOSM integration
+JOSM is optional, it just makes it easier to integrate the signals.
+
+### Prerequisites
+JOSM → Edit → Preferences → Remote Control → **Enable remote control**
+
+The JOSM Remote Control must be enabled for **Open in JOSM** to work.
+
+### Presets
+
+Install the [French Railway Signalling JOSM Presets](https://noeldev.github.io/FrenchRailwaySignalling) to easily edit the imported signals.
+### Open in JOSM
 
 ## Project structure
 
 ```
 sncf-sigmap/
 ├── index.html
-├── netlify.toml            ← gzip Content-Encoding headers for tiles
-├── css/style.css
-├── js/
-│   ├── config.js           ← JAWG_API_KEY, tile constants
-│   ├── app.js              ← orchestration, tile loading, marker rendering
-│   ├── map.js              ← Leaflet, basemaps, controls, legend
-│   ├── tiles.js            ← manifest loader, tile URL calculator
-│   ├── filters.js          ← filter panel (type, line, track, direction…)
-│   ├── popup.js            ← signal popup, copy tags, JOSM export
-│   ├── osm-check.js        ← Overpass API existence check
-│   ├── i18n.js             ← EN / FR translations
-│   ├── signal-mapping.js   ← SNCF type_if → OSM tag mapping
-│   └── geojson.worker.js   ← tile fetch + spatial/attribute filtering (Web Worker)
+├── netlify.toml                  ← gzip Content-Encoding headers for tiles
 ├── assets/
-│   ├── png/                ← SNCF logo, favicon
-│   └── svg/                ← favicon, JOSM, OSM, basemap icons
-├── data/tiles/             ← generated by TileBuilder, committed to Git
+│   ├── png/                      ← SNCF logo, favicon, basemap thumbnails
+│   └── svg/                      ← favicon, JOSM, OSM, flag icons
+├── css/style.css
+├── data/tiles/                   ← generated by TileBuilder, committed to Git
 │   ├── manifest.json
 │   ├── index.json
 │   └── *.json.gz
+├── js/
+│   ├── app.js                    ← orchestration, tile loading, marker rendering
+│   ├── config.js                 ← public constants (TILES_BASE, zoom thresholds…)
+│   ├── config.secret.js          ← JAWG_API_KEY — git-ignored, never committed
+│   ├── config.secret.example.js  ← template, safe to commit
+│   ├── filters.js                ← filter panel (type, line, track, direction…)
+│   ├── geojson.worker.js         ← tile fetch + spatial/attribute filtering (Web Worker)
+│   ├── i18n.js                   ← EN / FR translations
+│   ├── map.js                    ← Leaflet, basemaps, controls, legend
+│   ├── osm-check.js              ← Overpass API existence check (batch)
+│   ├── popup.js                  ← signal popup, copy tags, JOSM / OSM export
+│   ├── signal-mapping.js         ← SNCF type_if → OSM tag mapping
+│   └── tiles.js                  ← manifest loader, tile URL calculator
 └── tools/
-    └── TileBuilder/        ← C# tile generator
+    └── TileBuilder/              ← C# tile generator
         ├── Program.cs
         └── TileBuilder.csproj
 ```

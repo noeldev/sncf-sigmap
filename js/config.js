@@ -1,16 +1,18 @@
 /**
- * config.js — Central configuration.
+ * config.js — Static configuration constants.
+ *
+ * The Jawg API key is kept separately in js/config.secret.js (git-ignored).
+ * Copy js/config.secret.example.js → js/config.secret.js and add your key.
+ * If the file is absent the app falls back to the OpenStreetMap tile layer.
  */
 
-export const JAWG_API_KEY = 'AmqbyZ47xe9mLnAJNG7rNqIGZDFffalylyhlk7zlkaJ6hy0wPL43X6IgnkZjUT6t';
-
-// Absolute path — resolves correctly from both page and Web Worker contexts
+// Base URL for the tiled GeoJSON data
 export const TILES_BASE = '/data/tiles/';
 
 // Must match the TileBuilder TILE_DEG constant
 export const TILE_DEG = 0.5;
 
-// Below this zoom level, overview mode is active: limited types, spatially sampled
+// Below this zoom level, overview mode is active: spatially sampled
 export const OVERVIEW_MAX_ZOOM = 10;
 
 // Max signals shown in overview mode (zoom < OVERVIEW_MAX_ZOOM)

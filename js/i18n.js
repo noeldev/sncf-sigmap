@@ -81,6 +81,10 @@ const STRINGS = {
     'popup.josm':     'Open in JOSM',
     'popup.copied':   'Copied!',
     'popup.josmSent': 'Sent to JOSM',
+    'popup.prev':     'Previous signal',
+    'popup.next':     'Next signal',
+    'popup.close':    'Close',
+    'popup.viewOnOsm':'View on OpenStreetMap',
 
     // OSM existence check
     'osm.checking':   'Checking in OpenStreetMap…',
@@ -101,7 +105,7 @@ const STRINGS = {
     'cat.crossing':         'Level crossings',
     'cat.electricity':      'Traction electricity',
     'cat.train_protection': 'Cab signalling / ETCS',
-    'cat.wrong_road':       'Wrong-road (contre-sens)',
+    'cat.wrong_road':       'Wrong-road (IPCS)',
     'cat.station':          'Station and facilities',
     'cat.miscellaneous':    'Miscellaneous',
     'cat.unsupported':      'Unsupported types',
@@ -185,6 +189,10 @@ const STRINGS = {
     'popup.josm':     'Ouvrir dans JOSM',
     'popup.copied':   'Copié !',
     'popup.josmSent': 'Envoyé à JOSM',
+    'popup.prev':     'Signal précédent',
+    'popup.next':     'Signal suivant',
+    'popup.close':    'Fermer',
+    'popup.viewOnOsm':'Voir sur OpenStreetMap',
 
     // OSM existence check
     'osm.checking':   'Vérification dans OpenStreetMap…',
@@ -205,7 +213,7 @@ const STRINGS = {
     'cat.crossing':         'Passages à niveau',
     'cat.electricity':      'Traction électrique',
     'cat.train_protection': 'Signalisation cabine / ETCS',
-    'cat.wrong_road':       'Contre-sens',
+    'cat.wrong_road':       'Contre-sens (IPCS)',
     'cat.station':          'Gares et établissements',
     'cat.miscellaneous':    'Divers',
     'cat.unsupported':      'Types non supportés',

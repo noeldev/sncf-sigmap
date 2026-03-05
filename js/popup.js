@@ -3,20 +3,20 @@
  * Signal popup: display, navigation, OSM tag export, JOSM Remote Control.
  */
 
-import { map }                                                from './map.js';
+import { map } from './map.js';
 import {
     SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS,
     getTypeColor, isSupported
 } from './signal-mapping.js';
-import { t }                                                  from './i18n.js';
-import { checkOsmBatch }                                      from './osm-check.js';
+import { t } from './i18n.js';
+import { checkOsmBatch } from './osm-check.js';
 
 export { getTypeColor };
 
 /* ===== Contrast helper ===== */
 
 /**
- * Returns '#0d1117' (dark) or '#fff' (light) for text on a given hex background.
+ * Returns '#000' (dark) or '#fff' (light) for text on a given hex background.
  * Uses the YIQ luminance formula so there is no need for a hard-coded set.
  */
 function _contrastColor(hex) {
@@ -25,7 +25,7 @@ function _contrastColor(hex) {
     const r = parseInt(h.slice(0, 2), 16);
     const g = parseInt(h.slice(2, 4), 16);
     const b = parseInt(h.slice(4, 6), 16);
-    return ((r * 299 + g * 587 + b * 114) / 1000) >= 128 ? '#0d1117' : '#fff';
+    return ((r * 299 + g * 587 + b * 114) / 1000) >= 128 ? '#000' : '#fff';
 }
 
 /* ===== Tag resolution ===== */
@@ -153,6 +153,49 @@ export function openSignalPopup(latlng, feats, idx = 0) {
             });
         }
     });
+
+    // Focus tracking: accent border while popup has keyboard focus
+    const popupEl = _popup.getElement();
+    if (popupEl) {
+        popupEl.addEventListener('focusin', () => popupEl.classList.add('pu-focused'));
+        popupEl.addEventListener('focusout', e => {
+            // relatedTarget is null when focus leaves the document entirely,
+            // or points outside the popup — either way remove the class.
+            if (!popupEl.contains(e.relatedTarget))
+                popupEl.classList.remove('pu-focused');
+        });
+    }
+
+    // Keyboard: arrow keys navigate signals; Tab is trapped inside popup; Escape closes.
+    _popup.getElement()?.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            e.stopPropagation();
+            _popup?.remove(); _popup = null; return;
+        }
+        if (feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.stopPropagation(); e.preventDefault();
+            let next = _currentIdx + (e.key === 'ArrowRight' ? 1 : -1);
+            if (next < 0)             next = feats.length - 1;
+            if (next >= feats.length) next = 0;
+            _currentIdx = next;
+            _popup.setContent(_build(feats, next));
+            return;
+        }
+        // Tab trap: keep focus cycling within the popup
+        if (e.key === 'Tab') {
+            const el = _popup.getElement();
+            const focusable = [...el.querySelectorAll(
+                'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
+            )].filter(n => !n.closest('.is-hidden'));
+            if (!focusable.length) return;
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault(); last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault(); first.focus();
+            }
+        }
+    });
 }
 
 /* ===== Popup HTML ===== */
@@ -168,16 +211,16 @@ function _build(feats, idx) {
 
     const nav = `
     <div class="pu-nav">
-      <div class="pu-nav-left">
-        ${total > 1
-            ? `<button class="pu-nav-btn" data-nav="${idx - 1}">&#8249;</button>`
-            : '<span class="pu-nav-placeholder"></span>'}
-        <span class="pu-nav-label">${total > 1 ? `${idx + 1} / ${total}` : '&nbsp;'}</span>
-        ${total > 1
-            ? `<button class="pu-nav-btn" data-nav="${idx + 1}">&#8250;</button>`
-            : '<span class="pu-nav-placeholder"></span>'}
-      </div>
-      <button class="pu-close-btn" data-action="close">&#10005;</button>
+      ${total > 1 ? `<div class="pu-nav-group">
+        <button class="pu-nav-btn" data-nav="${idx - 1}" title="${t('popup.prev')}" aria-label="${t('popup.prev')}">
+          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+        </button>
+        <span class="pu-nav-label">${idx + 1}&thinsp;/&thinsp;${total}</span>
+        <button class="pu-nav-btn" data-nav="${idx + 1}" title="${t('popup.next')}" aria-label="${t('popup.next')}">
+          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+        </button>
+      </div>` : ''}
+      <button class="pu-close-btn" data-action="close" title="${t('popup.close')}" aria-label="${t('popup.close')}">&#10005;</button>
     </div>`;
 
     const FIELDS = [
@@ -200,9 +243,14 @@ function _build(feats, idx) {
       ${_osmIndicator(osmInfo)}
     </div>` : '';
 
+    const osmMapUrl = `https://www.openstreetmap.org/?mlat=${s.lat.toFixed(6)}&mlon=${s.lng.toFixed(6)}&zoom=18`;
     const coord = `<div class="pu-row">
     <span class="pu-label">COORDS</span>
-    <span class="pu-val">${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}</span>
+    <span class="pu-val">${s.lat.toFixed(6)},&thinsp;${s.lng.toFixed(6)}</span>
+    <a class="pu-coords-btn" href="${osmMapUrl}" target="_blank" rel="noopener"
+       title="${t('popup.viewOnOsm')}" aria-label="${t('popup.viewOnOsm')}">
+      <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+    </a>
   </div>`;
 
     let osmSection = '';
