@@ -13,61 +13,6 @@
 </head>
 <body>
 
-<!--
-  SVG symbol library.
-  All icons reference currentColor so they inherit the parent element's CSS color.
-  Icons that carry their own colour (josm.svg, osm.svg, flag-*.svg) are loaded
-  as <img> elements and are not included here.
--->
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-  <!-- Three horizontal bars -->
-  <symbol id="icon-hamburger" viewBox="0 0 20 20" fill="currentColor">
-    <rect y="2.5"  width="20" height="2" rx="1"/>
-    <rect y="9"    width="20" height="2" rx="1"/>
-    <rect y="15.5" width="20" height="2" rx="1"/>
-  </symbol>
-  <!-- Crosshair / geolocate -->
-  <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-  </symbol>
-  <!-- Fullscreen corners -->
-  <symbol id="icon-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-  </symbol>
-  <!-- Plus / zoom in -->
-  <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </symbol>
-  <!-- Minus / zoom out -->
-  <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-    <line x1="5" y1="12" x2="19" y2="12"/>
-  </symbol>
-  <!-- Copy to clipboard -->
-  <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2"/>
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-  </symbol>
-  <!-- Check mark -->
-  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
-  </symbol>
-  <!-- Circular refresh arrows (clockwise) -->
-  <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M23 4v6h-6"/>
-    <path d="M1 20v-6h6"/>
-    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-  </symbol>
-  <!-- Chevron left (popup nav) -->
-  <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="15 18 9 12 15 6"/>
-  </symbol>
-  <!-- Chevron right (popup nav) -->
-  <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="9 18 15 12 9 6"/>
-  </symbol>
-</svg>
-
 <div id="app">
 
   <!-- Sidebar (left) -->
@@ -139,10 +84,10 @@
           <div class="about-section-title" data-i18n="about.links.title">Links</div>
           <ul class="about-links">
             <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
+            <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
             <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a></li>
             <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM editor</a></li>
             <li><a href="https://noeldev.github.io/FrenchRailwaySignalling/" target="_blank" rel="noopener">JOSM Presets — French Railway Signalling</a></li>
-            <li><a href="https://openrailwaymap.org/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
           </ul>
         </div>
         <div class="about-section">
@@ -208,6 +153,62 @@
   </div>
 
 </div>
+
+<!--
+  SVG symbol library.
+  All icons reference currentColor so they inherit the parent element's CSS color.
+  Icons that carry their own colour (josm.svg, osm.svg, flag-*.svg) are loaded
+  as <img> elements and are not included here.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <!-- Three horizontal bars -->
+  <symbol id="icon-hamburger" viewBox="0 0 20 20" fill="currentColor">
+    <rect y="2.5"  width="20" height="2" rx="1"/>
+    <rect y="9"    width="20" height="2" rx="1"/>
+    <rect y="15.5" width="20" height="2" rx="1"/>
+  </symbol>
+  <!-- Crosshair / geolocate -->
+  <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+  </symbol>
+  <!-- Fullscreen corners -->
+  <symbol id="icon-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+  </symbol>
+  <!-- Plus / zoom in -->
+  <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <!-- Minus / zoom out -->
+  <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <!-- Copy to clipboard -->
+  <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </symbol>
+  <!-- Check mark -->
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </symbol>
+  <!-- Circular refresh arrows (clockwise) -->
+  <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23 4v6h-6"/>
+    <path d="M1 20v-6h6"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </symbol>
+  <!-- Chevron left (popup nav) -->
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </symbol>
+  <!-- Chevron right (popup nav) -->
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </symbol>
+</svg>
+
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

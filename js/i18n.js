@@ -138,7 +138,7 @@ const STRINGS = {
     // Filter toolbar
     'btn.addFilter':    '+ Ajouter',
     'btn.reset':        'Réinitialiser',
-    'toggle.supported': 'Supportés uniquement',
+    'toggle.supported': 'Types supportés uniquement',
 
     // Legend
     'legend.title': 'Légende',

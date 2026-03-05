@@ -27,7 +27,6 @@
 
 export const CATEGORY_INFO = {
     "main":             "#e00000",   // Main signals (Carré, S, GA, …)
-    "stop":             "#b09000",   // Stop signals
     "distant":          "#ffc010",   // Distant signals (A, D)
     "speed_limit":      "#f88000",   // All speed_limit* variants
     "route":            "#00b0d0",   // Route* (ID, IDD, …)
@@ -36,6 +35,7 @@ export const CATEGORY_INFO = {
     "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
     "shunting":         "#a050e0",   // Shunting
     "electricity":      "#a00060",   // Traction electricity
+    "stop":             "#b09000",   // Stop signs
     "station":          "#008040",   // Station and facility signals
     "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
     "unsupported":      "#607070",   // Types not yet mapped

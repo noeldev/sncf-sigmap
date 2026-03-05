@@ -68,10 +68,6 @@ export const JAWG_API_KEY = 'your-token-here';
 
 Get a free key at [jawg.io](https://jawg.io). `config.secret.js` is listed in `.gitignore` and will never be committed.
 
-## Updating tiles
-
-Re-run TileBuilder after a source data update, then commit and push. Only changed tiles are re-deployed (Netlify caches unchanged files).
-
 ## Signal popup
 
 Click a signal marker to open a popup with detailed information and OSM tags.
@@ -99,7 +95,7 @@ Click **Copy tags** to copy the signal's OSM tags to the clipboard.
 
 ### Open in JOSM
 
-Click **Open in JOSM** to create a node at the signal's exact coordinates with all OSM tags pre-filled via JOSM Remote Control. The browser must allow HTTP requests to `127.0.0.1` from HTTPS pages (Firefox and Chrome do; Safari does not). A confirmation dialog appears if the signal is already in OSM.
+Click **Open in JOSM** to create a node at the signal's exact coordinates with all OSM tags pre-filled via JOSM Remote Control. The browser must allow HTTP requests to `127.0.0.1` from HTTPS pages. A confirmation dialog appears if the signal is already in OSM.
 
 ## JOSM integration
 
