@@ -30,7 +30,7 @@ const STRINGS = {
     // Filter toolbar
     'btn.addFilter':    '+ Add filter',
     'btn.reset':        'Reset',
-    'toggle.supported': 'Supported only',
+    'toggle.supported': 'Supported types only',
 
     // Legend
     'legend.title': 'Legend',
@@ -68,6 +68,10 @@ const STRINGS = {
     'status.filters': 'Filters',
     'status.zoom':    'Zoom',
 
+        // Sampled badge tooltip
+        'status.sampled_title': (total, minZoom) =>
+            `Overview sample — ${total.toLocaleString()} matching signals. Zoom ≥${minZoom} for full detail.`,
+
     // Progress messages
     'progress.index':     'Loading index…',
     'progress.tiles':     n => `Loading ${n} tile(s)…`,
@@ -100,7 +104,7 @@ const STRINGS = {
     'cat.distant':          'Distant signals',
     'cat.speed_limit':      'Speed limits',
     'cat.route':            'Route indicators',
-    'cat.stop':             'Stop signals',
+    'cat.stop':             'Stop signs',
     'cat.shunting':         'Shunting',
     'cat.crossing':         'Level crossings',
     'cat.electricity':      'Traction electricity',
@@ -121,6 +125,15 @@ const STRINGS = {
     // Record count (lowercase for inline use)
     'status.signals_lower': 'signals',
     'status.tiles_lower':   'tiles',
+
+    // JOSM version detection (Settings tab)
+        'josm.detect.title': 'JOSM',
+        'josm.detect.version': 'Version',
+        'josm.detect.protocol': 'Protocol',
+        'josm.detect.port': 'Port',
+        'josm.detect.checking': '…',
+        'josm.detect.notDetected': 'Not detected',
+        'josm.detect.notAllowed': 'Not allowed yet',
   },
 
 
@@ -176,6 +189,10 @@ const STRINGS = {
     'status.filters': 'Filtres',
     'status.zoom':    'Zoom',
 
+      // Sampled badge tooltip
+      'status.sampled_title': (total, minZoom) =>
+          `Aperçu — ${total.toLocaleString()} signaux correspondants. Zoom ≥${minZoom} pour le détail complet.`,
+
     // Progress messages
     'progress.index':     'Chargement de l\'index…',
     'progress.tiles':     n => `Chargement de ${n} tuile(s)…`,
@@ -208,7 +225,7 @@ const STRINGS = {
     'cat.distant':          'Signaux distants',
     'cat.speed_limit':      'Limitations de vitesse',
     'cat.route':            'Indicateurs de direction',
-    'cat.stop':             'Signaux d\'arrêt',
+    'cat.stop':             'Pancartes d\'arrêt',
     'cat.shunting':         'Manœuvres',
     'cat.crossing':         'Passages à niveau',
     'cat.electricity':      'Traction électrique',
@@ -229,6 +246,15 @@ const STRINGS = {
     // Record count (lowercase for inline use)
     'status.signals_lower': 'signaux',
     'status.tiles_lower':   'tuiles',
+
+    // JOSM version detection (Settings tab)
+      'josm.detect.title': 'JOSM',
+      'josm.detect.version': 'Version',
+      'josm.detect.protocol': 'Protocole',
+      'josm.detect.port': 'Port',
+      'josm.detect.checking': '…',
+      'josm.detect.notDetected': 'Non détecté',
+      'josm.detect.notAllowed': 'Non autorisé',
   },
 };
 
@@ -247,6 +273,16 @@ export function setLang(l) {
 export function t(key, ...args) {
   const val = STRINGS[_lang]?.[key] ?? STRINGS['en']?.[key] ?? key;
   return typeof val === 'function' ? val(...args) : val;
+}
+
+// Record count — stored at module level; updated by app.js via setRecordCount()
+// and re-rendered on every language switch inside applyTranslations().
+// This avoids polluting window.* with cross-module state.
+let _recordCount = null;
+
+/** Called by app.js once the manifest is loaded. */
+export function setRecordCount(data) {
+    _recordCount = data;
 }
 
 /**
@@ -269,11 +305,12 @@ export function applyTranslations() {
   document.querySelectorAll('.lang-option').forEach(opt => {
     opt.classList.toggle('active', opt.dataset.lang === _lang);
   });
-  // Refresh the record count if already loaded (avoid reverting to "Loading…")
-  if (window._sncfRecordCount) {
-    const { totalSignals, tileCount } = window._sncfRecordCount;
-    const el = document.getElementById('record-count');
-    if (el) el.textContent = `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
+    // Re-render the record count if already loaded (avoid reverting to "…")
+    if (_recordCount) {
+        const { totalSignals, tileCount } = _recordCount;
+        const el = document.getElementById('record-count');
+        if (el) el.textContent =
+            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
   }
   // Notify registered listeners (e.g. filters panel) of the language change
   _langListeners.forEach(fn => fn());

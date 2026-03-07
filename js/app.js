@@ -10,190 +10,203 @@
  *   All signals in the current viewport bbox, all types, no count limit.
  */
 
-import { initMap, map, updateZoomStatus }                       from './map.js';
+import { initMap, map, updateZoomStatus } from './map.js';
 import { loadManifest, getTileUrlsForBounds, getManifestStats } from './tiles.js';
-import { initFilters, loadFilterIndex, indexSignals,
-         resetFilters, getActiveFiltersForWorker,
-         initAddFilterButton }                                  from './filters.js';
-import { openSignalPopup, getTypeColor, buildTooltip }          from './popup.js';
-import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS }  from './config.js';
-import { t }                                                    from './i18n.js';
+import {
+    initFilters, loadFilterIndex, indexSignals,
+    resetFilters, getActiveFiltersForWorker,
+    initAddFilterButton
+} from './filters.js';
+import { openSignalPopup, getTypeColor, buildTooltip } from './popup.js';
+import { TILES_BASE, OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
+import { t, setRecordCount } from './i18n.js';
 
 
-let manifest      = null;
-let markersLayer  = null;
-let worker        = null;
-let loadPending   = false;
-let loadRunning   = false;
+let manifest = null;
+let markersLayer = null;
+let worker = null;
+let loadPending = false;
+let loadRunning = false;
 let _lastTileKeys = new Set();
-let _lastZoom     = -1;
+let _lastZoom = -1;
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
 async function _boot() {
-  await initMap('map');
-  markersLayer = L.layerGroup().addTo(map);
+    await initMap('map');
+    markersLayer = L.layerGroup().addTo(map);
 
-  initFilters(_onFilterChange);
-  initAddFilterButton(document.getElementById('btn-add-filter'));
-  document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
-    resetFilters(); _refresh(true);
-  });
+    initFilters(_onFilterChange);
+    initAddFilterButton(document.getElementById('btn-add-filter'));
+    document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
+        resetFilters(); _refresh(true);
+    });
 
-  console.info('[App] TILES_BASE:', TILES_BASE);
-  _setProgress(true, t('progress.index'));
+    console.info('[App] TILES_BASE:', TILES_BASE);
+    _setProgress(true, t('progress.index'));
 
-  [manifest] = await Promise.all([
-    loadManifest(),
-    loadFilterIndex(TILES_BASE),
-  ]);
+    [manifest] = await Promise.all([
+        loadManifest(),
+        loadFilterIndex(TILES_BASE),
+    ]);
 
-  if (!manifest) {
+    if (!manifest) {
+        _setProgress(false);
+        console.error('[App] manifest.json not found at', TILES_BASE + 'manifest.json');
+        return;
+    }
+
+    const { tileCount, totalSignals } = getManifestStats(manifest);
+    console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
+
+    // Store via i18n module function so applyTranslations() can re-render it on
+    // language switch without going through window.*.
+    setRecordCount({ totalSignals, tileCount });
+
+    const count = `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
+    document.getElementById('record-count').textContent = count;
+
     _setProgress(false);
-    console.error('[App] manifest.json not found at', TILES_BASE + 'manifest.json');
-    return;
-  }
+    _lastZoom = map.getZoom();
+    updateZoomStatus(_lastZoom);
 
-  const { tileCount, totalSignals } = getManifestStats(manifest);
-  console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-  const count = `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
-  document.getElementById('record-count').textContent = count;
-  // Store for language refresh
-  window._sncfRecordCount = { totalSignals, tileCount };
+    map.on('moveend zoomend', _debounce(() => {
+        const z = map.getZoom();
+        updateZoomStatus(z);
+        const crossedThreshold = (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
+        _lastZoom = z;
+        _onMapMove(crossedThreshold);
+    }, 280));
 
-  _setProgress(false);
-  _lastZoom = map.getZoom();
-  updateZoomStatus(_lastZoom);
-
-  map.on('moveend zoomend', _debounce(() => {
-    const z = map.getZoom();
-    updateZoomStatus(z);
-    const crossedThreshold = (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
-    _lastZoom = z;
-    _onMapMove(crossedThreshold);
-  }, 280));
-
-  _onMapMove(true);
+    _onMapMove(true);
 }
 
 _boot();
 
 function _onMapMove(force = false) { _refresh(force); }
-function _onFilterChange()         { _refresh(true);  }
+function _onFilterChange() { _refresh(true); }
 
 function _refresh(force = false) {
-  if (loadRunning) { loadPending = true; return; }
+    if (loadRunning) { loadPending = true; return; }
 
-  const bounds   = map.getBounds();
-  const zoom     = map.getZoom();
-  const tileUrls = getTileUrlsForBounds(bounds, manifest);
-  const tileKeys = new Set(tileUrls);
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
+    const tileUrls = getTileUrlsForBounds(bounds, manifest);
+    const tileKeys = new Set(tileUrls);
 
-  if (!force && _eqSets(tileKeys, _lastTileKeys) && !loadPending) return;
-  _lastTileKeys = tileKeys;
-  loadPending   = false;
+    if (!force && _eqSets(tileKeys, _lastTileKeys) && !loadPending) return;
+    _lastTileKeys = tileKeys;
+    loadPending = false;
 
-  if (!manifest || tileUrls.length === 0) {
-    markersLayer.clearLayers();
-    document.getElementById('st-visible').textContent = '0';
-    _setSampledBadge(false);
-    return;
-  }
-  _runWorker(bounds, tileUrls, zoom);
+    if (!manifest || tileUrls.length === 0) {
+        markersLayer.clearLayers();
+        document.getElementById('st-visible').textContent = '0';
+        _setSampledBadge(false);
+        return;
+    }
+    _runWorker(bounds, tileUrls, zoom);
 }
 
 function _runWorker(bounds, tileUrls, zoom) {
-  if (worker) { worker.terminate(); worker = null; }
-  loadRunning = true;
-  _setProgress(true, t('progress.tiles', tileUrls.length));
+    if (worker) { worker.terminate(); worker = null; }
+    loadRunning = true;
+    _setProgress(true, t('progress.tiles', tileUrls.length));
 
-  worker           = new Worker('./js/geojson.worker.js');
-  const sw         = bounds.getSouthWest();
-  const ne         = bounds.getNorthEast();
-  const isOverview = zoom < OVERVIEW_MAX_ZOOM;
+    worker = new Worker('./js/geojson.worker.js');
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
-  worker.onmessage = e => {
-    const { status, msg, signals, sampled, total } = e.data;
-    if (status === 'progress') { _setProgress(true, msg); return; }
-    worker.terminate(); worker = null;
-    loadRunning = false;
-    _setProgress(false);
-    if (status === 'error') { console.error('[Worker]', e.data.error); return; }
-    _renderSignals(signals);
-    indexSignals(signals);
-    _setSampledBadge(sampled, total);
-    if (loadPending) { loadPending = false; _refresh(true); }
-  };
+    // Shared teardown for both the normal completion path and the error path —
+    // equivalent of a finally block for event-based async flow.
+    // Always resets loadRunning and hides the progress overlay regardless of
+    // how the worker terminates, preventing the UI from getting stuck.
+    const _workerDone = () => {
+        if (worker) { worker.terminate(); worker = null; }
+        loadRunning = false;
+        _setProgress(false);
+    };
 
-  worker.onerror = err => {
-    console.error('[Worker error]', err.message);
-    worker = null; loadRunning = false; _setProgress(false);
-  };
+    worker.onmessage = e => {
+        const { status, msg, signals, sampled, total } = e.data;
+        if (status === 'progress') { _setProgress(true, msg); return; }
+        _workerDone();
+        if (status === 'error') { console.error('[Worker]', e.data.error); return; }
+        _renderSignals(signals);
+        indexSignals(signals);
+        _setSampledBadge(sampled, total);
+        if (loadPending) { loadPending = false; _refresh(true); }
+    };
 
-  worker.postMessage({
-    type:          'fetch-tiles',
-    urls:          tileUrls,
-    activeFilters: getActiveFiltersForWorker(),
-    bounds:        { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
-    maxSignals:    isOverview ? OVERVIEW_MAX_SIGNALS : null,
-  });
+    worker.onerror = err => {
+        console.error('[Worker error]', err.message);
+        _workerDone();
+    };
+
+    worker.postMessage({
+        type: 'fetch-tiles',
+        urls: tileUrls,
+        activeFilters: getActiveFiltersForWorker(),
+        bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
+        maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
+    });
 }
 
 function _renderSignals(signals) {
-  markersLayer.clearLayers();
+    markersLayer.clearLayers();
 
-  // Group co-located signals by track + PK (or fallback to exact coordinates)
-  const groups = {};
-  for (const s of signals) {
-    const key = (s.p.code_voie && s.p.pk)
-      ? `${s.p.code_voie}|${s.p.pk}`
-      : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
-    if (!groups[key]) groups[key] = { lat: s.lat, lng: s.lng, feats: [] };
-    groups[key].feats.push(s);
-  }
+    // Group co-located signals by track + PK (or fallback to exact coordinates)
+    const groups = {};
+    for (const s of signals) {
+        const key = (s.p.code_voie && s.p.pk)
+            ? `${s.p.code_voie}|${s.p.pk}`
+            : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
+        if (!groups[key]) groups[key] = { lat: s.lat, lng: s.lng, feats: [] };
+        groups[key].feats.push(s);
+    }
 
-  for (const { lat, lng, feats } of Object.values(groups)) {
-    const color = getTypeColor(feats[0].p.type_if);
-    const multi = feats.length > 1;
-    const icon  = L.divIcon({
-      className:  '',
-      html:       `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color}"></div>`,
-      iconSize:   [multi ? 14 : 10, multi ? 14 : 10],
-      iconAnchor: [multi ? 7  : 5,  multi ? 7  : 5 ],
-    });
-    L.marker([lat, lng], { icon })
-      .bindTooltip(buildTooltip(feats), {
-        direction: 'top', offset: [0, -6],
-        className: 'sig-tooltip', sticky: false,
-      })
-      .on('click', () => openSignalPopup([lat, lng], feats, 0))
-      .addTo(markersLayer);
-  }
+    for (const { lat, lng, feats } of Object.values(groups)) {
+        const color = getTypeColor(feats[0].p.type_if);
+        const multi = feats.length > 1;
+        const icon = L.divIcon({
+            className: '',
+            html: `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color}"></div>`,
+            iconSize: [multi ? 14 : 10, multi ? 14 : 10],
+            iconAnchor: [multi ? 7 : 5, multi ? 7 : 5],
+        });
+        L.marker([lat, lng], { icon })
+            .bindTooltip(buildTooltip(feats), {
+                direction: 'top', offset: [0, -6],
+                className: 'sig-tooltip', sticky: false,
+            })
+            .on('click', () => openSignalPopup([lat, lng], feats, 0))
+            .addTo(markersLayer);
+    }
 
-  document.getElementById('st-visible').textContent =
-    Object.keys(groups).length.toLocaleString();
+    document.getElementById('st-visible').textContent =
+        Object.keys(groups).length.toLocaleString();
 }
 
 function _setSampledBadge(sampled, total) {
-  const el = document.getElementById('st-sampled');
-  if (!el) return;
-  el.classList.toggle('is-hidden', !sampled);
-  if (sampled && total)
-    el.title = `Overview sample — ${total.toLocaleString()} matching signals. Zoom ≥${OVERVIEW_MAX_ZOOM} for full detail.`;
+    const el = document.getElementById('st-sampled');
+    if (!el) return;
+    el.classList.toggle('is-hidden', !sampled);
+    if (sampled && total)
+        el.title = t('status.sampled_title', total, OVERVIEW_MAX_ZOOM);
 }
 
 function _setProgress(visible, msg = '') {
-  document.getElementById('progress-overlay')?.classList.toggle('hidden', !visible);
-  const el = document.getElementById('progress-msg');
-  if (el) el.textContent = msg;
+    document.getElementById('progress-overlay')?.classList.toggle('hidden', !visible);
+    const el = document.getElementById('progress-msg');
+    if (el) el.textContent = msg;
 }
 
 function _debounce(fn, ms) {
-  let timer;
-  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
 function _eqSets(a, b) {
-  if (a.size !== b.size) return false;
-  for (const v of a) if (!b.has(v)) return false;
-  return true;
+    if (a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;
+    return true;
 }

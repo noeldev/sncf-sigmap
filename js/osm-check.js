@@ -5,13 +5,24 @@
  * Results are cached in memory for the session.
  *
  * checkOsm()      — single signal
- * checkOsmBatch() — one Overpass request for a whole co-located group
+ * checkOsmBatch() — one Overpass request for a whole co-located group (preferred)
  */
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const FRANCE_BBOX  = '41.3,-5.5,51.2,9.6';
 
+import { map } from './map.js';
 import { TYPE_REF_TAG } from './signal-mapping.js';
+
+/**
+ * Returns the current map viewport as an Overpass bbox string: "swLat,swLng,neLat,neLng".
+ * Querying only the visible area is much faster than querying the full country,
+ * and reduces load on the public Overpass server.
+ * The signal that triggered the popup is always visible, so it is always within this bbox.
+ */
+function _viewportBbox() {
+    const b = map.getBounds();
+    return `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+}
 
 /**
  * Result shape:
@@ -21,7 +32,7 @@ import { TYPE_REF_TAG } from './signal-mapping.js';
  *   { status: 'error',       nodeId: null }
  */
 
-const _cache   = new Map();   // cacheKey -> result
+const _cache = new Map();   // cacheKey -> result
 const _pending = new Map();   // pendingKey -> Promise<void>
 
 function _cacheKey(refTag, idreseau) { return `${refTag}:${idreseau}`; }
@@ -29,15 +40,14 @@ function _cacheKey(refTag, idreseau) { return `${refTag}:${idreseau}`; }
 function _clearCacheEntry(key) { _cache.delete(key); }
 
 /** Raw Overpass fetch helper. */
-function _fetchOverpass(query) {
-    return fetch(OVERPASS_URL, {
-        method:  'POST',
+async function _fetchOverpass(query) {
+    const r = await fetch(OVERPASS_URL, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body:    'data=' + encodeURIComponent(query),
-    }).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        body: 'data=' + encodeURIComponent(query),
     });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
 }
 
 /**
@@ -50,22 +60,22 @@ export function checkOsm(idreseau, type_if, force = false) {
     if (!idreseau) return Promise.resolve(unsupported);
 
     const refTag = TYPE_REF_TAG[type_if];
-    if (!refTag)   return Promise.resolve(unsupported);
+    if (!refTag) return Promise.resolve(unsupported);
 
     const key = _cacheKey(refTag, idreseau);
     if (force) _clearCacheEntry(key);
 
-    if (_cache.has(key))   return Promise.resolve(_cache.get(key));
+    if (_cache.has(key)) return Promise.resolve(_cache.get(key));
     if (_pending.has(key)) return _pending.get(key);
 
-    const query = `[out:json][timeout:10];node["${refTag}"="${idreseau}"](${FRANCE_BBOX});out ids;`;
+    const query = `[out:json][timeout:15];node["${refTag}"="${idreseau}"](${_viewportBbox()});out ids;`;
 
     const promise = _fetchOverpass(query)
         .then(data => {
-            const el     = data.elements?.[0];
+            const el = data.elements?.[0];
             const result = el
-                ? { status: 'in-osm',     nodeId: el.id }
-                : { status: 'not-in-osm', nodeId: null  };
+                ? { status: 'in-osm', nodeId: el.id }
+                : { status: 'not-in-osm', nodeId: null };
             _cache.set(key, result);
             _pending.delete(key);
             return result;
@@ -73,7 +83,7 @@ export function checkOsm(idreseau, type_if, force = false) {
         .catch(err => {
             console.warn('[osm-check]', idreseau, err.message);
             _pending.delete(key);
-            // Errors are not cached — allows retry on next popup open or explicit retry
+            // Errors are not cached — allows automatic retry on next popup open
             return { status: 'error', nodeId: null };
         });
 
@@ -86,7 +96,8 @@ export function checkOsm(idreseau, type_if, force = false) {
  * Returns Promise<Array<{ status, nodeId }>> — one entry per feat, in order.
  *
  * Signals without a supported type resolve to 'unsupported' immediately.
- * All others are batched into one union query.
+ * All supported signals are batched into ONE union query — a single round-trip
+ * regardless of how many co-located signals there are.
  * force=true clears cached results for the whole group before querying.
  */
 export function checkOsmBatch(feats, force = false) {
@@ -107,13 +118,18 @@ export function checkOsmBatch(feats, force = false) {
     } else {
         // Deduplicate by key (same signal referenced twice in the group)
         const unique = [...new Map(toFetch.map(e => [e.key, e])).values()];
-        const unions = unique.map(e => `node["${e.refTag}"="${e.idreseau}"](${FRANCE_BBOX});`).join('');
-        const query  = `[out:json][timeout:15];(${unions});out ids tags;`;
+        // Capture the viewport bbox once for the whole batch
+        const bbox = _viewportBbox();
+        const unions = unique.map(e => `node["${e.refTag}"="${e.idreseau}"](${bbox});`).join('');
+        const query = `[out:json][timeout:15];(${unions});out ids tags;`;
         const batchKey = '_batch:' + unique.map(e => e.key).join('|');
 
         if (_pending.has(batchKey)) {
             networkPromise = _pending.get(batchKey);
         } else {
+            // The promise resolves with true on network error, false on success.
+            // This flag is forwarded to the final .then() so it can distinguish
+            // between "signal not found in OSM" and "request failed".
             const p = _fetchOverpass(query)
                 .then(data => {
                     // For each returned element, match it back to cached entries
@@ -129,11 +145,14 @@ export function checkOsmBatch(feats, force = false) {
                         if (!_cache.has(e.key)) _cache.set(e.key, { status: 'not-in-osm', nodeId: null });
                     }
                     _pending.delete(batchKey);
+                    return false; // no error
                 })
                 .catch(err => {
                     console.warn('[osm-check batch]', err.message);
-                    for (const e of unique) _cache.set(e.key, { status: 'error', nodeId: null });
+                    // Errors are NOT cached — consistent with checkOsm() and allows
+                    // automatic retry on the next popup open without a manual refresh.
                     _pending.delete(batchKey);
+                    return true; // error flag
                 });
 
             _pending.set(batchKey, p);
@@ -141,10 +160,10 @@ export function checkOsmBatch(feats, force = false) {
         }
     }
 
-    return networkPromise.then(() =>
+    return networkPromise.then(hadError =>
         entries.map(e => {
             if (!e.key) return { status: 'unsupported', nodeId: null };
-            return _cache.get(e.key) ?? { status: 'not-in-osm', nodeId: null };
+            return _cache.get(e.key) ?? (hadError ? { status: 'error', nodeId: null } : { status: 'not-in-osm', nodeId: null });
         })
     );
 }

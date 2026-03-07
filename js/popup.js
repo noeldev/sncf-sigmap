@@ -10,6 +10,7 @@ import {
 } from './signal-mapping.js';
 import { t } from './i18n.js';
 import { checkOsmBatch } from './osm-check.js';
+import { josmFetch } from './josm.js';
 
 export { getTypeColor };
 
@@ -77,10 +78,10 @@ export function buildTooltip(feats) {
     const sep = '<div class="tt-sep"></div>';
     const common = [
         _ttRow('Code voie', p.code_voie),
-        _ttRow('Nom voie',  p.nom_voie),
-        _ttRow('Sens',      p.sens),
-        _ttRow('Position',  p.position),
-        _ttRow('PK',        p.pk),
+        _ttRow('Nom voie', p.nom_voie),
+        _ttRow('Sens', p.sens),
+        _ttRow('Position', p.position),
+        _ttRow('PK', p.pk),
     ].filter(Boolean).join('');
 
     return sigRows + (common ? sep + common : '');
@@ -93,13 +94,13 @@ function _ttRow(label, val) {
 
 /* ===== Popup state ===== */
 
-let _popup      = null;
-let _statuses   = null;
+let _popup = null;
+let _statuses = null;
 let _currentIdx = 0;   // tracks nav position so retry uses the correct index
 
 export function openSignalPopup(latlng, feats, idx = 0) {
     if (_popup) { _popup.remove(); _popup = null; }
-    _statuses   = null;
+    _statuses = null;
     _currentIdx = idx;
 
     _popup = L.popup({
@@ -124,7 +125,7 @@ export function openSignalPopup(latlng, feats, idx = 0) {
         if (nav) {
             e.stopPropagation();
             let next = parseInt(nav.dataset.nav);
-            if (next < 0)             next = feats.length - 1;
+            if (next < 0) next = feats.length - 1;
             if (next >= feats.length) next = 0;
             _currentIdx = next;
             _popup.setContent(_build(feats, next));
@@ -154,21 +155,13 @@ export function openSignalPopup(latlng, feats, idx = 0) {
         }
     });
 
-    // Focus tracking: accent border while popup has keyboard focus.
-    // tabIndex=-1 makes the wrapper programmatically focusable without entering
-    // the tab order, so clicking non-interactive areas doesn't lose focus.
+    // Auto-focus the popup on open so keyboard nav works immediately.
+    // tabIndex=-1 makes the wrapper programmatically focusable (no tab stop).
+    // The programmatic focus() sets :focus but not :focus-visible, so the
+    // accent border stays hidden until the user actually presses Tab.
     const popupEl = _popup.getElement();
     if (popupEl) {
         popupEl.tabIndex = -1;
-        popupEl.addEventListener('focusin',  () => popupEl.classList.add('pu-focused'));
-        popupEl.addEventListener('focusout', e => {
-            // relatedTarget is null when focus leaves the document entirely,
-            // or points outside the popup — either way remove the class.
-            if (!popupEl.contains(e.relatedTarget))
-                popupEl.classList.remove('pu-focused');
-        });
-        // Give the popup focus immediately on open so keyboard nav works right away.
-        // requestAnimationFrame waits for Leaflet to finish positioning the element.
         requestAnimationFrame(() => {
             const first = popupEl.querySelector(
                 'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
@@ -186,7 +179,7 @@ export function openSignalPopup(latlng, feats, idx = 0) {
         if (feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
             e.stopPropagation(); e.preventDefault();
             let next = _currentIdx + (e.key === 'ArrowRight' ? 1 : -1);
-            if (next < 0)             next = feats.length - 1;
+            if (next < 0) next = feats.length - 1;
             if (next >= feats.length) next = 0;
             _currentIdx = next;
             _popup.setContent(_build(feats, next));
@@ -212,27 +205,27 @@ export function openSignalPopup(latlng, feats, idx = 0) {
 /* ===== Popup HTML ===== */
 
 function _build(feats, idx) {
-    const s            = feats[idx];
-    const p            = s.p;
-    const total        = feats.length;
-    const color        = getTypeColor(p.type_if);
-    const textColor    = _contrastColor(color);
-    const osmInfo      = _statuses?.[idx] ?? { status: 'checking', nodeId: null };
+    const s = feats[idx];
+    const p = s.p;
+    const total = feats.length;
+    const color = getTypeColor(p.type_if);
+    const textColor = _contrastColor(color);
+    const osmInfo = _statuses?.[idx] ?? { status: 'checking', nodeId: null };
     const anySupported = feats.some(f => isSupported(f.p.type_if));
 
     const nav = `
-    <div class="pu-nav">
-      ${total > 1 ? `<div class="pu-nav-group">
-        <button class="pu-nav-btn" data-nav="${idx - 1}" title="${t('popup.prev')}" aria-label="${t('popup.prev')}">
-          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
-        </button>
-        <span class="pu-nav-label">${idx + 1}&thinsp;/&thinsp;${total}</span>
-        <button class="pu-nav-btn" data-nav="${idx + 1}" title="${t('popup.next')}" aria-label="${t('popup.next')}">
-          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-        </button>
-      </div>` : ''}
-      <button class="pu-close-btn" data-action="close" title="${t('popup.close')}" aria-label="${t('popup.close')}">&#10005;</button>
-    </div>`;
+        <div class="pu-nav">
+          ${total > 1 ? `<div class="pu-nav-group">
+            <button class="pu-nav-btn" data-nav="${idx - 1}" title="${t('popup.prev')}" aria-label="${t('popup.prev')}">
+              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+            </button>
+            <span class="pu-nav-label">${idx + 1}&thinsp;/&thinsp;${total}</span>
+            <button class="pu-nav-btn" data-nav="${idx + 1}" title="${t('popup.next')}" aria-label="${t('popup.next')}">
+              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+            </button>
+          </div>` : ''}
+          <button class="pu-close-btn" data-action="close" title="${t('popup.close')}" aria-label="${t('popup.close')}">&#10005;</button>
+        </div>`;
 
     const FIELDS = [
         ['type_if', 'TYPE IF'], ['code_ligne', 'CODE LIGNE'],
@@ -248,80 +241,77 @@ function _build(feats, idx) {
     }).join('');
 
     const idRow = p.idreseau ? `
-    <div class="pu-row">
-      <span class="pu-label">ID RÉSEAU</span>
-      <span class="pu-val">${p.idreseau}</span>
-      ${_osmIndicator(osmInfo)}
-    </div>` : '';
+        <div class="pu-row">
+          <span class="pu-label">ID RÉSEAU</span>
+          <span class="pu-val">${p.idreseau}</span>
+          ${_osmIndicator(osmInfo)}
+        </div>` : '';
 
     const osmMapUrl = `https://www.openstreetmap.org/?mlat=${s.lat.toFixed(6)}&mlon=${s.lng.toFixed(6)}&zoom=18`;
     const coord = `<div class="pu-row">
-    <span class="pu-label">COORDS</span>
-    <span class="pu-val">${s.lat.toFixed(6)},&thinsp;${s.lng.toFixed(6)}</span>
-    <a class="pu-coords-btn" href="${osmMapUrl}" target="_blank" rel="noopener"
-       title="${t('popup.viewOnOsm')}" aria-label="${t('popup.viewOnOsm')}">
-      <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
-    </a>
-  </div>`;
+        <span class="pu-label">COORDS</span>
+        <span class="pu-val">${s.lat.toFixed(6)},&thinsp;${s.lng.toFixed(6)}</span>
+        <a class="pu-coords-btn" href="${osmMapUrl}" target="_blank" rel="noopener"
+           title="${t('popup.viewOnOsm')}" aria-label="${t('popup.viewOnOsm')}">
+          <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+        </a>
+      </div>`;
 
     let osmSection = '';
     if (anySupported) {
-        const tagMap  = _buildOsmTags(feats);
+        const tagMap = _buildOsmTags(feats);
         const osmRows = [...tagMap.entries()].map(([k, v]) => `
-      <div class="pu-osm-row">
-        <span class="pu-osm-key">${k}</span>
-        <span class="pu-osm-val${v === '*' ? ' pu-osm-unknown' : ''}">${v}</span>
-      </div>`).join('');
+          <div class="pu-osm-row">
+            <span class="pu-osm-key">${k}</span>
+            <span class="pu-osm-val${v === '*' ? ' pu-osm-unknown' : ''}">${v}</span>
+          </div>`).join('');
         const supportedCount = feats.filter(f => isSupported(f.p.type_if)).length;
         const note = supportedCount > 1
             ? `<div class="pu-osm-note">${t('popup.merged', supportedCount)}</div>` : '';
         osmSection = `
-      <details class="pu-osm-preview">
-        <summary>${t('popup.osmTags', supportedCount)}</summary>
-        <div class="pu-osm-scroll">${note}<div class="pu-osm-list">${osmRows}</div></div>
-      </details>`;
+          <details class="pu-osm-preview">
+            <summary>${t('popup.osmTags', supportedCount)}</summary>
+            <div class="pu-osm-scroll">${note}<div class="pu-osm-list">${osmRows}</div></div>
+          </details>`;
     }
 
     const josmDisabled = !anySupported ? ' disabled title="No supported signals at this location"' : '';
 
     const footer = `
-    <div class="pu-footer">
-      <button class="pu-action-btn" data-action="copy"
-              ${!anySupported ? 'disabled title="No supported signals at this location"' : `title="${t('popup.copy')}"`}>
-        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
-        ${t('popup.copy')}
-      </button>
-      <button class="pu-action-btn pu-josm-btn" data-action="josm"${josmDisabled}
-              ${anySupported ? `title="${t('popup.josm')}"` : ''}>
-        <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon">
-        ${t('popup.josm')}
-      </button>
-    </div>`;
+        <div class="pu-footer">
+          <button class="pu-action-btn" data-action="copy"
+                  ${!anySupported ? 'disabled title="No supported signals at this location"' : `title="${t('popup.copy')}"`}>
+            <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
+            ${t('popup.copy')}
+          </button>
+          <button class="pu-action-btn pu-josm-btn" data-action="josm"${josmDisabled}
+                  ${anySupported ? `title="${t('popup.josm')}"` : ''}>
+            <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon">
+            ${t('popup.josm')}
+          </button>
+        </div>`;
 
     return `<div class="pu-wrap">${nav}<div class="pu-body">${rows}${idRow}${coord}</div>${osmSection}${footer}</div>`;
 }
 
 function _osmIndicator({ status, nodeId }) {
     if (status === 'checking') {
-        return `<span class="pu-osm-indicator osm-checking" title="${t('osm.checking')}">…</span>`;
+        return `<span class="pu-osm-btn osm-checking" title="${t('osm.checking')}" aria-label="${t('osm.checking')}">…</span>`;
     }
     if (status === 'in-osm' && nodeId) {
         const href = `https://www.openstreetmap.org/node/${nodeId}`;
-        return `<a class="pu-osm-indicator" href="${href}" target="_blank" rel="noopener"
-               title="${t('osm.inOsm')} — node #${nodeId}"
-             ><img src="assets/svg/osm.svg" width="16" height="16" alt="OSM"
-                   class="osm-img"></a>`;
+        return `<a class="pu-osm-btn osm-in-osm" href="${href}" target="_blank" rel="noopener"
+               title="${t('osm.inOsm')} — node #${nodeId}" aria-label="${t('osm.inOsm')} — node #${nodeId}">
+             <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img"></a>`;
     }
     if (status === 'not-in-osm') {
-        return `<span class="pu-osm-indicator" title="${t('osm.notInOsm')}"
-            ><img src="assets/svg/osm.svg" width="16" height="16" alt=""
-                  class="osm-img-dim"></span>`;
+        return `<span class="pu-osm-btn osm-not-in-osm" title="${t('osm.notInOsm')}" aria-label="${t('osm.notInOsm')}">
+            <img src="assets/svg/osm.svg" width="16" height="16" alt="" class="osm-img-dim"></span>`;
     }
     if (status === 'error') {
-        return `<button class="pu-osm-indicator osm-retry" data-action="osm-retry"
-                        title="${t('osm.retry')}">
-          <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
-        </button>`;
+        return `<button class="pu-osm-btn osm-retry" data-action="osm-retry" title="${t('osm.retry')}" aria-label="${t('osm.retry')}">
+              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+            </button>`;
     }
     return '';
 }
@@ -333,7 +323,7 @@ function _copyTags(feats, btn) {
     if (!m.size) return;
     navigator.clipboard.writeText(_tagsToText(m))
         .then(() => _flash(btn, t('popup.copied'), '#4ade80', '#0b0e16'))
-        .catch(()  => prompt('Copy OSM tags:', _tagsToText(m)));
+        .catch(() => prompt('Copy OSM tags:', _tagsToText(m)));
 }
 
 function _sendToJOSM(feats, latlng, btn) {
@@ -350,9 +340,11 @@ function _sendToJOSM(feats, latlng, btn) {
         .map(([k, v]) => encodeURIComponent(`${k}=${v}`))
         .join(encodeURIComponent('|'));
 
-    const addUrl = `http://127.0.0.1:8111/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
+    const path = `/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
 
-    fetch(addUrl, { mode: 'no-cors' })
+    // josmFetch probes HTTPS (8112) first, falls back to HTTP (8111).
+    // mode:'no-cors' is intentional — we don't need to read the response body.
+    josmFetch(path, { mode: 'no-cors' })
         .then(() => _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16'))
         .catch(err => { console.warn('[JOSM]', err.message); alert('JOSM not reachable: ' + err.message); });
 }

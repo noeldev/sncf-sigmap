@@ -28,14 +28,14 @@
 export const CATEGORY_INFO = {
     "main":             "#e00000",   // Main signals (Carré, S, GA, …)
     "distant":          "#ffc010",   // Distant signals (A, D)
-    "speed_limit":      "#f88000",   // All speed_limit* variants
+    "speed_limit":      "#ff8000",   // All speed_limit* variants
     "route":            "#00b0d0",   // Route* (ID, IDD, …)
     "train_protection": "#4060c0",   // Cab signalling / ETCS
-    "crossing":         "#d04020",   // Level crossings
+    "crossing":         "#b09000",   // Level crossings
     "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
     "shunting":         "#a050e0",   // Shunting
     "electricity":      "#a00060",   // Traction electricity
-    "stop":             "#b09000",   // Stop signs
+    "stop":             "#f040b0",   // Stop signs
     "station":          "#008040",   // Station and facility signals
     "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
     "unsupported":      "#607070",   // Types not yet mapped
@@ -289,24 +289,24 @@ export const SIGNAL_MAPPING = {
             "railway:signal:route_distant:ref={{idreseau}}",
         ],
     },
-/*
-    "BIF": {
-        group: "route",
-        tags: [
-            "railway:signal:route_distant=FR:BIF",
-            "railway:signal:route_distant:form=sign",
-            "railway:signal:route_distant:ref={{idreseau}}",
-        ],
-    },
-    "Y": {
-        group: "route",
-        tags: [
-            "railway:signal:route_distant=FR:Y",
-            "railway:signal:route_distant:form=sign",
-            "railway:signal:route_distant:ref={{idreseau}}",
-        ],
-    },
-*/
+    /*
+        "BIF": {
+            group: "route",
+            tags: [
+                "railway:signal:route_distant=FR:BIF",
+                "railway:signal:route_distant:form=sign",
+                "railway:signal:route_distant:ref={{idreseau}}",
+            ],
+        },
+        "Y": {
+            group: "route",
+            tags: [
+                "railway:signal:route_distant=FR:Y",
+                "railway:signal:route_distant:form=sign",
+                "railway:signal:route_distant:ref={{idreseau}}",
+            ],
+        },
+    */
     // Stop signals
 
     "ARRET VOY": {
