@@ -25,7 +25,7 @@
 
             <div id="sidebar-header">
                 <div class="logo-row">
-                    <img src="assets/png/sncf-logo.png" alt="SNCF" class="logo-sncf">
+                    <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau" class="logo-sncf">
                     <div class="logo-text">
                         <div class="logo-title" data-i18n="subtitle1">Signalisation</div>
                         <div class="logo-title" data-i18n="subtitle2">Permanente</div>
@@ -53,8 +53,16 @@
                         <svg class="panel-arrow" width="8" height="8" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
                         <span data-i18n="legend.title">Legend</span>
                     </summary>
-                    <div class="panel-body" id="legend-body"></div>
+                    <div class="panel-body" id="legend-body">
+                    </div>
                 </details>
+
+                <template id="tpl-legend-row">
+                    <div class="panel-row">
+                        <span class="legend-dot"></span>
+                        <span class="legend-label"></span>
+                    </div>
+                </template>
             </div>
 
             <!-- Settings -->
@@ -66,12 +74,21 @@
                 <div class="settings-section">
                     <div class="section-title" data-i18n="settings.language">Language</div>
                     <div class="lang-select-wrap" id="lang-select-wrap">
-                        <button class="lang-select-btn dd-trigger" id="lang-select-btn" aria-haspopup="listbox">
+                        <button class="lang-select-btn dd-trigger" id="lang-select-btn" aria-haspopup="listbox" aria-expanded="false">
                             <span class="lang-flag-img" id="lang-flag"></span>
                             <span id="lang-label">English</span>
                             <span class="lang-chevron dd-chevron"><svg width="6" height="6" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg></span>
                         </button>
-                        <ul class="lang-dropdown dd-panel" id="lang-dropdown" role="listbox" aria-label="Language"></ul>
+                        <ul class="lang-dropdown dd-panel" id="lang-dropdown" role="listbox" aria-label="Language">
+                            <li class="lang-option" role="option" data-val="en">
+                                <img src="assets/svg/flag-en.svg" class="flag-img" width="20" height="15" alt="English">
+                                <span>English</span>
+                            </li>
+                            <li class="lang-option" role="option" data-val="fr">
+                                <img src="assets/svg/flag-fr.svg" class="flag-img" width="20" height="15" alt="Français">
+                                <span>Français</span>
+                            </li>
+                        </ul>
                     </div>
                 </div>
                 <div class="legend-spacer"></div>
@@ -80,7 +97,25 @@
                         <svg class="panel-arrow" width="8" height="8" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
                         <span data-i18n="josm.detect.title">JOSM</span>
                     </summary>
-                    <div id="josm-detect-body" class="panel-body josm-detect-body"></div>
+                    <div id="josm-detect-body" class="panel-body josm-detect-body" data-josm-status="checking">
+                        <!-- Version row: one span per state; CSS reveals only the matching one. -->
+                        <div class="josm-detect-row">
+                            <span class="josm-detect-label" data-i18n="josm.detect.version">Version</span>
+                            <span class="josm-detect-val josm-val-dim" data-josm-state="checking" data-i18n="josm.detect.checking">…</span>
+                            <span class="josm-detect-val josm-val-ok" data-josm-state="ok" id="josm-val-version"></span>
+                            <span class="josm-detect-val josm-val-dim" data-josm-state="forbidden" data-i18n="josm.detect.notAllowed">Not allowed yet</span>
+                            <span class="josm-detect-val josm-val-dim" data-josm-state="error" data-i18n="josm.detect.notDetected">Not detected</span>
+                        </div>
+                        <!-- Protocol and Port rows: only revealed when status = ok -->
+                        <div class="josm-detect-row" data-josm-state="ok">
+                            <span class="josm-detect-label" data-i18n="josm.detect.protocol">Protocol</span>
+                            <span class="josm-detect-val josm-val-ok" id="josm-val-protocol"></span>
+                        </div>
+                        <div class="josm-detect-row" data-josm-state="ok">
+                            <span class="josm-detect-label" data-i18n="josm.detect.port">Port</span>
+                            <span class="josm-detect-val josm-val-ok" id="josm-val-port"></span>
+                        </div>
+                    </div>
                 </details>
             </div>
 
@@ -165,6 +200,239 @@
         </div>
 
     </div>
+
+    <!-- HTML Templates -->
+    <!-- Signal popup -->
+    <template id="tpl-signal-popup">
+        <div class="pu-wrap">
+
+            <div class="pu-nav">
+                <img src="assets/png/sncf-logo.png" alt="SNCF" class="pu-brand-logo">
+                <div class="pu-nav-group is-hidden">
+                    <button class="pu-nav-btn" data-action="nav-prev"
+                            data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                    </button>
+                    <span class="pu-nav-label"></span>
+                    <button class="pu-nav-btn" data-action="nav-next"
+                            data-i18n-title="popup.next" data-i18n-aria="popup.next">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </button>
+                </div>
+                <button class="pu-close-btn" data-action="close"
+                        data-i18n-title="popup.close" data-i18n-aria="popup.close">
+                    &#10005;
+                </button>
+            </div>
+
+            <div class="pu-body">
+                <div class="pu-row" data-field="type_if">
+                    <span class="pu-label">TYPE IF</span>
+                    <span class="pu-val"><span class="pu-badge"></span></span>
+                </div>
+                <div class="pu-row" data-field="code_ligne">
+                    <span class="pu-label">CODE LIGNE</span>
+                    <span class="pu-val"></span>
+                </div>
+                <div class="pu-row" data-field="code_voie">
+                    <span class="pu-label">CODE VOIE</span>
+                    <span class="pu-val"></span>
+                </div>
+                <div class="pu-row" data-field="nom_voie">
+                    <span class="pu-label">NOM VOIE</span>
+                    <span class="pu-val"></span>
+                </div>
+                <div class="pu-row" data-field="sens">
+                    <span class="pu-label">SENS</span>
+                    <span class="pu-val"></span>
+                </div>
+                <div class="pu-row" data-field="position">
+                    <span class="pu-label">POSITION</span>
+                    <span class="pu-val"></span>
+                </div>
+                <div class="pu-row" data-field="pk">
+                    <span class="pu-label">PK</span>
+                    <span class="pu-val"></span>
+                </div>
+
+                <!-- idreseau: osm-checking is the default visible state.
+                     JS hides it and reveals exactly one other indicator once the
+                     Overpass result arrives. -->
+                <div class="pu-row" data-field="idreseau">
+                    <span class="pu-label">ID RÉSEAU</span>
+                    <span class="pu-val"></span>
+                    <span class="pu-osm-btn osm-checking"
+                          data-i18n-title="osm.checking" data-i18n-aria="osm.checking"></span>
+                    <a class="pu-osm-btn osm-in-osm is-hidden"
+                       href="#" target="_blank" rel="noopener">
+                        <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img">
+                    </a>
+                    <span class="pu-osm-btn osm-not-in-osm is-hidden"
+                          data-i18n-title="osm.notInOsm" data-i18n-aria="osm.notInOsm">
+                        <img src="assets/svg/osm.svg" width="16" height="16" alt="" class="osm-img-dim">
+                    </span>
+                    <button class="pu-osm-btn osm-retry is-hidden" data-action="osm-retry"
+                            data-i18n-title="osm.retry" data-i18n-aria="osm.retry">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+                    </button>
+                </div>
+
+                <!-- Coordinates: always present -->
+                <div class="pu-row" data-field="coords">
+                    <span class="pu-label">COORDS</span>
+                    <span class="pu-val"></span>
+                    <a class="pu-coords-btn" href="#" target="_blank" rel="noopener"
+                       data-i18n-title="popup.viewOnOsm" data-i18n-aria="popup.viewOnOsm">
+                        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- OSM tags preview — always visible (there is always at least one signal) -->
+            <details class="pu-osm-preview">
+                <summary class="pu-osm-summary"></summary>
+                <div class="pu-osm-scroll">
+                    <!-- Merge note: hidden until more than one supported signal is present -->
+                    <div class="pu-osm-note is-hidden"></div>
+                    <!-- Tag rows injected by JS using tpl-osm-tag-row -->
+                    <div class="pu-osm-list"></div>
+                </div>
+            </details>
+            <div class="pu-footer">
+                <button class="pu-action-btn" data-action="copy"
+                        data-i18n-title="popup.copy">
+                    <svg class="icon btn-icon-default" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                    <svg class="icon btn-icon-flash" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg>
+                    <span class="btn-label" data-i18n="popup.copy">Copy tags</span>
+                    <span class="btn-flash-label" data-i18n="popup.copied">Copied!</span>
+                </button>
+                <button class="pu-action-btn pu-josm-btn" data-action="josm"
+                        data-i18n-title="popup.josm">
+                    <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon-default">
+                    <span class="btn-label" data-i18n="popup.josm">Open in JOSM</span>
+                    <span class="btn-flash-label" data-i18n="popup.josmSent">Sent to JOSM</span>
+                </button>
+            </div>
+
+        </div>
+    </template>
+
+    <!-- One OSM tag key=value row inside the popup preview -->
+    <template id="tpl-osm-tag-row">
+        <div class="pu-osm-row">
+            <span class="pu-osm-key"></span>
+            <span class="pu-osm-val"></span>
+        </div>
+    </template>
+
+    <!-- Signal tooltip -->
+    <template id="tpl-signal-tooltip">
+        <div class="tt-wrap">
+            <!-- Signal groups injected by tooltip.js -->
+            <div class="tt-groups"></div>
+            <!-- Separator before common bottom fields -->
+            <div class="tt-sep"></div>
+            <!-- Common bottom fields injected from tpl-tt-common-fields -->
+            <div class="tt-common"></div>
+        </div>
+    </template>
+
+    <!-- Tooltip: one signal type + id row -->
+    <template id="tpl-tt-sig-row">
+        <div class="tt-row tt-sig">
+            <span class="tt-type"></span>
+            <span class="tt-val tt-id"></span>
+        </div>
+    </template>
+
+    <!-- Tooltip: common field rows with pre-defined labels =====
+         All labels are in HTML; JS fills .tt-val by querying [data-field].
+         Fields are cloned individually so only those with values are appended. -->
+    <template id="tpl-tt-common-fields">
+        <div class="tt-row" data-field="code_voie">
+            <span class="tt-key">Code voie</span>
+            <span class="tt-val"></span>
+        </div>
+        <div class="tt-row" data-field="nom_voie">
+            <span class="tt-key">Nom voie</span>
+            <span class="tt-val"></span>
+        </div>
+        <div class="tt-row" data-field="sens">
+            <span class="tt-key">Sens</span>
+            <span class="tt-val"></span>
+        </div>
+        <div class="tt-row" data-field="position">
+            <span class="tt-key">Position</span>
+            <span class="tt-val"></span>
+        </div>
+        <div class="tt-row" data-field="pk">
+            <span class="tt-key">PK</span>
+            <span class="tt-val"></span>
+        </div>
+    </template>
+
+    <!-- Filter group panel -->
+    <template id="tpl-filter-group">
+        <div class="filter-group">
+            <div class="fg-header">
+                <span class="section-title fg-title"></span>
+                <button class="fg-remove" data-i18n-title="dropdown.remove">&#10005;</button>
+            </div>
+            <div class="fg-tags"></div>
+            <div class="fg-combo">
+                <div class="fg-combo-input dd-trigger">
+                    <input class="fg-search" type="text" autocomplete="off" spellcheck="false">
+                    <span class="fg-combo-arrow dd-chevron">
+                        <svg width="6" height="6" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
+                    </span>
+                </div>
+                <div class="fg-dropdown dd-panel is-hidden">
+                    <div class="fg-dropdown-inner"></div>
+                </div>
+            </div>
+            <!-- "Supported only" toggle — shown only for the type_if filter -->
+            <div class="supported-only-row is-hidden">
+                <label class="supported-only-label">
+                    <input type="checkbox" class="chk-mapped-only sr-only">
+                    <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                    </span>
+                    <span class="toggle-label" data-i18n="toggle.supported">Supported types only</span>
+                </label>
+            </div>
+        </div>
+    </template>
+
+    <!-- Filter: one active-value tag pill -->
+    <template id="tpl-filter-tag">
+        <span class="fg-tag">
+            <span class="fg-tag-label"></span>
+            <button class="fg-tag-remove" data-i18n-aria="dropdown.remove">&#10005;</button>
+        </span>
+    </template>
+
+    <!-- Filter: one dropdown option row -->
+    <template id="tpl-filter-drop-item">
+        <div class="fg-drop-item">
+            <span class="fgi-check"></span>
+            <span class="fgi-name"></span>
+            <span class="fgi-count"></span>
+        </div>
+    </template>
+
+    <!-- Filter: no-match placeholder -->
+    <template id="tpl-filter-no-match">
+        <div class="fg-empty" data-i18n="dropdown.noMatch">No matching values</div>
+    </template>
+
+    <!-- Settings: one basemap selector button -->
+    <template id="tpl-basemap-btn">
+        <button class="basemap-btn">
+            <img class="basemap-thumb" width="36" height="36" alt=""
+                 onerror="this.style.display='none'">
+            <span class="basemap-label"></span>
+        </button>
+    </template>
 
     <!--
       SVG symbol library.

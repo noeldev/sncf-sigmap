@@ -35,16 +35,37 @@ function _viewportBbox() {
 const _cache = new Map();   // cacheKey -> result
 const _pending = new Map();   // pendingKey -> Promise<void>
 
+// AbortController for the current in-flight batch request.
+// Aborted when a new popup opens before the previous batch resolves,
+// reducing unnecessary load on the public Overpass server.
+let _batchAbort = null;
+
 function _cacheKey(refTag, idreseau) { return `${refTag}:${idreseau}`; }
 
 function _clearCacheEntry(key) { _cache.delete(key); }
 
-/** Raw Overpass fetch helper. */
-async function _fetchOverpass(query) {
+/**
+ * Remove 'not-in-osm' cache entries for the given features so that the next
+ * popup open triggers a fresh Overpass check.
+ * Called by popup.js after a copy/JOSM export so that a node that was just
+ * added to OSM will be detected on the next popup open.
+ */
+export function invalidateNotInOsm(feats) {
+    for (const f of feats) {
+        const refTag = TYPE_REF_TAG[f.p.type_if];
+        if (!refTag || !f.p.idreseau) continue;
+        const key = _cacheKey(refTag, f.p.idreseau);
+        if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
+    }
+}
+
+/** Raw Overpass fetch helper. Accepts an optional AbortSignal. */
+async function _fetchOverpass(query, signal) {
     const r = await fetch(OVERPASS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
+        signal,
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
@@ -101,6 +122,12 @@ export function checkOsm(idreseau, type_if, force = false) {
  * force=true clears cached results for the whole group before querying.
  */
 export function checkOsmBatch(feats, force = false) {
+    // Abort any previous in-flight batch to avoid stale results updating
+    // a popup that has already been replaced, and to spare the Overpass server.
+    _batchAbort?.abort();
+    _batchAbort = new AbortController();
+    const { signal } = _batchAbort;
+
     const entries = feats.map(f => {
         const refTag = TYPE_REF_TAG[f.p.type_if];
         if (!refTag || !f.p.idreseau) return { key: null, refTag: null, idreseau: null };
@@ -130,7 +157,7 @@ export function checkOsmBatch(feats, force = false) {
             // The promise resolves with true on network error, false on success.
             // This flag is forwarded to the final .then() so it can distinguish
             // between "signal not found in OSM" and "request failed".
-            const p = _fetchOverpass(query)
+            const p = _fetchOverpass(query, signal)
                 .then(data => {
                     // For each returned element, match it back to cached entries
                     for (const el of (data.elements || [])) {
@@ -148,10 +175,12 @@ export function checkOsmBatch(feats, force = false) {
                     return false; // no error
                 })
                 .catch(err => {
+                    _pending.delete(batchKey);
+                    // AbortError is expected when a newer popup opens — not a real failure.
+                    if (err.name === 'AbortError') return 'aborted';
                     console.warn('[osm-check batch]', err.message);
                     // Errors are NOT cached — consistent with checkOsm() and allows
                     // automatic retry on the next popup open without a manual refresh.
-                    _pending.delete(batchKey);
                     return true; // error flag
                 });
 
@@ -163,6 +192,9 @@ export function checkOsmBatch(feats, force = false) {
     return networkPromise.then(hadError =>
         entries.map(e => {
             if (!e.key) return { status: 'unsupported', nodeId: null };
+            // 'aborted' means the request was superseded — leave the popup in its
+            // current checking state rather than flashing an error.
+            if (hadError === 'aborted') return { status: 'checking', nodeId: null };
             return _cache.get(e.key) ?? (hadError ? { status: 'error', nodeId: null } : { status: 'not-in-osm', nodeId: null });
         })
     );

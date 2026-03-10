@@ -31,12 +31,12 @@ export const CATEGORY_INFO = {
     "speed_limit":      "#ff8000",   // All speed_limit* variants
     "route":            "#00b0d0",   // Route* (ID, IDD, …)
     "train_protection": "#4060c0",   // Cab signalling / ETCS
-    "crossing":         "#b09000",   // Level crossings
-    "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
-    "shunting":         "#a050e0",   // Shunting
     "electricity":      "#a00060",   // Traction electricity
+    "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
+    "crossing":         "#b09000",   // Level crossings
     "stop":             "#f040b0",   // Stop signs
     "station":          "#008040",   // Station and facility signals
+    "shunting":         "#a050e0",   // Shunting
     "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
     "unsupported":      "#607070",   // Types not yet mapped
 };
@@ -730,6 +730,7 @@ export const TYPE_REF_TAG = (() => {
     return map;
 })();
 
+
 // ===== Field value converters for {{placeholder}} resolution =====
 
 export const FIELD_CONVERTERS = {
@@ -759,3 +760,104 @@ export const COMMON_TAGS = [
     "railway:signal:position={{position}}",
     "source=SNCF - 03/2022",
 ];
+
+
+// ===== Marker size scale =====
+// Single source of truth for dot sizes; used by _renderGroups() in app.js
+// via the exported getDotSize() accessor.
+// count=5 covers "5 or more" — the formula caps at this entry.
+
+const DOT_SCALE = [
+    { count: 1, size: 10, label: '1' },
+    { count: 2, size: 12, label: '2' },
+    { count: 3, size: 14, label: '3' },
+    { count: 4, size: 16, label: '4' },
+    { count: 5, size: 18, label: '5+' },
+];
+
+/** Return the dot size in pixels for a given co-located signal count. */
+export function getDotSize(count) {
+    const idx = Math.min(count, DOT_SCALE.length) - 1;
+    return DOT_SCALE[Math.max(idx, 0)].size;
+}
+
+
+// ===== Legend builder =====
+// Moved here from app.js so that CATEGORY_INFO and DOT_SCALE need not be
+// exported to the orchestration layer — buildLegend() accesses them directly.
+
+/**
+ * Populate #legend-body with one colour row per CATEGORY_INFO entry,
+ * followed by a size-scale row showing how dot diameter relates to
+ * the number of co-located signals.
+ * Called once from app.js/_boot(); safe to call again on lang change.
+ */
+export function buildLegend() {
+    const container = document.getElementById('legend-body');
+    const tpl = document.getElementById('tpl-legend-row');
+    if (!container || !tpl) return;
+
+    container.replaceChildren();
+
+    // Colour rows — one per display category.
+    for (const [key, color] of Object.entries(CATEGORY_INFO)) {
+        const row = tpl.content.cloneNode(true).querySelector('.panel-row');
+        row.querySelector('.legend-dot').style.backgroundColor = color;
+        row.querySelector('.legend-label').dataset.i18n = `cat.${key}`;
+        container.appendChild(row);
+    }
+}
+
+
+
+// ===== Returns the set of type_if values that have OSM tag mappings =====
+// Exported so filters.js does not need to import the full SIGNAL_MAPPING table.
+
+const _supportedTypes = new Set(Object.keys(SIGNAL_MAPPING));
+export function getSupportedTypes() { return _supportedTypes; }
+
+
+// ===== OSM tag resolution (moved from popup.js) =====
+// These helpers depend on SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS
+// and isSupported — all local — so popup.js no longer needs to import them.
+
+function _resolve(tmpl, p) {
+    return tmpl.replace(/\{\{(\w+)\}\}/g, (_, f) => {
+        const c = FIELD_CONVERTERS[f];
+        return c ? c(p[f] ?? '') : (p[f] ?? '');
+    });
+}
+
+function _parseTag(s) {
+    const i = s.indexOf('=');
+    return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)];
+}
+
+function _resolveOne(feat) {
+    const tags = new Map();
+    for (const tmpl of (SIGNAL_MAPPING[feat.p.type_if]?.tags || [])) {
+        const [k, v] = _parseTag(_resolve(tmpl, feat.p));
+        if (k) tags.set(k, v);
+    }
+    return tags;
+}
+
+/**
+ * Build the merged OSM tag map for a co-located group of signals.
+ * Supported signals are merged; unsupported ones are silently skipped.
+ * Returns an empty Map when no supported signal is present.
+ */
+export function buildOsmTags(feats) {
+    const supported = feats.filter(f => isSupported(f.p.type_if));
+    if (!supported.length) return new Map();
+
+    const m = new Map();
+    for (const tmpl of COMMON_TAGS) {
+        const [k, v] = _parseTag(_resolve(tmpl, supported[0].p));
+        if (k) m.set(k, v);
+    }
+    for (const feat of supported) {
+        for (const [k, v] of _resolveOne(feat)) m.set(k, v);
+    }
+    return m;
+}

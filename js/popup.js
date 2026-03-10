@@ -1,24 +1,37 @@
 /**
  * popup.js
  * Signal popup: display, navigation, OSM tag export, JOSM Remote Control.
+ *
+ * All HTML structure lives in index.html (tpl-signal-popup, tpl-osm-tag-row).
+ * This module only fills values and toggles CSS classes — no HTML strings.
+ *
+ * Badge colour is driven by CSS custom properties --signal-color and
+ * --signal-contrast set on .pu-wrap (from getTypeColor / _contrastColor).
+ *
+ * The copy/JOSM flash animation is CSS-driven via class "is-flash".
+ *
+ * NOTE — unfiltered features:
+ *   openSignalPopup() always receives the COMPLETE list of co-located
+ *   features (group.all from the worker), not the filtered subset.
+ *   Filters control marker visibility only; the popup always exports all
+ *   signals at a location so that no OSM tags are lost on JOSM import.
  */
 
 import { map } from './map.js';
-import {
-    SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS,
-    getTypeColor, isSupported
-} from './signal-mapping.js';
-import { t } from './i18n.js';
-import { checkOsmBatch } from './osm-check.js';
-import { josmFetch } from './josm.js';
+import { getTypeColor, isSupported, buildOsmTags } from './signal-mapping.js';
+import { t, applyI18n, onLangChange } from './i18n.js';
+import { checkOsmBatch, invalidateNotInOsm } from './osm-check.js';
+import { josmAddNode } from './josm.js';
 
-export { getTypeColor };
+/* ===== Module-level template accessors ===== */
+
+const _tplPopup = () => document.getElementById('tpl-signal-popup');
+const _tplOsmRow = () => document.getElementById('tpl-osm-tag-row');
 
 /* ===== Contrast helper ===== */
 
 /**
- * Returns '#000' (dark) or '#fff' (light) for text on a given hex background.
- * Uses the YIQ luminance formula so there is no need for a hard-coded set.
+ * Returns '#000' or '#fff' for readable text on the given hex background.
  */
 function _contrastColor(hex) {
     if (!hex) return '#fff';
@@ -29,330 +42,287 @@ function _contrastColor(hex) {
     return ((r * 299 + g * 587 + b * 114) / 1000) >= 128 ? '#000' : '#fff';
 }
 
-/* ===== Tag resolution ===== */
+/* ===== Tag helpers ===== */
 
-function _resolve(tmpl, p) {
-    return tmpl.replace(/\{\{(\w+)\}\}/g, (_, f) => {
-        const c = FIELD_CONVERTERS[f]; return c ? c(p[f] ?? '') : (p[f] ?? '');
-    });
-}
-function _parseTag(s) { const i = s.indexOf('='); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)]; }
-
-function _resolveOne(feat) {
-    const tags = new Map();
-    for (const tmpl of (SIGNAL_MAPPING[feat.p.type_if]?.tags || [])) {
-        const [k, v] = _parseTag(_resolve(tmpl, feat.p)); if (k) tags.set(k, v);
-    }
-    return tags;
-}
-
-function _buildOsmTags(feats) {
-    const supported = feats.filter(f => isSupported(f.p.type_if));
-    if (!supported.length) return new Map();
-    const m = new Map();
-    for (const tmpl of COMMON_TAGS) {
-        const [k, v] = _parseTag(_resolve(tmpl, supported[0].p)); if (k) m.set(k, v);
-    }
-    for (const feat of supported) for (const [k, v] of _resolveOne(feat)) m.set(k, v);
-    return m;
-}
-
-function _tagsToText(m) { return [...m.entries()].map(([k, v]) => `${k}=${v}`).join('\n'); }
-
-/* ===== Tooltip ===== */
-
-export function buildTooltip(feats) {
-    const p = feats[0].p;
-
-    // Signal rows: type_if (colored, left) + idreseau (right, aligned with tt-val column)
-    const sigRows = feats.map(f => {
-        const color = getTypeColor(f.p.type_if);
-        const id = f.p.idreseau
-            ? `<span class="tt-val tt-id">${f.p.idreseau}</span>`
-            : '<span class="tt-val tt-id"></span>';
-        return `<div class="tt-row tt-sig">
-      <span class="tt-type" style="color:${color}">${f.p.type_if || '?'}</span>${id}
-    </div>`;
-    }).join('');
-
-    const sep = '<div class="tt-sep"></div>';
-    const common = [
-        _ttRow('Code voie', p.code_voie),
-        _ttRow('Nom voie', p.nom_voie),
-        _ttRow('Sens', p.sens),
-        _ttRow('Position', p.position),
-        _ttRow('PK', p.pk),
-    ].filter(Boolean).join('');
-
-    return sigRows + (common ? sep + common : '');
-}
-
-function _ttRow(label, val) {
-    if (!val) return '';
-    return `<div class="tt-row"><span class="tt-key">${label}</span><span class="tt-val">${val}</span></div>`;
+function _tagsToText(m) {
+    return [...m.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
 }
 
 /* ===== Popup state ===== */
 
 let _popup = null;
 let _statuses = null;
-let _currentIdx = 0;   // tracks nav position so retry uses the correct index
+let _currentIdx = 0;
 
 export function openSignalPopup(latlng, feats, idx = 0) {
-    if (_popup) { _popup.remove(); _popup = null; }
+    if (_popup) {
+        _popup.remove();
+        _popup = null;
+    }
+
     _statuses = null;
     _currentIdx = idx;
 
     _popup = L.popup({
-        maxWidth: 360, autoPan: true, closeButton: false, className: 'pu-leaflet',
+        maxWidth: 600,
+        autoPan: true,
+        closeButton: false,
+        className: 'pu-leaflet',
     }).setLatLng(latlng).setContent(_build(feats, idx)).openOn(map);
 
-    // Single batch Overpass query for the whole co-located group
     checkOsmBatch(feats).then(results => {
         _statuses = results;
         if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
     });
 
     _popup.getElement()?.addEventListener('click', e => {
-        const tgt = e.target;
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        e.stopPropagation();
 
-        if (tgt.closest('[data-action="close"]')) {
-            e.stopPropagation();
-            _popup?.remove(); _popup = null; return;
-        }
+        switch (btn.dataset.action) {
+            case 'close':
+                _popup?.remove();
+                _popup = null;
+                break;
 
-        const nav = tgt.closest('[data-nav]');
-        if (nav) {
-            e.stopPropagation();
-            let next = parseInt(nav.dataset.nav);
-            if (next < 0) next = feats.length - 1;
-            if (next >= feats.length) next = 0;
-            _currentIdx = next;
-            _popup.setContent(_build(feats, next));
-            return;
-        }
-
-        if (tgt.closest('[data-action="copy"]')) {
-            e.stopPropagation();
-            _copyTags(feats, tgt.closest('[data-action="copy"]'));
-            return;
-        }
-
-        if (tgt.closest('[data-action="josm"]')) {
-            e.stopPropagation();
-            _sendToJOSM(feats, latlng, tgt.closest('[data-action="josm"]'));
-            return;
-        }
-
-        if (tgt.closest('[data-action="osm-retry"]')) {
-            e.stopPropagation();
-            _statuses = null;
-            if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
-            checkOsmBatch(feats, true).then(results => {
-                _statuses = results;
-                if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
-            });
-        }
-    });
-
-    // Auto-focus the popup on open so keyboard nav works immediately.
-    // tabIndex=-1 makes the wrapper programmatically focusable (no tab stop).
-    // The programmatic focus() sets :focus but not :focus-visible, so the
-    // accent border stays hidden until the user actually presses Tab.
-    const popupEl = _popup.getElement();
-    if (popupEl) {
-        popupEl.tabIndex = -1;
-        requestAnimationFrame(() => {
-            const first = popupEl.querySelector(
-                'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
-            );
-            (first ?? popupEl).focus();
-        });
-    }
-
-    // Keyboard: arrow keys navigate signals; Tab is trapped inside popup; Escape closes.
-    _popup.getElement()?.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            e.stopPropagation();
-            _popup?.remove(); _popup = null; return;
-        }
-        if (feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-            e.stopPropagation(); e.preventDefault();
-            let next = _currentIdx + (e.key === 'ArrowRight' ? 1 : -1);
-            if (next < 0) next = feats.length - 1;
-            if (next >= feats.length) next = 0;
-            _currentIdx = next;
-            _popup.setContent(_build(feats, next));
-            return;
-        }
-        // Tab trap: keep focus cycling within the popup
-        if (e.key === 'Tab') {
-            const el = _popup.getElement();
-            const focusable = [...el.querySelectorAll(
-                'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
-            )].filter(n => !n.closest('.is-hidden'));
-            if (!focusable.length) return;
-            const first = focusable[0], last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault(); last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault(); first.focus();
+            case 'nav-prev': {
+                const next = (_currentIdx - 1 + feats.length) % feats.length;
+                _currentIdx = next;
+                _popup.setContent(_build(feats, next));
+                break;
             }
+            case 'nav-next': {
+                const next = (_currentIdx + 1) % feats.length;
+                _currentIdx = next;
+                _popup.setContent(_build(feats, next));
+                break;
+            }
+            case 'copy':
+                _copyTags(feats, btn);
+                break;
+
+            case 'josm':
+                _sendToJOSM(feats, latlng, btn);
+                break;
+
+            case 'osm-retry':
+                _statuses = null;
+                if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
+                checkOsmBatch(feats, true).then(results => {
+                    _statuses = results;
+                    if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
+                });
+                break;
         }
     });
+
+    _trapFocus(_popup.getElement());
+    _initKeyboard(_popup.getElement(), feats);
 }
 
-/* ===== Popup HTML ===== */
+/* ===== Popup DOM (template-driven) ===== */
+
+const _DATA_FIELDS = ['code_ligne', 'code_voie', 'nom_voie', 'sens', 'position', 'pk'];
+
+/**
+ * Build a DOM element map from the cloned popup wrapper.
+ * All .pu-row[data-field] elements are indexed by field name for O(1) access.
+ */
+function _mapElements(wrap) {
+    const rows = Object.fromEntries(
+        [...wrap.querySelectorAll('.pu-row[data-field]')].map(r => [r.dataset.field, r])
+    );
+    return {
+        navGroup: wrap.querySelector('.pu-nav-group'),
+        navLabel: wrap.querySelector('.pu-nav-label'),
+        osmSummary: wrap.querySelector('.pu-osm-summary'),
+        osmNote: wrap.querySelector('.pu-osm-note'),
+        osmList: wrap.querySelector('.pu-osm-list'),
+        coordsVal: rows.coords?.querySelector('.pu-val'),
+        coordsLink: rows.coords?.querySelector('.pu-coords-btn'),
+        idRow: rows.idreseau,
+        idVal: rows.idreseau?.querySelector('.pu-val'),
+        rows,
+    };
+}
 
 function _build(feats, idx) {
     const s = feats[idx];
     const p = s.p;
     const total = feats.length;
-    const color = getTypeColor(p.type_if);
-    const textColor = _contrastColor(color);
     const osmInfo = _statuses?.[idx] ?? { status: 'checking', nodeId: null };
-    const anySupported = feats.some(f => isSupported(f.p.type_if));
 
-    const nav = `
-        <div class="pu-nav">
-          ${total > 1 ? `<div class="pu-nav-group">
-            <button class="pu-nav-btn" data-nav="${idx - 1}" title="${t('popup.prev')}" aria-label="${t('popup.prev')}">
-              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
-            </button>
-            <span class="pu-nav-label">${idx + 1}&thinsp;/&thinsp;${total}</span>
-            <button class="pu-nav-btn" data-nav="${idx + 1}" title="${t('popup.next')}" aria-label="${t('popup.next')}">
-              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-            </button>
-          </div>` : ''}
-          <button class="pu-close-btn" data-action="close" title="${t('popup.close')}" aria-label="${t('popup.close')}">&#10005;</button>
-        </div>`;
+    const wrap = _tplPopup().content.cloneNode(true).querySelector('.pu-wrap');
+    applyI18n(wrap);
 
-    const FIELDS = [
-        ['type_if', 'TYPE IF'], ['code_ligne', 'CODE LIGNE'],
-        ['code_voie', 'CODE VOIE'], ['nom_voie', 'NOM VOIE'],
-        ['sens', 'SENS'], ['position', 'POSITION'], ['pk', 'PK'],
-    ];
-    const rows = FIELDS.map(([f, label]) => {
-        const val = p[f]; if (!val && val !== 0) return '';
-        const display = f === 'type_if'
-            ? `<span class="pu-badge" style="background:${color};color:${textColor}">${val}</span>`
-            : `<span class="pu-val">${val}</span>`;
-        return `<div class="pu-row"><span class="pu-label">${label}</span>${display}</div>`;
-    }).join('');
+    const color = getTypeColor(p.type_if);
+    wrap.style.setProperty('--signal-color', color);
+    wrap.style.setProperty('--signal-contrast', _contrastColor(color));
 
-    const idRow = p.idreseau ? `
-        <div class="pu-row">
-          <span class="pu-label">ID RÉSEAU</span>
-          <span class="pu-val">${p.idreseau}</span>
-          ${_osmIndicator(osmInfo)}
-        </div>` : '';
+    const el = _mapElements(wrap);
 
-    const osmMapUrl = `https://www.openstreetmap.org/?mlat=${s.lat.toFixed(6)}&mlon=${s.lng.toFixed(6)}&zoom=18`;
-    const coord = `<div class="pu-row">
-        <span class="pu-label">COORDS</span>
-        <span class="pu-val">${s.lat.toFixed(6)},&thinsp;${s.lng.toFixed(6)}</span>
-        <a class="pu-coords-btn" href="${osmMapUrl}" target="_blank" rel="noopener"
-           title="${t('popup.viewOnOsm')}" aria-label="${t('popup.viewOnOsm')}">
-          <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
-        </a>
-      </div>`;
-
-    let osmSection = '';
-    if (anySupported) {
-        const tagMap = _buildOsmTags(feats);
-        const osmRows = [...tagMap.entries()].map(([k, v]) => `
-          <div class="pu-osm-row">
-            <span class="pu-osm-key">${k}</span>
-            <span class="pu-osm-val${v === '*' ? ' pu-osm-unknown' : ''}">${v}</span>
-          </div>`).join('');
-        const supportedCount = feats.filter(f => isSupported(f.p.type_if)).length;
-        const note = supportedCount > 1
-            ? `<div class="pu-osm-note">${t('popup.merged', supportedCount)}</div>` : '';
-        osmSection = `
-          <details class="pu-osm-preview">
-            <summary>${t('popup.osmTags', supportedCount)}</summary>
-            <div class="pu-osm-scroll">${note}<div class="pu-osm-list">${osmRows}</div></div>
-          </details>`;
+    if (total > 1) {
+        el.navGroup.classList.remove('is-hidden');
+        el.navLabel.textContent = t('popup.navLabel', idx + 1, total);
     }
 
-    const josmDisabled = !anySupported ? ' disabled title="No supported signals at this location"' : '';
+    wrap.querySelector('.pu-row[data-field="type_if"] .pu-badge').textContent = p.type_if ?? '';
 
-    const footer = `
-        <div class="pu-footer">
-          <button class="pu-action-btn" data-action="copy"
-                  ${!anySupported ? 'disabled title="No supported signals at this location"' : `title="${t('popup.copy')}"`}>
-            <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
-            ${t('popup.copy')}
-          </button>
-          <button class="pu-action-btn pu-josm-btn" data-action="josm"${josmDisabled}
-                  ${anySupported ? `title="${t('popup.josm')}"` : ''}>
-            <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon">
-            ${t('popup.josm')}
-          </button>
-        </div>`;
+    for (const field of _DATA_FIELDS) {
+        const row = el.rows[field];
+        if (row) row.querySelector('.pu-val').textContent = p[field] ?? '';
+    }
 
-    return `<div class="pu-wrap">${nav}<div class="pu-body">${rows}${idRow}${coord}</div>${osmSection}${footer}</div>`;
+    el.idVal.textContent = p.idreseau ?? '';
+    _applyOsmStatus(el.idRow, osmInfo);
+
+    el.coordsVal.textContent =
+        `${s.lat.toFixed(6)}\u2009\u2009${s.lng.toFixed(6)}`;
+    el.coordsLink.href =
+        `https://www.openstreetmap.org/?mlat=${s.lat.toFixed(6)}&mlon=${s.lng.toFixed(6)}&zoom=18`;
+
+    const supportedCount = feats.filter(f => isSupported(f.p.type_if)).length;
+    el.osmSummary.textContent = t('popup.osmTags', supportedCount);
+    el.osmSummary.dataset.count = supportedCount;
+
+    if (supportedCount > 1) {
+        el.osmNote.textContent = t('popup.merged', supportedCount);
+        el.osmNote.classList.remove('is-hidden');
+    }
+
+    // OSM tag rows — single DocumentFragment append avoids per-row reflow.
+    const tplRow = _tplOsmRow();
+    const frag = document.createDocumentFragment();
+    for (const [k, v] of buildOsmTags(feats).entries()) {
+        const row = tplRow.content.cloneNode(true).querySelector('.pu-osm-row');
+        row.querySelector('.pu-osm-key').textContent = k;
+        const valEl = row.querySelector('.pu-osm-val');
+        valEl.textContent = v;
+        if (v === '*') valEl.classList.add('pu-osm-unknown');
+        frag.appendChild(row);
+    }
+    el.osmList.appendChild(frag);
+
+    return wrap;
 }
 
-function _osmIndicator({ status, nodeId }) {
-    if (status === 'checking') {
-        return `<span class="pu-osm-btn osm-checking" title="${t('osm.checking')}" aria-label="${t('osm.checking')}">…</span>`;
+function _applyOsmStatus(idRow, { status, nodeId }) {
+    if (status === 'checking') return;
+
+    idRow.querySelector('.osm-checking').classList.add('is-hidden');
+
+    if (status === 'in-osm') {
+        const link = idRow.querySelector('.osm-in-osm');
+        link.classList.remove('is-hidden');
+        link.href = `https://www.openstreetmap.org/node/${nodeId}`;
+        const lbl = t('osm.inOsm', nodeId);
+        link.title = lbl;
+        link.setAttribute('aria-label', lbl);
+    } else if (status === 'not-in-osm') {
+        idRow.querySelector('.osm-not-in-osm').classList.remove('is-hidden');
+    } else if (status === 'error') {
+        idRow.querySelector('.osm-retry').classList.remove('is-hidden');
     }
-    if (status === 'in-osm' && nodeId) {
-        const href = `https://www.openstreetmap.org/node/${nodeId}`;
-        return `<a class="pu-osm-btn osm-in-osm" href="${href}" target="_blank" rel="noopener"
-               title="${t('osm.inOsm')} — node #${nodeId}" aria-label="${t('osm.inOsm')} — node #${nodeId}">
-             <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img"></a>`;
-    }
-    if (status === 'not-in-osm') {
-        return `<span class="pu-osm-btn osm-not-in-osm" title="${t('osm.notInOsm')}" aria-label="${t('osm.notInOsm')}">
-            <img src="assets/svg/osm.svg" width="16" height="16" alt="" class="osm-img-dim"></span>`;
-    }
-    if (status === 'error') {
-        return `<button class="pu-osm-btn osm-retry" data-action="osm-retry" title="${t('osm.retry')}" aria-label="${t('osm.retry')}">
-              <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
-            </button>`;
-    }
-    return '';
 }
 
 /* ===== Actions ===== */
 
 function _copyTags(feats, btn) {
-    const m = _buildOsmTags(feats);
-    if (!m.size) return;
-    navigator.clipboard.writeText(_tagsToText(m))
-        .then(() => _flash(btn, t('popup.copied'), '#4ade80', '#0b0e16'))
-        .catch(() => prompt('Copy OSM tags:', _tagsToText(m)));
+    const tagMap = buildOsmTags(feats);
+    if (!tagMap.size) return;
+    const tagText = _tagsToText(tagMap);
+    // Invalidate 'not-in-osm' so the next popup open triggers a fresh check.
+    invalidateNotInOsm(feats);
+    navigator.clipboard.writeText(tagText)
+        .then(() => _flash(btn))
+        .catch(() => prompt(t('popup.copyPrompt'), tagText));
 }
 
-function _sendToJOSM(feats, latlng, btn) {
-    const tagMap = _buildOsmTags(feats);
+async function _sendToJOSM(feats, latlng, btn) {
+    const tagMap = buildOsmTags(feats);
     if (!tagMap.size) return;
 
-    const alreadyInOsm = _statuses?.some(s => s.status === 'in-osm');
-    if (alreadyInOsm) {
+    if (_statuses?.some(s => s.status === 'in-osm')) {
         const msg = feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
         if (!confirm(msg)) return;
     }
 
-    const addtags = [...tagMap.entries()]
-        .map(([k, v]) => encodeURIComponent(`${k}=${v}`))
-        .join(encodeURIComponent('|'));
-
-    const path = `/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`;
-
-    // josmFetch probes HTTPS (8112) first, falls back to HTTP (8111).
-    // mode:'no-cors' is intentional — we don't need to read the response body.
-    josmFetch(path, { mode: 'no-cors' })
-        .then(() => _flash(btn, t('popup.josmSent'), '#4ade80', '#0b0e16'))
-        .catch(err => { console.warn('[JOSM]', err.message); alert('JOSM not reachable: ' + err.message); });
+    try {
+        await josmAddNode(latlng, tagMap);
+        // Invalidate 'not-in-osm' so the next popup open triggers a fresh check.
+        invalidateNotInOsm(feats);
+        _flash(btn);
+    } catch (err) {
+        console.warn('[JOSM]', err.message);
+        alert(`${t('josm.notReachable')}: ${err.message}`);
+    }
 }
 
-function _flash(btn, label, bg, fg) {
+/**
+ * Flash a footer button into its success state.
+ * All visual changes are in style.css via .is-flash.
+ */
+function _flash(btn) {
     if (!btn) return;
-    const orig = btn.innerHTML;
-    btn.innerHTML = `<svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg> ${label}`;
-    btn.style.background = bg; btn.style.color = fg;
-    setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; btn.style.color = ''; }, 2400);
+    btn.classList.add('is-flash');
+    setTimeout(() => btn.classList.remove('is-flash'), 2400);
 }
+
+/* ===== Accessibility helpers ===== */
+
+function _trapFocus(popupEl) {
+    if (!popupEl) return;
+    popupEl.tabIndex = -1;
+    requestAnimationFrame(() => {
+        const first = popupEl.querySelector(
+            'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
+        );
+        (first ?? popupEl).focus();
+    });
+}
+
+function _initKeyboard(popupEl, feats) {
+    if (!popupEl) return;
+    popupEl.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            e.stopPropagation();
+            _popup?.remove();
+            _popup = null;
+            return;
+        }
+        if (feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.stopPropagation();
+            e.preventDefault();
+            const next =
+                (_currentIdx + (e.key === 'ArrowRight' ? 1 : -1) + feats.length) % feats.length;
+            _currentIdx = next;
+            _popup.setContent(_build(feats, next));
+            return;
+        }
+        if (e.key === 'Tab') {
+            const focusable = [...popupEl.querySelectorAll(
+                'button:not([disabled]), a[href], input, [tabindex]:not([tabindex="-1"])'
+            )].filter(n => !n.closest('.is-hidden'));
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+}
+
+/* ===== Lang change: update open popup summary text ===== */
+
+onLangChange(() => {
+    const summary = document.querySelector('.pu-osm-summary');
+    if (!summary) return;
+    const count = parseInt(summary.dataset.count || '0', 10);
+    summary.textContent = t('popup.osmTags', count);
+});
