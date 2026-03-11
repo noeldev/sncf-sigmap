@@ -1,24 +1,32 @@
 /**
- * config.js — Central configuration.
+ * config.js — Static configuration constants.
+ *
+ * The Jawg API key is kept separately in js/config.secret.js (git-ignored).
+ * Copy js/config.secret.example.js → js/config.secret.js and add your key.
+ * If the file is absent the app falls back to the OpenStreetMap tile layer.
  */
 
-export const JAWG_API_KEY = 'AmqbyZ47xe9mLnAJNG7rNqIGZDFffalylyhlk7zlkaJ6hy0wPL43X6IgnkZjUT6t';
-
-// Absolute path — resolves correctly from both page and Web Worker contexts
+// Base URL for the tiled GeoJSON data
 export const TILES_BASE = '/data/tiles/';
 
-// Must match TileBuilder TILE_DEG constant
+// Must match the TileBuilder TILE_DEG constant
 export const TILE_DEG = 0.5;
 
-// Below this zoom, overview mode: limited signal types, spatially sampled
-// At this zoom and above, all signals in the viewport are shown (no restriction)
+// Below this zoom level, overview mode is active: spatially sampled
 export const OVERVIEW_MAX_ZOOM = 10;
 
 // Max signals shown in overview mode (zoom < OVERVIEW_MAX_ZOOM)
-export const OVERVIEW_MAX_SIGNALS = 100;
+export const OVERVIEW_MAX_SIGNALS = 300;
 
-// Initial map view (France)
-export const MAP_INITIAL_VIEW = { center: [46.8, 2.3], zoom: 6 };
+// Geographic bounds for the mapped area — all location-specific values in one place.
+// Leaflet LatLngBounds format: [[swLat, swLng], [neLat, neLng]].
+// Used both for map.fitBounds() on startup and to clip Overpass queries if needed.
+//export const MAP_BBOX = [[41.3, -5.2], [51.1, 9.6]];
+export const MAP_BBOX = [[41.2, -5.3], [51.2, 9.7]];
 
-// Default basemap: 'jawg-transport' | 'osm' | 'satellite'
+// Zoom cap applied to fitBounds() on first load.
+// Prevents the map from opening at an overly zoomed-in level on small screens.
+export const MAP_STARTUP_ZOOM = 6;
+
+// Default basemap key: 'jawg-transport' | 'osm' | 'satellite'
 export const DEFAULT_BASEMAP = 'jawg-transport';

@@ -14,11 +14,7 @@
 //   <output-dir>\index.json      — distinct values for all filter fields
 //   <output-dir>\5_10.json.gz    — one tile file per 0.5°×0.5° cell
 
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -97,11 +93,11 @@ for (int i = 0; i < total; i++)
         sens      = props["sens"]     ?.GetValue<string>() ?? "",
         position  = props["position"] ?.GetValue<string>() ?? "",
         pk        = props["pk"]       ?.GetValue<string>() ?? "",
-        idreseau  = props["idreseau"] ?.ToString()          ?? "",
+        idreseau  = props["idreseau"] ?.ToString()         ?? "",
         code_voie = props["code_voie"]?.GetValue<string>() ?? "",
     };
 
-    if (!tiles.ContainsKey(key)) tiles[key] = new List<Signal>();
+    if (!tiles.ContainsKey(key)) tiles[key] = [];
     tiles[key].Add(signal);
 
     // Collect distinct values (skip empty)

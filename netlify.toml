@@ -1,5 +1,8 @@
 [build]
   publish = "."
+  # Generates js/config.secret.js from the JAWG_API_KEY environment variable.
+  # Set that variable in: Netlify dashboard → Site → Project configuration → Environment variables.
+  command = "echo \"export const JAWG_API_KEY = '$JAWG_API_KEY';\" > js/config.secret.js"
 
 [[headers]]
   for = "/*.html"
@@ -11,12 +14,14 @@
 [[headers]]
   for = "/css/*"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+  # no-cache: browser revalidates on each load (304 if unchanged, fast).
+  # Do NOT use immutable without content-hashed filenames — it blocks updates.
+  Cache-Control = "no-cache"
 
 [[headers]]
   for = "/js/*"
   [headers.values]
-  Cache-Control = "public, max-age=31536000, immutable"
+  Cache-Control = "no-cache"
 
 # Tile files: served as gzip-encoded JSON so fetch().json() decompresses automatically
 [[headers]]
