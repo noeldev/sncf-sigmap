@@ -5,7 +5,7 @@
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9-199900?logo=leaflet&logoColor=white)](https://leafletjs.com/)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
 
-Interactive map viewer for the [SNCF permanent railway signalling](https://data.sncf.com/) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
+Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
 Only tiles visible in the current viewport are fetched — no full dataset download.
 
