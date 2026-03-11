@@ -20,8 +20,8 @@ export const LANGS = [
 const STRINGS = {
     en: {
         // Sidebar header
-        'subtitle1': 'Signalisation',
-        'subtitle2': 'Permanente',
+        'subtitle1': 'Fixed',
+        'subtitle2': 'Signalling',
         'loading': 'Loading…',
 
         // Tabs
@@ -125,7 +125,7 @@ const STRINGS = {
         'cat.unsupported': 'Unsupported types',
 
         // About
-        'about.intro': 'Viewer for <strong>SNCF permanent railway signalling</strong> open data, with OSM integration via JOSM or clipboard.',
+        'about.intro': 'Viewer for <strong>SNCF fixed signalling</strong> open data, with OSM integration via JOSM or clipboard.',
         'about.usage.title': 'How to use',
         'about.usage.text': 'Zoom in to load signals. At low zoom, results are spatially sampled to keep the map readable; zoom ≥10 shows all signals in the viewport without limit. Active filters always apply regardless of zoom level. Click any marker to view properties and export OSM tags.',
         'about.links.title': 'Links',

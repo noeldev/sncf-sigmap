@@ -1,34 +1,34 @@
 /**
- * filters.js — Filter panel with combo-box dropdowns.
+ * filters.js — Filter state and orchestration.
  *
- * All HTML structure lives in index.html:
- *   tpl-filter-group     — one filter panel (header, tag pills, combo, toggle)
- *   tpl-filter-tag       — one active-value pill
- *   tpl-filter-drop-item — one dropdown option row
- *   tpl-filter-no-match  — empty-results placeholder
+ * Owns all application data:
+ *   _activeFilters    — currently selected values per field
+ *   _confirmedFilters — minSearch fields with an explicitly confirmed value
+ *   _indexValues      — pre-loaded value lists from index.json
+ *   _counts           — live signal counts per field / value (from tiles)
+ *   _defs             — [ { field, search, panel: FilterPanel } ]
  *
- * DOM references for each panel are stored in _defs[i].el so that
- * _refreshTags / _refreshDropdown never call document.getElementById().
+ * Delegates all DOM / event work to FilterPanel (one instance per active
+ * filter, stored as def.panel).  This file contains no direct DOM queries
+ * after _buildPanels() returns.
  *
- * Dropdown behaviour (outside-click, ARIA, keyboard navigation, focus) is
- * handled by the Dropdown class from dropdown.js — one shared instance per
- * filter panel stored as def.dd.  _openDropdown / _closeDropdown delegate to
- * def.dd.open() / def.dd.close().  The item activation callback (activate) is
- * the single code path for both mouse and keyboard item selection.
+ * UI class responsibilities:
+ *   FilterPanel  (ui/filter-panel.js)
+ *     ↳ Dropdown  (ui/dropdown.js)  — outside-click, ARIA, list keyboard nav
+ *     ↳ ComboBox  (ui/combobox.js)  — input search / keyboard / focus
+ *     ↳ PillList  (ui/pill-list.js) — pill container delegation
  *
  * All filter values are uppercase (SNCF data convention); the search input
  * is uppercased before comparison so no toLowerCase() is needed.
  *
  * The idreseau field has minSearch: 5 — the dropdown shows a hint until the
- * user has typed at least 5 characters, then shows matching values from the
- * currently indexed signals.  No pre-built index exists for idreseau given
- * the 123 000+ unique values; matches are drawn from _counts['idreseau']
- * which is populated live by indexSignals() as tiles load.
+ * user has typed at least 5 characters, then shows matching values from
+ * _counts['idreseau'] (populated live by indexSignals() as tiles load).
  */
 
 import { getSupportedTypes } from './signal-mapping.js';
 import { t, applyI18n, onLangChange } from './i18n.js';
-import { Dropdown } from './dropdown.js';
+import { FilterPanel } from './ui/filter-panel.js';
 
 export const ALL_FILTER_FIELDS = [
     { key: 'type_if', labelKey: 'field.type_if' },
@@ -40,24 +40,23 @@ export const ALL_FILTER_FIELDS = [
 ];
 
 // Exported as const so external importers always hold the same object reference.
-// Internal mutations clear keys in-place rather than reassigning.
+// Internal mutations clear keys in-place rather than reassigning the object.
 const _activeFilters = {};
 
-// Tracks which minSearch fields have a value explicitly confirmed via Enter / click.
-// While typing, the filter is applied live (for marker display) but no badge is shown.
+// Tracks minSearch fields with a value explicitly confirmed via Enter / click.
+// During live typing the filter is applied for marker display but no pill shown.
 const _confirmedFilters = new Set();
 
 let _indexValues = {};
 let _counts = {};
-let _defs = [];   // { field, search, el: { … } } — el added on panel build
+let _defs = [];   // [{ field: string, search: string, panel: FilterPanel }]
 let _mappedOnly = false;
 let _mappedTypes = getSupportedTypes();
 let _onChange = null;
-let _addFilterBtn = null;   // cached button reference for disabled-state management
-let _elStFilters = null;   // cached status bar filters counter
+let _addFilterBtn = null;
+let _elStFilters = null;
 
-// Templates are stable DOM nodes — cache them once after DOMContentLoaded.
-// ES modules are deferred by spec so the DOM is guaranteed ready here.
+// Templates: resolved lazily via getters so they are always read from the live DOM.
 const _tpl = {
     get group() { return document.getElementById('tpl-filter-group'); },
     get tag() { return document.getElementById('tpl-filter-tag'); },
@@ -70,23 +69,19 @@ ALL_FILTER_FIELDS.forEach(f => {
     _counts[f.key] = new Map();
 });
 
+/* ===== Public API ===== */
+
 export function initFilters(onChange) {
     _onChange = onChange;
     _elStFilters = document.getElementById('st-filters');
     _clearActiveFilters();
     _buildPanels();
 
-    // Outside-click closing for filter dropdowns is delegated to the Dropdown
-    // instances (each panel registers itself in dropdown.js's shared registry).
-
     // Dismiss the "Add filter" menu when clicking outside it.
     document.addEventListener('click', e => {
-        if (
-            !e.target.closest('.add-filter-menu') &&
-            !e.target.closest('#btn-add-filter')
-        ) {
+        if (!e.target.closest('.add-filter-menu') &&
+            !e.target.closest('#btn-add-filter'))
             document.querySelector('.add-filter-menu')?.remove();
-        }
     });
 
     onLangChange(() => _buildPanels());
@@ -103,7 +98,6 @@ export async function loadFilterIndex(tilesBase) {
         _defs.forEach((_, i) => _refreshDropdown(i));
     } catch (err) {
         console.warn('[Filters] index.json:', err.message);
-        // Show a discreet warning so the user knows filter suggestions may be incomplete.
         const container = document.getElementById('filters-container');
         if (container) {
             const warn = document.createElement('div');
@@ -143,9 +137,8 @@ export function resetFilters() {
 
 export function getActiveFiltersForWorker() {
     const out = {};
-    for (const [f, vals] of Object.entries(_activeFilters)) {
+    for (const [f, vals] of Object.entries(_activeFilters))
         if (vals.size > 0) out[f] = [...vals];
-    }
     return out;
 }
 
@@ -178,7 +171,10 @@ export function initAddFilterButton(btn) {
             opt.textContent = t(f.labelKey);
             opt.addEventListener('mousedown', e2 => {
                 e2.preventDefault();
-                e2.stopPropagation();
+                // Do NOT stopPropagation: let the event reach the document 'click'
+                // handler that dismisses the menu.  We also call menu.remove()
+                // explicitly so the menu closes even if the click event does not fire
+                // (e.g. after _buildPanels rebuilds the DOM under the cursor).
                 _defs.push({ field: f.key, search: '' });
                 _buildPanels();
                 menu.remove();
@@ -186,10 +182,8 @@ export function initAddFilterButton(btn) {
             menu.appendChild(opt);
         });
 
-        // If the app is in fullscreen, the browser creates a new stacking
-        // context on the fullscreen element.  Anything appended to <body> is
-        // rendered behind it regardless of z-index.  Attach to the fullscreen
-        // root instead so the menu stays on top.
+        // In fullscreen the browser creates a new stacking context on the
+        // fullscreen element; append there so the menu is not hidden behind it.
         (document.fullscreenElement ?? document.body).appendChild(menu);
     });
 }
@@ -205,184 +199,92 @@ function _fieldDef(key) {
     return ALL_FILTER_FIELDS.find(f => f.key === key);
 }
 
-/** Disable the "Add filter" button when every field already has a panel. */
 function _updateAddFilterBtn() {
     if (!_addFilterBtn) return;
     const used = new Set(_defs.map(d => d.field));
     _addFilterBtn.disabled = !ALL_FILTER_FIELDS.some(f => !used.has(f.key));
 }
 
-/* ===== Panel DOM (template-driven) ===== */
+/* ===== Panel management ===== */
 
 function _buildPanels() {
     const container = document.getElementById('filters-container');
     if (!container) return;
-    // Destroy existing Dropdown instances before rebuilding panels so they
-    // unregister from the shared outside-click registry in dropdown.js.
-    _defs.forEach(d => d.dd?.destroy());
+
+    // Destroy Dropdown instances so they unregister from the outside-click registry.
+    _defs.forEach(d => d.panel?.destroy());
     container.replaceChildren();
 
-    const tplGroup = _tpl.group;
-
     _defs.forEach((def, idx) => {
-        const isTypeIf = def.field === 'type_if';
         const fieldMeta = _fieldDef(def.field);
         const label = t(fieldMeta?.labelKey ?? def.field);
 
-        // Clone template; apply i18n (handles the toggle label data-i18n attribute).
-        const panel = tplGroup.content.cloneNode(true).querySelector('.filter-group');
-        applyI18n(panel);
-
-        // Cache element references in one pass.
-        const el = {
-            panel,
-            title: panel.querySelector('.fg-title'),
-            removeBtn: panel.querySelector('.fg-remove'),
-            tags: panel.querySelector('.fg-tags'),
-            comboInput: panel.querySelector('.fg-combo-input'),
-            comboArrow: panel.querySelector('.fg-combo-arrow'),
-            input: panel.querySelector('.fg-search'),
-            dropdown: panel.querySelector('.fg-dropdown'),
-            list: panel.querySelector('.fg-dropdown-inner'),
-            toggleRow: panel.querySelector('.supported-only-row'),
-            toggleChk: panel.querySelector('.chk-mapped-only'),
-            toggleTrack: panel.querySelector('.toggle-track'),
-        };
-        def.el = el;
-
-        el.title.textContent = label;
-
-        if (isTypeIf) {
-            el.toggleRow.classList.remove('is-hidden');
-            el.toggleChk.checked = _mappedOnly;
-            el.toggleTrack.classList.toggle('checked', _mappedOnly);
-        }
-
-        // For idreseau (minSearch > 0): hide the dropdown arrow.
-        // The input is used as a free-text search; the dropdown shows matching
-        // values once the minimum length is reached.
-        // Tags are hidden until a value is explicitly confirmed (Enter / click).
-        if (fieldMeta?.minSearch > 0) {
-            el.comboArrow.classList.add('is-hidden');
-            if (!_confirmedFilters.has(def.field)) {
-                el.tags.classList.add('is-hidden');
-                // Restore partial search text if the user was mid-search.
-                el.input.value = def.search;
-            }
-            // If confirmed, _refreshTags() below will un-hide tags and populate the pill.
-        }
-
-        container.appendChild(panel);
-
-        // ---- Create the Dropdown controller for this panel ----
-        // Dropdown handles: ARIA, outside-click, list keyboard navigation,
-        // and focus helpers (focusItem / focusInput).
-        // Everything filter-specific (input events, pill logic, toggle) stays here.
-        // activate — shared handler for both keyboard (Dropdown._onListKey) and
-        // mouse (item mousedown below).  Pure state change; focus is managed
-        // by each call site using queueMicrotask (see below).
+        // activate MUST be defined before new FilterPanel() — the constructor
+        // stores it as onActivate immediately.  Defining it after the constructor
+        // call would place it in the Temporal Dead Zone at the point of use,
+        // causing a silent ReferenceError on every item click.
         const activate = fieldMeta?.minSearch > 0
             ? (val) => _addExact(def.field, val, idx, /* keepDropdown= */ true)
             : (val) => _toggle(def.field, val);
 
-        def.dd = new Dropdown({
-            panel: el.panel,
-            dropdownEl: el.dropdown,
-            triggerEl: el.comboInput,
-            listEl: el.list,
-            input: el.input,
-            itemSel: '.fg-drop-item',
+        def.panel = new FilterPanel({
+            fieldKey: def.field,
+            fieldMeta,
+            label,
+            tplGroup: _tpl.group,
+            tplTag: _tpl.tag,
+            tplItem: _tpl.item,
+            tplNoMatch: _tpl.noMatch,
+            applyI18n,
+            isConfirmed: _confirmedFilters.has(def.field),
+            searchValue: def.search,
+            mappedOnly: _mappedOnly,
+
             onActivate: activate,
-            // idreseau (minSearch) is a search-and-add pattern: after keyboard
-            // activation the user expects to keep typing, so focus goes back to
-            // the input rather than staying on the selected item.
-            activationFocusMode: fieldMeta?.minSearch > 0 ? 'input' : 'item',
-        });
 
-        // --- Event listeners ---
-
-        el.removeBtn.addEventListener('click', () => {
-            def.dd.destroy();
-            delete _activeFilters[def.field];
-            _confirmedFilters.delete(def.field);
-            _defs.splice(idx, 1);
-            _buildPanels();
-            _onChange?.();
-        });
-
-        // Pill remove buttons — keyboard (Space/Enter) and mouse.
-        el.tags.addEventListener('keydown', e => {
-            if ((e.key === ' ' || e.key === 'Enter') && e.target.classList.contains('fg-tag-remove')) {
-                e.preventDefault();
-                const val = e.target.closest('.fg-tag')?.querySelector('.fg-tag-label')?.textContent;
-                if (!val) return;
+            onPillRemove: val => {
                 _toggle(def.field, val);
-                // If all pills removed for a minSearch field, reset confirmation state.
+                // If all pills removed for a minSearch field, reset confirmation.
                 if (fieldMeta?.minSearch > 0 && !_activeFilters[def.field]?.size) {
                     _confirmedFilters.delete(def.field);
-                    if (def.el?.tags) def.el.tags.classList.add('is-hidden');
+                    def.panel.hideTags();
                 }
-                // The pill button that held focus has been detached by _refreshTags()
-                // → replaceChildren() moved focus to <body>.  Restore it to the input.
-                queueMicrotask(() => def.dd?.focusInput());
-            }
-        });
+                // The focused pill button was detached by replaceChildren() inside
+                // _refreshTags → focus moved to <body>.  Restore via microtask.
+                queueMicrotask(() => def.panel?.focusInput());
+            },
 
-        el.input.addEventListener('input', () => {
-            def.search = el.input.value.toUpperCase();
-            _refreshDropdown(idx);
-            if (fieldMeta?.minSearch > 0) {
-                // Typing updates the dropdown display only.
-                // Confirmed pills and active filter are untouched while typing.
-                if (def.search.length >= fieldMeta.minSearch) _openDropdown(idx);
-                else _closeDropdown(idx);
-            }
-        });
+            onRemove: () => {
+                def.panel.destroy();
+                delete _activeFilters[def.field];
+                _confirmedFilters.delete(def.field);
+                _defs.splice(idx, 1);
+                _buildPanels();
+                _onChange?.();
+            },
 
-        // --- Keyboard: editbox (filter-specific handlers) ---
-        el.input.addEventListener('keydown', e => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                _openDropdown(idx);
-                def.dd.focusFirst();
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                _selectFirst(idx);
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                _closeDropdown(idx);
-            } else if (e.key === 'Tab') {
-                _closeDropdown(idx);
-            }
-        });
-        el.input.addEventListener('focus', () => {
-            // Skip programmatic focus calls (focusInput() after Escape, ArrowUp,
-            // pill remove, _selectFirst…).  Without this guard every
-            // dd.focusInput() call would immediately reopen the dropdown it just
-            // closed.  The flag is set by Dropdown.focusInput() and reset via
-            // queueMicrotask once the browser has processed the focus event.
-            if (def.dd._programmaticFocus) return;
-            _openDropdown(idx);
-        });
-
-        // Combo arrow click: toggle open/close, restore input focus.
-        el.comboInput.addEventListener('mousedown', e => {
-            if (e.target === el.input) return;
-            e.preventDefault();
-            def.dd.isOpen() ? _closeDropdown(idx) : (_openDropdown(idx), def.dd.focusInput());
-        });
-
-        if (isTypeIf) {
-            el.toggleChk.addEventListener('change', () => {
-                _mappedOnly = el.toggleChk.checked;
-                el.toggleTrack.classList.toggle('checked', _mappedOnly);
+            onToggleMappedOnly: checked => {
+                _mappedOnly = checked;
                 delete _activeFilters['type_if'];
                 _defs.forEach(d => { if (d.field === 'type_if') d.search = ''; });
                 _buildPanels();
                 _onChange?.();
-            });
-        }
+            },
 
+            onSearch: query => {
+                def.search = query;
+                _refreshDropdown(idx);
+                if (fieldMeta?.minSearch > 0) {
+                    if (query.length >= fieldMeta.minSearch) _openDropdown(idx);
+                    else _closeDropdown(idx);
+                }
+            },
+
+            onEnter: () => _selectFirst(idx),
+            onOpen: () => _openDropdown(idx),
+        });
+
+        def.panel.appendTo(container);
         _refreshTags(idx);
         _refreshDropdown(idx);
     });
@@ -391,94 +293,64 @@ function _buildPanels() {
     _updateAddFilterBtn();
 }
 
-/* ===== In-place DOM updates (avoid losing focus) ===== */
+/* ===== DOM update helpers ===== */
 
 function _refreshTags(idx) {
     const def = _defs[idx];
-    if (!def?.el) return;
-    const { tags } = def.el;
+    if (!def?.panel) return;
 
-    // minSearch fields only display a tag pill when a value has been explicitly
-    // confirmed via Enter or a dropdown click — not during live typing.
     const fieldMeta = _fieldDef(def.field);
     if (fieldMeta?.minSearch > 0) {
         if (!_confirmedFilters.has(def.field)) return;
-        tags.classList.remove('is-hidden');   // ensure container is visible
+        def.panel.showTags();
     }
 
-    const sel = _activeFilters[def.field] || new Set();
-
-    tags.replaceChildren();
-    for (const v of sel) {
-        const pill = _tpl.tag.content.cloneNode(true).querySelector('.fg-tag');
-        pill.querySelector('.fg-tag-label').textContent = v;
-        const removeBtn = pill.querySelector('.fg-tag-remove');
-        removeBtn.addEventListener('mousedown', e => {
-            e.preventDefault();
-            _toggle(def.field, v);
-            // If all pills removed for a minSearch field, reset confirmation state.
-            if (fieldMeta?.minSearch > 0 && !_activeFilters[def.field]?.size) {
-                _confirmedFilters.delete(def.field);
-                if (def.el?.tags) def.el.tags.classList.add('is-hidden');
-            }
-            // replaceChildren() in _refreshTags() may have detached the focused
-            // element.  Restore focus to the input via microtask.
-            queueMicrotask(() => def.dd?.focusInput());
-        });
-        tags.appendChild(pill);
-    }
+    def.panel.refreshTags(_activeFilters[def.field] || new Set());
 }
 
+/**
+ * Prepare the filtered, sorted item list and hand it to the panel for rendering.
+ * All data logic (merging index + counts, filtering, sorting) stays here;
+ * FilterPanel receives a plain [{v, count, active, showDot}] array and renders
+ * it without any application knowledge.
+ */
 function _refreshDropdown(idx) {
     const def = _defs[idx];
-    if (!def?.el) return;
-    const { input, list } = def.el;
+    if (!def?.panel) return;
 
     const fieldMeta = _fieldDef(def.field);
-
-    // activate MUST be defined here (not captured from _buildPanels) because
-    // _refreshDropdown is a module-level function with its own lexical scope.
-    // Items' mousedown closures capture _refreshDropdown's scope, not the
-    // caller's scope — even when the caller is _buildPanels.  Without this
-    // local definition every item click after the first rebuild throws a
-    // silent ReferenceError and does nothing.
-    const activate = fieldMeta?.minSearch > 0
-        ? (val) => _addExact(def.field, val, idx, /* keepDropdown= */ true)
-        : (val) => _toggle(def.field, val);
     const fromIndex = _indexValues[def.field] || [];
     const fromCounts = [...(_counts[def.field]?.keys() || [])];
     let all = fromIndex.length > 0
         ? [...new Set([...fromIndex, ...fromCounts])]
         : fromCounts;
 
-    const sel = _activeFilters[def.field] || new Set();
-    const q = def.search || '';   // already uppercase from input handler
+    const q = def.search || '';
     const isTypeIf = def.field === 'type_if';
     const isMappedOnly = _mappedOnly && isTypeIf;
 
     if (isMappedOnly) all = all.filter(v => _mappedTypes.has(v));
 
-    // For minSearch fields: show a hint until the threshold is reached.
+    // minSearch: show a hint row until the threshold length is reached.
     const minSearch = fieldMeta?.minSearch || 0;
     if (minSearch > 0 && q.length < minSearch) {
-        list.replaceChildren();
-        const hint = document.createElement('div');
-        hint.className = 'fg-empty';
-        hint.textContent = t('filter.idreseau.waiting');
-        list.appendChild(hint);
-        if (input) input.placeholder = t('filter.idreseau.placeholder');
+        def.panel.showHint(t('filter.idreseau.waiting'));
+        def.panel.setInputPlaceholder(t('filter.idreseau.placeholder'));
         return;
     }
 
-    if (input) input.placeholder = t('dropdown.search', all.length);
+    def.panel.setInputPlaceholder(t('dropdown.search', all.length));
 
     const numericSort = def.field === 'code_ligne';
-    const filtered = all
-        .filter(v => v.includes(q))   // values are uppercase; query is uppercase
+    const sel = _activeFilters[def.field] || new Set();
+
+    const items = all
+        .filter(v => v.includes(q))
         .map(v => ({
             v,
             count: _counts[def.field]?.get(v) || 0,
-            mapped: _mappedTypes.has(v),
+            active: sel.has(v),
+            showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
         }))
         .sort(numericSort
             ? (a, b) =>
@@ -487,86 +359,25 @@ function _refreshDropdown(idx) {
             : (a, b) => a.v.localeCompare(b.v)
         );
 
-    // If a list item currently has keyboard focus, save its val so we can
-    // restore focus after replaceChildren() inevitably detaches it and moves
-    // the browser's focus target to <body>.  This handles both the normal
-    // toggle path and background indexSignals() rebuilds.
-    const prevFocusedVal = list.contains(document.activeElement)
-        ? document.activeElement.dataset?.val ?? null
-        : null;
-
-    list.replaceChildren();
-
-    if (!filtered.length) {
-        const placeholder = _tpl.noMatch.content.cloneNode(true).querySelector('.fg-empty');
-        applyI18n(placeholder);
-        list.appendChild(placeholder);
-        return;
-    }
-
-    filtered.forEach(({ v, count, mapped }, fi) => {
-        const active = sel.has(v);
-        const showDot = isTypeIf && mapped && !isMappedOnly;
-
-        const item = _tpl.item.content.cloneNode(true).querySelector('.fg-drop-item');
-        item.tabIndex = -1;
-        item.setAttribute('role', 'option');
-        item.setAttribute('aria-selected', String(active));
-        item.classList.toggle('active', active);
-        item.classList.toggle('mapped', showDot);
-        item.dataset.field = def.field;
-        item.dataset.val = v;
-
-        item.querySelector('.fgi-check').classList.toggle('checked', active);
-        item.querySelector('.fgi-name').textContent = v;
-        item.querySelector('.fgi-count').textContent = count > 0 ? count.toLocaleString() : '';
-        item.addEventListener('mousedown', e => {
-            e.preventDefault();
-            // After activate() the list is rebuilt via replaceChildren().
-            // Save the clicked val so the centralised focus-restore block below
-            // can refocus the rebuilt item (or the input for minSearch fields).
-            // Note: activate() is synchronous and runs _before_ this handler
-            // returns, so by the time queueMicrotask fires the new DOM is ready.
-            activate(v);
-        });
-        list.appendChild(item);
-    });
-
-    // Focus restoration 
-    // replaceChildren() above detached any previously-focused list item,
-    // moving the browser's focus target to <body>.  queueMicrotask defers the
-    // refocus until AFTER the browser has processed that focus-to-body event —
-    // a synchronous .focus() call here would lose the race on Blink / WebKit.
-    //
-    // Priority (highest → lowest):
-    //   • prevFocusedVal — item that had focus before this rebuild
-    //   • nothing        — focus was on input or outside the list; leave it alone
-    if (prevFocusedVal && def.dd?.isOpen()) {
-        queueMicrotask(() => def.dd.focusItem(prevFocusedVal));
-    }
+    def.panel.refreshList(items);
 }
 
+/* ===== State mutations ===== */
+
 /**
- * Toggle a value in a minSearch filter (multi-pill support).
- * If the value is already selected, it is deselected; otherwise it is added.
+ * Add or remove a value for a minSearch field (search-and-add pattern).
  *
- * keepDropdown — true  : dropdown stays open, focus stays on rebuilt item.
- *                false : dropdown closes, focus returns to editbox.
- *
- * Focus is assigned via queueMicrotask so it runs after the browser has
- * processed the focus-to-body event caused by replaceChildren() inside
- * _refreshDropdown().
+ * keepDropdown true  — dropdown stays open; focus returns to input for next term.
+ *              false — dropdown closes; focus returns to input.
  */
 function _addExact(field, val, idx, keepDropdown = true) {
     if (!val) return;
     if (!_activeFilters[field]) _activeFilters[field] = new Set();
 
     const wasActive = _activeFilters[field].has(val);
-    if (wasActive) {
-        _activeFilters[field].delete(val);
-    } else {
-        _activeFilters[field].add(val);
-    }
+    wasActive
+        ? _activeFilters[field].delete(val)
+        : _activeFilters[field].add(val);
 
     const isEmpty = !_activeFilters[field]?.size;
     if (isEmpty) delete _activeFilters[field];
@@ -574,27 +385,21 @@ function _addExact(field, val, idx, keepDropdown = true) {
     const def = _defs[idx];
 
     if (!wasActive) {
-        // Value added — mark field as confirmed so pills are shown.
         _confirmedFilters.add(field);
-        if (def?.el?.tags) def.el.tags.classList.remove('is-hidden');
+        def.panel?.showTags();
     } else if (isEmpty) {
-        // All values removed — reset confirmation state.
         _confirmedFilters.delete(field);
-        if (def?.el?.tags) def.el.tags.classList.add('is-hidden');
+        def.panel?.hideTags();
     }
-    // else: still has values — stays confirmed, tags stay visible.
 
     _refreshTags(idx);
     _refreshDropdown(idx);
 
-    // For idreseau (minSearch / search-and-add pattern), focus always returns
-    // to the input so the user can immediately type the next search term.
-    // focusItem would leave focus on a list item the user is likely done with.
     if (keepDropdown) {
-        queueMicrotask(() => def?.dd?.focusInput());
+        queueMicrotask(() => def.panel?.focusInput());
     } else {
         _closeDropdown(idx);
-        queueMicrotask(() => def?.dd?.focusInput());
+        queueMicrotask(() => def.panel?.focusInput());
     }
     _updateStatusBar();
     _onChange?.();
@@ -603,46 +408,46 @@ function _addExact(field, val, idx, keepDropdown = true) {
 function _selectFirst(idx) {
     const def = _defs[idx];
     const fieldMeta = _fieldDef(def?.field);
-    const first = def?.el?.list?.querySelector('.fg-drop-item');
-    if (!first) return;
+    const firstVal = def?.panel?.getFirstItemVal();
+    if (!firstVal) return;
+
     if (fieldMeta?.minSearch > 0) {
-        // From editbox Enter: clear input, close dropdown, stay on editbox.
+        // From editbox Enter: confirm the first result, clear input, close dropdown.
         def.search = '';
-        if (def.el?.input) def.el.input.value = '';
-        _addExact(def.field, first.dataset.val, idx, /* keepDropdown= */ false);
+        def.panel.clearSearch();
+        _addExact(def.field, firstVal, idx, /* keepDropdown= */ false);
     } else {
-        _toggle(def.field, first.dataset.val);
-        // Focus stays in editbox (was already focused when Enter was pressed).
+        _toggle(def.field, firstVal);
+        // Focus stays in the editbox (it was already focused when Enter was pressed).
     }
 }
 
 function _openDropdown(idx) {
-    // Close all other filter dropdowns first.
-    _defs.forEach((d, i) => { if (i !== idx) d.dd?.close(); });
-    _defs[idx]?.dd?.open();
+    // Close all sibling filter dropdowns first (only one open at a time).
+    _defs.forEach((d, i) => { if (i !== idx) d.panel?.closeDropdown(); });
+    _defs[idx]?.panel?.openDropdown();
 }
 
 function _closeDropdown(idx) {
-    _defs[idx]?.dd?.close();
-}
-
-function _closeAll() {
-    _defs.forEach(d => d.dd?.close());
+    _defs[idx]?.panel?.closeDropdown();
 }
 
 function _toggle(field, val) {
     if (!_activeFilters[field]) _activeFilters[field] = new Set();
     const wasActive = _activeFilters[field].has(val);
-    wasActive ? _activeFilters[field].delete(val) : _activeFilters[field].add(val);
+    wasActive
+        ? _activeFilters[field].delete(val)
+        : _activeFilters[field].add(val);
     if (_activeFilters[field].size === 0) delete _activeFilters[field];
+
     const idx = _defs.findIndex(d => d.field === field);
     if (idx >= 0) {
         const def = _defs[idx];
-        // When deselecting, clear the search so the full list is shown, not
-        // just the item that was previously filtered to reach this value.
-        if (wasActive && def.el?.input) {
+        // On deselect: clear the query so the full list reappears rather than
+        // only the previously filtered subset.
+        if (wasActive && def.panel) {
             def.search = '';
-            def.el.input.value = '';
+            def.panel.clearSearch();
         }
         _refreshTags(idx);
         _refreshDropdown(idx);
@@ -653,6 +458,7 @@ function _toggle(field, val) {
 }
 
 function _updateStatusBar() {
-    if (_elStFilters) _elStFilters.textContent =
-        Object.values(_activeFilters).filter(s => s.size > 0).length;
+    if (_elStFilters)
+        _elStFilters.textContent =
+            Object.values(_activeFilters).filter(s => s.size > 0).length;
 }

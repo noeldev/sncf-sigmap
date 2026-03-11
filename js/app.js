@@ -37,7 +37,7 @@ import { openSignalPopup } from './popup.js';
 import { getTypeColor, getDotSize, buildLegend } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t, getLang, setLang, applyTranslations, setRecordCount } from './i18n.js';
-import { Dropdown, closeAll as closeAllDropdowns } from './dropdown.js';
+import { Dropdown, closeAll as closeAllDropdowns } from './ui/dropdown.js';
 
 
 let manifest = null;
