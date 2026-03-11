@@ -1,149 +1,167 @@
 /**
- * map.js — Leaflet map initialisation, basemaps, geolocation, fullscreen.
+ * map.js — Leaflet initialisation, basemap tile layers, map controls.
+ *
+ * Responsibilities (intentionally narrow):
+ *   - Create and export the Leaflet map instance.
+ *   - Manage basemap tile layers and their selector buttons.
+ *   - Wire map-level controls: zoom, geolocation, fullscreen, sidebar toggle.
+ *
+ * Legend, language picker, tab handlers, JOSM detection panel, and
+ * applyTranslations() are all orchestrated by app.js after initMap() returns.
+ *
+ * refreshBasemapLabels() is exported so app.js can trigger a label update
+ * when the UI language changes, without exposing any internal basemap state.
  */
 
-import { JAWG_API_KEY, MAP_INITIAL_VIEW, DEFAULT_BASEMAP } from './config.js';
+import { MAP_BBOX, MAP_STARTUP_ZOOM, DEFAULT_BASEMAP } from './config.js';
+import { t } from './i18n.js';
 
 export let map;
 
 const BASEMAPS = {
-  'jawg-transport': {
-    label: 'Jawg Transport',
-    color: '#2589c7',
-    url:   `https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`,
-    opts:  { attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 22 },
-  },
-  'osm': {
-    label: 'OpenStreetMap',
-    color: '#7dcf7d',
-    url:   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    opts:  { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', maxZoom: 20 },
-  },
-  'satellite': {
-    label: 'Satellite',
-    color: '#c8a96a',
-    url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    opts:  { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: 20 },
-  },
+    'jawg-transport': {
+        labelKey: 'basemap.jawg',
+        thumb: 'assets/png/jawg-transport-thumb.png',
+        url: 'https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token={jawg_api_key}',
+        opts: {
+            attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+            maxZoom: 22,
+        },
+    },
+    'osm': {
+        labelKey: 'basemap.osm',
+        thumb: 'assets/png/osm-thumb.png',
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        opts: {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+            maxZoom: 20,
+        },
+    },
+    'satellite': {
+        labelKey: 'basemap.satellite',
+        thumb: 'assets/png/satellite-thumb.png',
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        opts: {
+            attribution: '© Esri, Maxar, Earthstar Geographics',
+            maxZoom: 20,
+        },
+    },
 };
 
-const _layers = {};
-let _current  = null;
-let _geolocMarker = null;
-let _geolocCircle = null;
+const _tileLayers = {};
+let _current = null;
 
-export function initMap(containerId) {
-  map = L.map(containerId, { zoomControl: false, maxZoom: 22, preferCanvas: true })
-         .setView(MAP_INITIAL_VIEW.center, MAP_INITIAL_VIEW.zoom);
+export async function initMap(containerId) {
+    let jawgKey = '';
+    try {
+        const secret = await import('./config.secret.js');
+        jawgKey = (secret.JAWG_API_KEY || '').trim();
+    } catch { /* config.secret.js absent — fall back to OSM */ }
 
-  Object.entries(BASEMAPS).forEach(([key, def]) => {
-    _layers[key] = L.tileLayer(def.url, def.opts);
-  });
+    _current = jawgKey ? DEFAULT_BASEMAP : 'osm';
 
-  const start = (JAWG_API_KEY === 'YOUR_JAWG_ACCESS_TOKEN') ? 'osm' : DEFAULT_BASEMAP;
-  _current = start;
-  _layers[start].addTo(map);
+    map = L.map(containerId, {
+        zoomControl: false,
+        maxZoom: BASEMAPS[_current].opts.maxZoom,
+        preferCanvas: true,
+    }).fitBounds(MAP_BBOX, { maxZoom: MAP_STARTUP_ZOOM });
 
-  _buildLayerButtons();
-  _buildControls();
-  return map;
+    Object.entries(BASEMAPS).forEach(([key, def]) => {
+        const opts = key === 'jawg-transport'
+            ? { ...def.opts, jawg_api_key: jawgKey }
+            : def.opts;
+        _tileLayers[key] = L.tileLayer(def.url, opts);
+    });
+
+    _tileLayers[_current].addTo(map);
+    _buildBasemapButtons();
+    _buildControls();
+    return map;
 }
 
-function _buildLayerButtons() {
-  const list = document.getElementById('basemap-list');
-  if (!list) return;
-  list.innerHTML = '';
-  Object.entries(BASEMAPS).forEach(([key, def]) => {
-    const btn     = document.createElement('button');
-    btn.className = 'layer-btn' + (key === _current ? ' active' : '');
-    btn.dataset.map = key;
-    btn.innerHTML = `<span class="layer-dot" style="background:${def.color}"></span>${def.label}`;
-    btn.addEventListener('click', () => _setBasemap(key));
-    list.appendChild(btn);
-  });
+/* ===== Basemap selector buttons ===== */
+
+function _buildBasemapButtons() {
+    const list = document.getElementById('basemap-list');
+    if (!list) return;
+    list.replaceChildren();
+    const tpl = document.getElementById('tpl-basemap-btn');
+    Object.entries(BASEMAPS).forEach(([key, def]) => {
+        const btn = tpl.content.cloneNode(true).querySelector('.basemap-btn');
+        btn.classList.toggle('active', key === _current);
+        btn.dataset.map = key;
+        btn.querySelector('.basemap-thumb').src = def.thumb;
+        btn.querySelector('.basemap-thumb').onerror = function () { this.style.display = 'none'; };
+        btn.querySelector('.basemap-label').textContent = t(def.labelKey);
+        btn.addEventListener('click', () => _setBasemap(key));
+        list.appendChild(btn);
+    });
 }
 
-function _setBasemap(key) {
-  if (!_layers[key] || key === _current) return;
-  map.removeLayer(_layers[_current]);
-  _layers[key].addTo(map);
-  _current = key;
-  document.querySelectorAll('.layer-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.map === key));
+/**
+ * Rebuild basemap selector buttons with updated translated labels.
+ * Called by app.js whenever the UI language changes.
+ */
+export function refreshBasemapLabels() {
+    _buildBasemapButtons();
 }
+
+/* ===== Map controls ===== */
 
 function _buildControls() {
-  // Custom zoom buttons
-  document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
-  document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
-
-  // Geolocation
-  document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
-
-  // Fullscreen
-  document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
-  document.addEventListener('fullscreenchange', () => {
-    document.getElementById('btn-fullscreen')
-      ?.classList.toggle('fs-active', !!document.fullscreenElement);
-  });
-
-  // Sidebar toggle
-  document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
-    sidebar?.classList.toggle('sidebar-closed');
-    setTimeout(() => map.invalidateSize(), 200);
-  });
-
-  // Sidebar tabs
-  document.querySelectorAll('.stab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
+    document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
+    document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
+    document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
+        setTimeout(() => map.invalidateSize(), 210);
     });
-  });
+    document.addEventListener('fullscreenchange', () =>
+        document.getElementById('btn-fullscreen')?.classList.toggle('active', !!document.fullscreenElement)
+    );
+}
+
+/* ===== Private helpers ===== */
+
+function _setBasemap(key) {
+    if (!_tileLayers[key] || key === _current) return;
+    map.removeLayer(_tileLayers[_current]);
+    _tileLayers[key].addTo(map);
+    _current = key;
+    document.querySelectorAll('.basemap-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.map === key)
+    );
 }
 
 function _geolocate() {
-  if (!navigator.geolocation) { alert('Géolocalisation non disponible.'); return; }
-  const btn = document.getElementById('btn-geolocate');
-  btn?.classList.add('active');
-
-  navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-    if (_geolocMarker) { map.removeLayer(_geolocMarker); _geolocMarker = null; }
-    if (_geolocCircle) { map.removeLayer(_geolocCircle); _geolocCircle = null; }
-
-    _geolocCircle = L.circle([lat, lng], {
-      radius: accuracy, color: '#2589c7', fillColor: '#2589c7',
-      fillOpacity: 0.1, weight: 1,
-    }).addTo(map);
-
-    _geolocMarker = L.circleMarker([lat, lng], {
-      radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
-    }).addTo(map)
-      .bindPopup(`📍 Votre position — précision ±${Math.round(accuracy)} m`);
-
-    const zoom = Math.min(Math.max(map.getZoom(), 14), 17);
-    map.setView([lat, lng], zoom, { animate: false });
-    btn?.classList.remove('active');
-
-  }, err => {
-    btn?.classList.remove('active');
-    alert('Impossible de vous localiser : ' + err.message);
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
+    const btn = document.getElementById('btn-geolocate');
+    btn?.classList.add('active');
+    navigator.geolocation.getCurrentPosition(
+        pos => {
+            const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+            L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1 }).addTo(map);
+            L.circleMarker([lat, lng], {
+                radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
+            }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
+            map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
+            btn?.classList.remove('active');
+        },
+        err => { btn?.classList.remove('active'); alert('Location error: ' + err.message); },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
 }
 
 function _toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.getElementById('app')?.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => { });
+    } else {
+        document.getElementById('app')?.requestFullscreen().catch(() => { });
+    }
 }
 
 export function updateZoomStatus(zoom) {
-  const el = document.getElementById('st-zoom');
-  if (el) el.textContent = zoom;
+    const el = document.getElementById('st-zoom');
+    if (el) el.textContent = zoom;
 }

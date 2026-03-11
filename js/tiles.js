@@ -19,11 +19,8 @@ export async function loadManifest() {
   }
 }
 
-/**
- * Returns tile URLs that intersect bounds.
- * At low zoom, limits to a maximum number of tiles to keep the request count reasonable.
- */
-export function getTileUrlsForBounds(bounds, manifest, zoom) {
+/** Returns tile URLs that intersect the given Leaflet bounds. */
+export function getTileUrlsForBounds(bounds, manifest) {
   if (!manifest) return [];
 
   const sw = bounds.getSouthWest();
@@ -51,16 +48,4 @@ export function getManifestStats(manifest) {
   let total = 0;
   for (const v of Object.values(manifest.tiles)) total += v;
   return { tileCount: Object.keys(manifest.tiles).length, totalSignals: total };
-}
-
-/**
- * Returns the maximum number of signals to render at a given zoom level.
- * This creates a progressive density effect without a hard zoom cutoff.
- */
-export function maxSignalsForZoom(zoom) {
-  if (zoom >= 14) return Infinity;   // full detail
-  if (zoom >= 12) return 3000;
-  if (zoom >= 10) return 1000;
-  if (zoom >= 8)  return 300;
-  return 80;                          // overview at zoom 7
 }
