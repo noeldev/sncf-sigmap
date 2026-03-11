@@ -252,7 +252,10 @@ function _refresh(force = false) {
 }
 
 function _runWorker(bounds, tileUrls, zoom) {
-    if (worker) { worker.terminate(); worker = null; }
+    if (worker) {
+        worker.terminate();
+        worker = null;
+    }
     loadRunning = true;
     _setProgress(true, t('progress.tiles', tileUrls.length));
 
@@ -269,14 +272,26 @@ function _runWorker(bounds, tileUrls, zoom) {
 
     worker.onmessage = e => {
         const { status, msg, groups, sampled, total } = e.data;
-        if (status === 'progress') { _setProgress(true, msg); return; }
-        _workerDone();
-        if (status === 'error') { console.error('[Worker]', e.data.error); return; }
-        _renderGroups(groups);
-        // Index ALL signals (unfiltered per group) so filter counts remain accurate.
-        indexSignals(groups.flatMap(g => g.all));
-        _setSampledBadge(sampled, total);
-        if (loadPending) { loadPending = false; _refresh(true); }
+        if (status === 'progress') {
+            _setProgress(true, msg);
+            return;
+        }
+        if (status === 'error') {
+            _workerDone();
+            console.error('[Worker]', e.data.error);
+            return;
+        }
+        if (status === 'done') {
+            _workerDone();
+            _renderGroups(groups);
+            // Index ALL signals (unfiltered per group) so filter counts remain accurate.
+            indexSignals(groups.flatMap(g => g.all));
+            _setSampledBadge(sampled, total);
+            if (loadPending) {
+                loadPending = false;
+                _refresh(true);
+            }
+        }
     };
 
     worker.onerror = err => {
