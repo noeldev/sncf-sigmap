@@ -2,40 +2,47 @@
   publish = "."
   # Generates js/config.secret.js from the JAWG_API_KEY environment variable.
   # Set that variable in: Netlify dashboard → Site → Project configuration → Environment variables.
-  command = "echo \"export const JAWG_API_KEY = '$JAWG_API_KEY';\" > js/config.secret.js"
+  command = """
+    echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/config.secret.js
+  """
 
 [[headers]]
-  for = "/*.html"
+  for = "/"
   [headers.values]
-  Cache-Control = "no-cache"
-  X-Frame-Options = "DENY"
-  X-Content-Type-Options = "nosniff"
+    Cache-Control = "no-cache"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
 
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    
 [[headers]]
   for = "/css/*"
   [headers.values]
-  # no-cache: browser revalidates on each load (304 if unchanged, fast).
-  # Do NOT use immutable without content-hashed filenames — it blocks updates.
-  Cache-Control = "no-cache"
+    # no-cache: browser revalidates on each load (304 if unchanged, fast).
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/js/*"
   [headers.values]
-  Cache-Control = "no-cache"
+    Cache-Control = "no-cache"
 
 # Tile files: served as gzip-encoded JSON so fetch().json() decompresses automatically
 [[headers]]
   for = "/data/tiles/*.json.gz"
   [headers.values]
-  Cache-Control = "public, max-age=86400, must-revalidate"
-  Content-Type = "application/json"
-  Content-Encoding = "gzip"
-  Access-Control-Allow-Origin = "*"
-  X-Content-Type-Options = "nosniff"
+    Cache-Control = "public, max-age=86400, must-revalidate"
+    Content-Type = "application/json"
+    Content-Encoding = "gzip"
+    Access-Control-Allow-Origin = "*"
 
 [[headers]]
   for = "/data/tiles/*.json"
   [headers.values]
-  Cache-Control = "public, max-age=86400"
-  Content-Type = "application/json"
-  Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=86400, must-revalidate"
+    Content-Type = "application/json"
+    Access-Control-Allow-Origin = "*"
