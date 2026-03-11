@@ -11,3 +11,4 @@ tools/TileBuilder/obj/
 *.log
 /.vs
 /tools/TileBuilder/.vs
+/js/config.secret.js
