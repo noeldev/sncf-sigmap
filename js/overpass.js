@@ -1,5 +1,5 @@
 /**
- * osm-check.js
+ * overpass.js
  * Check whether signals already exist in OpenStreetMap via the Overpass API.
  * Returns the OSM node ID when found so the popup can link to openstreetmap.org/node/<id>.
  * Results are cached in memory for the session.
@@ -11,7 +11,7 @@
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 import { map } from './map.js';
-import { TYPE_REF_TAG } from './signal-mapping.js';
+import { getTypeRefTag } from './signal-mapping.js';
 
 /**
  * Returns the current map viewport as an Overpass bbox string: "swLat,swLng,neLat,neLng".
@@ -52,7 +52,7 @@ function _clearCacheEntry(key) { _cache.delete(key); }
  */
 export function invalidateNotInOsm(feats) {
     for (const f of feats) {
-        const refTag = TYPE_REF_TAG[f.p.type_if];
+        const refTag = getTypeRefTag(f.p.type_if);
         if (!refTag || !f.p.idreseau) continue;
         const key = _cacheKey(refTag, f.p.idreseau);
         if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
@@ -80,7 +80,7 @@ export function checkOsm(idreseau, type_if, force = false) {
     const unsupported = { status: 'unsupported', nodeId: null };
     if (!idreseau) return Promise.resolve(unsupported);
 
-    const refTag = TYPE_REF_TAG[type_if];
+    const refTag = getTypeRefTag(type_if);
     if (!refTag) return Promise.resolve(unsupported);
 
     const key = _cacheKey(refTag, idreseau);
@@ -102,7 +102,7 @@ export function checkOsm(idreseau, type_if, force = false) {
             return result;
         })
         .catch(err => {
-            console.warn('[osm-check]', idreseau, err.message);
+            console.warn('[overpass]', idreseau, err.message);
             _pending.delete(key);
             // Errors are not cached — allows automatic retry on next popup open
             return { status: 'error', nodeId: null };
@@ -129,7 +129,7 @@ export function checkOsmBatch(feats, force = false) {
     const { signal } = _batchAbort;
 
     const entries = feats.map(f => {
-        const refTag = TYPE_REF_TAG[f.p.type_if];
+        const refTag = getTypeRefTag(f.p.type_if);
         if (!refTag || !f.p.idreseau) return { key: null, refTag: null, idreseau: null };
         return { key: _cacheKey(refTag, f.p.idreseau), refTag, idreseau: f.p.idreseau };
     });
@@ -178,7 +178,7 @@ export function checkOsmBatch(feats, force = false) {
                     _pending.delete(batchKey);
                     // AbortError is expected when a newer popup opens — not a real failure.
                     if (err.name === 'AbortError') return 'aborted';
-                    console.warn('[osm-check batch]', err.message);
+                    console.warn('[overpass batch]', err.message);
                     // Errors are NOT cached — consistent with checkOsm() and allows
                     // automatic retry on the next popup open without a manual refresh.
                     return true; // error flag

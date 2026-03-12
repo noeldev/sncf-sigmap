@@ -1,9 +1,9 @@
 [build]
   publish = "."
-  # Generates js/config.secret.js from the JAWG_API_KEY environment variable.
+  # Generates js/config.local.js from the JAWG_API_KEY environment variable.
   # Set that variable in: Netlify dashboard → Site → Project configuration → Environment variables.
   command = """
-    echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/config.secret.js
+    echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/config.local.js
   """
 
 [[headers]]

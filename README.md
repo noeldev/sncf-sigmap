@@ -60,13 +60,13 @@ Press **Ctrl+F5**. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, 
 The app works without a Jawg key — it falls back to standard OpenStreetMap tiles automatically.
 
 To enable it:
-- Copy `js/config.secret.example.js` to `js/config.secret.js`
-- Edit `js/config.secret.js` and fill in your key:
+- Copy `js/config.local.example.js` to `js/config.local.js`
+- Edit `js/config.local.js` and fill in your key:
 ```js
 export const JAWG_API_KEY = 'your-token-here';
 ```
 
-Get a free key at [jawg.io](https://jawg.io). `config.secret.js` is listed in `.gitignore` and will never be committed.
+Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.gitignore` and will never be committed.
 
 ## Signal popup
 
@@ -130,13 +130,13 @@ sncf-sigmap/
 ├── js/
 │   ├── app.js                    ← orchestration, tile loading, marker rendering
 │   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
-│   ├── config.secret.js          ← JAWG_API_KEY — git-ignored, never committed
-│   ├── config.secret.example.js  ← template, safe to commit
+│   ├── config.local.js          ← JAWG_API_KEY — git-ignored, never committed
+│   ├── config.local.example.js  ← template, safe to commit
 │   ├── filters.js                ← filter panel (type, line, track, direction…)
 │   ├── geojson.worker.js         ← tile fetch + spatial/attribute filtering (Web Worker)
 │   ├── i18n.js                   ← EN / FR translations
 │   ├── map.js                    ← Leaflet, basemaps, controls, legend
-│   ├── osm-check.js              ← Overpass API existence check (batch)
+│   ├── osm.js                    ← Overpass API existence check (batch)
 │   ├── popup.js                  ← signal popup, copy tags, JOSM / OSM export
 │   ├── signal-mapping.js         ← SNCF type_if → OSM tag mapping
 │   └── tiles.js                  ← manifest loader, tile URL calculator

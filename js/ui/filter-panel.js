@@ -33,12 +33,13 @@
  *   panel.focusInput() / panel.focusItem(val);
  *   panel.getFirstItemVal();            // for _selectFirst
  *   panel.clearSearch();                // resets input value to ''
+ *   panel.setSearch(value);            // sets input value (numericOnly sync)
  *   panel.destroy();                    // unregisters Dropdown on removal
  */
 
-import { Dropdown  } from './dropdown.js';
-import { ComboBox  } from './combobox.js';
-import { PillList  } from './pill-list.js';
+import { Dropdown } from './dropdown.js';
+import { ComboBox } from './combobox.js';
+import { PillList } from './pill-list.js';
 
 export class FilterPanel {
     /**
@@ -64,14 +65,14 @@ export class FilterPanel {
      *                                                 (close siblings first).
      */
     constructor({ fieldKey, fieldMeta, label,
-                  tplGroup, tplTag, tplItem, tplNoMatch, applyI18n,
-                  isConfirmed, searchValue, mappedOnly,
-                  onActivate, onPillRemove, onRemove, onToggleMappedOnly,
-                  onSearch, onEnter, onOpen }) {
+        tplGroup, tplTag, tplItem, tplNoMatch, applyI18n,
+        isConfirmed, searchValue, mappedOnly,
+        onActivate, onPillRemove, onRemove, onToggleMappedOnly,
+        onSearch, onEnter, onOpen }) {
 
-        this.field      = fieldKey;
+        this.field = fieldKey;
         this._fieldMeta = fieldMeta;
-        this._tplItem   = tplItem;
+        this._tplItem = tplItem;
         this._tplNoMatch = tplNoMatch;
         this._applyI18n = applyI18n;
 
@@ -81,16 +82,16 @@ export class FilterPanel {
 
         this._el = {
             panel,
-            title:       panel.querySelector('.fg-title'),
-            removeBtn:   panel.querySelector('.fg-remove'),
-            tags:        panel.querySelector('.fg-tags'),
-            comboInput:  panel.querySelector('.fg-combo-input'),
-            comboArrow:  panel.querySelector('.fg-combo-arrow'),
-            input:       panel.querySelector('.fg-search'),
-            dropdown:    panel.querySelector('.fg-dropdown'),
-            list:        panel.querySelector('.fg-dropdown-inner'),
-            toggleRow:   panel.querySelector('.supported-only-row'),
-            toggleChk:   panel.querySelector('.chk-mapped-only'),
+            title: panel.querySelector('.fg-title'),
+            removeBtn: panel.querySelector('.fg-remove'),
+            tags: panel.querySelector('.fg-tags'),
+            comboInput: panel.querySelector('.fg-combo-input'),
+            comboArrow: panel.querySelector('.fg-combo-arrow'),
+            input: panel.querySelector('.fg-search'),
+            dropdown: panel.querySelector('.fg-dropdown'),
+            list: panel.querySelector('.fg-dropdown-inner'),
+            toggleRow: panel.querySelector('.supported-only-row'),
+            toggleChk: panel.querySelector('.chk-mapped-only'),
             toggleTrack: panel.querySelector('.toggle-track'),
         };
 
@@ -116,11 +117,11 @@ export class FilterPanel {
         // onActivate is defined before the constructor call in _buildPanels,
         // so there is no TDZ risk here.
         this.dd = new Dropdown({
-            dropdownEl:          this._el.dropdown,
-            triggerEl:           this._el.comboInput,
-            listEl:              this._el.list,
-            input:               this._el.input,
-            itemSel:             '.fg-drop-item',
+            dropdownEl: this._el.dropdown,
+            triggerEl: this._el.comboInput,
+            listEl: this._el.list,
+            input: this._el.input,
+            itemSel: '.fg-drop-item',
             onActivate,
             activationFocusMode: fieldMeta?.minSearch > 0 ? 'input' : 'item',
         });
@@ -128,15 +129,15 @@ export class FilterPanel {
         // ---- PillList ----
         this.pills = new PillList({
             containerEl: this._el.tags,
-            template:    tplTag,
-            onRemove:    onPillRemove,
+            template: tplTag,
+            onRemove: onPillRemove,
         });
 
         // ---- ComboBox ----
         this.cb = new ComboBox({
-            inputEl:     this._el.input,
+            inputEl: this._el.input,
             comboWrapEl: this._el.comboInput,
-            dropdown:    this.dd,
+            dropdown: this.dd,
             onSearch,
             onEnter,
             onOpen,
@@ -205,14 +206,14 @@ export class FilterPanel {
             const item = this._tplItem.content
                 .cloneNode(true).querySelector('.fg-drop-item');
             item.tabIndex = -1;
-            item.setAttribute('role',          'option');
+            item.setAttribute('role', 'option');
             item.setAttribute('aria-selected', String(active));
             item.classList.toggle('active', active);
             item.classList.toggle('mapped', showDot);
             item.dataset.field = this.field;
-            item.dataset.val   = v;
+            item.dataset.val = v;
             item.querySelector('.fgi-check').classList.toggle('checked', active);
-            item.querySelector('.fgi-name').textContent  = v;
+            item.querySelector('.fgi-name').textContent = v;
             item.querySelector('.fgi-count').textContent = count > 0 ? count.toLocaleString() : '';
             list.appendChild(item);
         }
@@ -227,8 +228,8 @@ export class FilterPanel {
      * @param {string} text
      */
     showHint(text) {
-        const hint = document.createElement('div');
-        hint.className   = 'fg-empty';
+        const hint = this._tplNoMatch.content.cloneNode(true).querySelector('.fg-empty');
+        hint.removeAttribute('data-i18n'); // prevent i18n from overwriting the dynamic hint text
         hint.textContent = text;
         this._el.list.replaceChildren(hint);
     }
@@ -249,16 +250,24 @@ export class FilterPanel {
     /** Reset the input value to an empty string. */
     clearSearch() { this._el.input.value = ''; }
 
+    /**
+     * Set the input value to an arbitrary string.
+     * Used by filters.js when numericOnly sanitisation produces a value that
+     * differs from what was typed, so the visible input stays in sync.
+     * @param {string} value
+     */
+    setSearch(value) { this._el.input.value = value; }
+
     /* ----- Dropdown state ----- */
 
-    openDropdown()  { this.dd.open(); }
+    openDropdown() { this.dd.open(); }
     closeDropdown() { this.dd.close(); }
-    isOpen()        { return this.dd.isOpen(); }
+    isOpen() { return this.dd.isOpen(); }
 
     /* ----- Focus ----- */
 
-    focusInput()     { this.dd.focusInput(); }
-    focusItem(val)   { this.dd.focusItem(val); }
+    focusInput() { this.dd.focusInput(); }
+    focusItem(val) { this.dd.focusItem(val); }
 
     /* ----- Utility ----- */
 

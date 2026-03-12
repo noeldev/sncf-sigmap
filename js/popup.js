@@ -20,7 +20,7 @@
 import { map } from './map.js';
 import { getTypeColor, isSupported, buildOsmTags } from './signal-mapping.js';
 import { t, applyI18n, onLangChange } from './i18n.js';
-import { checkOsmBatch, invalidateNotInOsm } from './osm-check.js';
+import { checkOsmBatch, invalidateNotInOsm } from './overpass.js';
 import { josmAddNode } from './josm.js';
 
 /* ===== Module-level template accessors ===== */

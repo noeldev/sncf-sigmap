@@ -1,0 +1,251 @@
+/**
+ * map-layer.js — Signal marker layer: worker pipeline and Leaflet rendering.
+ *
+ * Responsibilities:
+ *   - Manage the Leaflet marker layer for signal dots.
+ *   - Drive the geojson.worker.js pipeline: fetch tiles, filter, sample.
+ *   - Render worker results as Leaflet markers with tooltips and popups.
+ *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
+ *
+ * Public API (called from app.js):
+ *   initLayer()         — create markersLayer.
+ *   setManifest(m)      — provide the tile manifest after it loads.
+ *   refresh(force)      — trigger a data fetch/render cycle.
+ *
+ * Progress overlay is driven via progress.js directly.
+ * Status bar updates are delegated to statusbar.js.
+ *
+ * Separation from map.js:
+ *   map.js owns Leaflet infrastructure (tile layers, basemap selector).
+ *   This module owns the application data pipeline built on top of that map.
+ */
+
+import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
+import { map } from './map.js';
+import { getTileUrlsForBounds } from './tiles.js';
+import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
+import { openSignalPopup } from './popup.js';
+import { getTypeColor } from './signal-mapping.js';
+import { buildTooltip } from './tooltip.js';
+import { t } from './i18n.js';
+import { isOwnWorkerMessage } from './worker-contract.js';
+import { showProgress, hideProgress } from './progress.js';
+import { updateVisibleCount, setSampledBadge } from './statusbar.js';
+
+
+// ===== Module state =====
+
+let _manifest = null;
+let _markersLayer = null;
+let _worker = null;
+let _loadPending = false;
+let _loadRunning = false;
+let _lastTileKeys = new Set();
+
+
+// ===== Dot size scale =====
+// Single source of truth for marker dot diameters.
+// count=5 covers "5 or more" — the formula caps at this entry.
+// Private to this module: the only consumer is _getDotSize() below.
+
+const DOT_SCALE = [
+    { count: 1, size: 10 },
+    { count: 2, size: 12 },
+    { count: 3, size: 14 },
+    { count: 4, size: 16 },
+    { count: 5, size: 18 },
+];
+
+function _getDotSize(count) {
+    const idx = Math.min(count, DOT_SCALE.length) - 1;
+    return DOT_SCALE[Math.max(idx, 0)].size;
+}
+
+
+// ===== Public API =====
+
+/**
+ * Initialise the marker layer.
+ * Must be called once from app.js/_boot() after initMap() resolves.
+ */
+export function initLayer() {
+    _markersLayer = L.layerGroup().addTo(map);
+}
+
+/**
+ * Store the tile manifest once it has been fetched by app.js.
+ * refresh() is a no-op until this has been called with a non-null value.
+ *
+ * @param {object} manifest
+ */
+export function setManifest(manifest) {
+    _manifest = manifest;
+}
+
+/**
+ * Trigger a data fetch/render cycle.
+ * When force=false, the call is skipped if the visible tile set is unchanged.
+ * When a load is already running, the request is queued as a pending load.
+ *
+ * @param {boolean} [force=false]
+ */
+export function refresh(force = false) {
+    if (_loadRunning) { _loadPending = true; return; }
+
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
+    const tileUrls = getTileUrlsForBounds(bounds, _manifest);
+    const tileKeys = new Set(tileUrls);
+
+    if (!force && _eqSets(tileKeys, _lastTileKeys) && !_loadPending) return;
+    _lastTileKeys = tileKeys;
+    _loadPending = false;
+
+    if (!_manifest || tileUrls.length === 0) {
+        _markersLayer.clearLayers();
+        updateVisibleCount(0);
+        setSampledBadge(false);
+        return;
+    }
+    _runWorker(bounds, tileUrls, zoom);
+}
+
+
+// ===== Worker lifecycle =====
+
+/**
+ * Terminate the active worker and clear the module-level reference.
+ * Centralised here to avoid duplicating the null-guard at every call site.
+ */
+function _terminateWorker() {
+    if (_worker) {
+        _worker.terminate();
+        _worker = null;
+    }
+}
+
+function _runWorker(bounds, tileUrls, zoom) {
+    _terminateWorker();
+    _loadRunning = true;
+    showProgress(t('progress.tiles', tileUrls.length));
+
+    _worker = new Worker(new URL('geojson.worker.js', import.meta.url), { type: 'module' });
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const isOverview = zoom < OVERVIEW_MAX_ZOOM;
+
+    const _workerDone = () => {
+        _terminateWorker();
+        _loadRunning = false;
+        hideProgress();
+    };
+
+    _worker.onmessage = e => {
+        // Discard any message not originating from our own worker
+        // (e.g. browser extension noise such as Malwarebytes injection).
+        if (!isOwnWorkerMessage(e)) return;
+
+        const { status, msg, groups, sampled, total } = e.data;
+        if (status === 'progress') {
+            showProgress(msg);
+            return;
+        }
+        if (status === 'error') {
+            _workerDone();
+            console.error('[Worker]', e.data.error);
+            return;
+        }
+        if (status === 'done') {
+            // Rebuild counts before releasing _loadRunning.  Any refresh() call
+            // triggered between _workerDone() and indexSignals() would start a new
+            // worker cycle and call indexSignals() a second time on the same data,
+            // doubling every counter.  Keeping _loadRunning = true for the duration
+            // of the rebuild ensures such calls queue as _loadPending instead.
+            resetCounts();
+            indexSignals(groups.flatMap(g => g.all));
+            _renderGroups(groups);
+            setSampledBadge(sampled, total);
+            _workerDone();
+            if (_loadPending) {
+                _loadPending = false;
+                refresh(true);
+            }
+        }
+    };
+
+    _worker.onerror = err => {
+        console.error('[Worker error]', err.message);
+        _workerDone();
+    };
+
+    _worker.postMessage({
+        type: 'fetch-tiles',
+        urls: tileUrls,
+        activeFilters: getActiveFiltersForWorker(),
+        bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
+        maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
+    });
+}
+
+
+// ===== Rendering =====
+
+/**
+ * Build a Leaflet divIcon for a signal dot.
+ * The HTML is minimal and intentionally generated at runtime — the color
+ * (CSS custom property --c) and size (--sz) are computed values that cannot
+ * be inlined in a static template.
+ *
+ * @param {string}  color  CSS color value (hex or named).
+ * @param {number}  size   Icon dimension in pixels.
+ * @param {boolean} multi  True when the group contains more than one signal.
+ * @returns {L.DivIcon}
+ */
+function _makeDotIcon(color, size, multi) {
+    const half = size / 2;
+    return L.divIcon({
+        className: '',
+        html: `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color};--sz:${size}px"></div>`,
+        iconSize: [size, size],
+        iconAnchor: [half, half],
+    });
+}
+
+/**
+ * Render markers from worker groups.
+ * - Marker colour and tooltip use group.display (filtered signals only).
+ * - Popup receives group.all so the JOSM export contains every co-located
+ *   signal regardless of which filters are currently active.
+ * - Dot size is driven by _getDotSize() / DOT_SCALE:
+ *   1→10 px, 2→12 px, 3→14 px, 4→16 px, 5+→18 px.
+ */
+function _renderGroups(groups) {
+    _markersLayer.clearLayers();
+
+    for (const { lat, lng, all, display } of groups) {
+        const color = getTypeColor(display[0].p.type_if);
+        const count = display.length;
+        const size = _getDotSize(count);
+        const icon = _makeDotIcon(color, size, count > 1);
+        L.marker([lat, lng], { icon })
+            .bindTooltip(buildTooltip(display), {
+                direction: 'top',
+                offset: [0, -6],
+                className: 'sig-tooltip',
+                sticky: false,
+            })
+            .on('click', () => openSignalPopup([lat, lng], all, 0))
+            .addTo(_markersLayer);
+    }
+
+    updateVisibleCount(groups.length);
+}
+
+
+// ===== Utilities =====
+
+function _eqSets(a, b) {
+    if (a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;
+    return true;
+}

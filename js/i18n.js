@@ -19,6 +19,9 @@ export const LANGS = [
 
 const STRINGS = {
     en: {
+        // Page title
+        'page.title': 'SNCF Fixed Signalling',
+
         // Sidebar header
         'subtitle1': 'Fixed',
         'subtitle2': 'Signalling',
@@ -46,9 +49,6 @@ const STRINGS = {
         'field.idreseau': 'ID RÉSEAU',
 
         'filter.indexError': 'Filter index unavailable — suggestions may be incomplete.',
-        'filter.idreseau.placeholder': 'Type an ID…',
-        'filter.idreseau.waiting': 'Type at least 5 digits to search',
-        'filter.idreseau.noMatch': 'No matching ID',
 
         // Dropdown (for other filterable fields)
         'dropdown.search': n => `Search ${n} values…`,
@@ -147,6 +147,9 @@ const STRINGS = {
     },
 
     fr: {
+        // Page title
+        'page.title': 'SNCF Signalisation Permanente',
+
         // Sidebar header
         'subtitle1': 'Signalisation',
         'subtitle2': 'Permanente',
@@ -174,9 +177,6 @@ const STRINGS = {
         'field.idreseau': 'ID RÉSEAU',
 
         'filter.indexError': 'Index des filtres indisponible — les suggestions peuvent être incomplètes.',
-        'filter.idreseau.placeholder': 'Saisir un ID…',
-        'filter.idreseau.waiting': 'Saisir au moins 5 chiffres pour chercher',
-        'filter.idreseau.noMatch': 'Aucun ID correspondant',
 
         // Dropdown (pour les autres champs filtrables)
         'dropdown.search': n => `Rechercher parmi ${n} valeurs…`,
@@ -303,7 +303,12 @@ export function applyI18n(root) {
     root.querySelectorAll('[data-i18n]').forEach(el => {
         const val = t(el.dataset.i18n);
         if (el.tagName === 'INPUT') el.placeholder = val;
-        else el.textContent = val;
+        else {
+            el.textContent = val;
+            // Setting textContent on <title> already updates document.title in all
+            // modern browsers, but this explicit assignment makes the intent clear.
+            if (el.tagName === 'TITLE') document.title = val;
+        }
     });
     root.querySelectorAll('[data-i18n-html]').forEach(el => {
         el.innerHTML = t(el.dataset.i18nHtml);  // trusted markup only

@@ -4,10 +4,10 @@
  * Incoming message:
  *   { type, urls, activeFilters, bounds, maxSignals }
  *
- * Outgoing messages:
- *   { status: 'progress', msg }
- *   { status: 'done', groups, sampled, total }
- *   { status: 'error', error }
+ * Outgoing messages (via workerPost — see worker-contract.js):
+ *   { source, status: 'progress', msg }
+ *   { source, status: 'done', groups, sampled, total }
+ *   { source, status: 'error', error }
  *
  * Each group represents one geographic location:
  *   { lat, lng, all: Signal[], display: Signal[] }
@@ -27,19 +27,21 @@
  *   boundaries; this is an acceptable trade-off for consistent visual coverage.
  */
 
+import { workerPost } from './worker-contract.js';
+
 self.onmessage = async function (e) {
     const { type, urls, activeFilters, bounds, maxSignals } = e.data;
     if (type !== 'fetch-tiles') {
-        self.postMessage({ status: 'error', error: `Unknown message type: ${type}` });
+        workerPost.error(`Unknown message type: ${type}`);
         return;
     }
 
     try {
-        self.postMessage({ status: 'progress', msg: `Loading ${urls.length} tile(s)…` });
+        workerPost.progress(`Loading ${urls.length} tile(s)…`);
 
         const tiles = await Promise.all(urls.map(_fetchTile));
 
-        self.postMessage({ status: 'progress', msg: 'Filtering…' });
+        workerPost.progress('Filtering…');
 
         const { swLat, swLng, neLat, neLng } = bounds;
         // Pre-convert filter value arrays to Sets for O(1) .has() lookups.
@@ -88,19 +90,14 @@ self.onmessage = async function (e) {
         const totalGroups = groups.length;
         if (maxSignals && totalGroups > maxSignals) {
             const sampled = _spatialSampleGroups(groups, maxSignals);
-            self.postMessage({
-                status: 'done',
-                groups: sampled,
-                sampled: true,
-                total: totalGroups,
-            });
+            workerPost.done(sampled, true, totalGroups);
             return;
         }
 
-        self.postMessage({ status: 'done', groups, sampled: false, total: totalGroups });
+        workerPost.done(groups, false, totalGroups);
 
     } catch (err) {
-        self.postMessage({ status: 'error', error: err.message });
+        workerPost.error(err.message);
     }
 };
 
