@@ -1,8 +1,8 @@
 /**
  * config.js — Static configuration constants.
  *
- * The Jawg API key is kept separately in js/config.secret.js (git-ignored).
- * Copy js/config.secret.example.js → js/config.secret.js and add your key.
+ * The Jawg API key is kept separately in js/config.local.js (git-ignored).
+ * Copy js/config.local.example.js → js/config.local.js and add your key.
  * If the file is absent the app falls back to the OpenStreetMap tile layer.
  */
 

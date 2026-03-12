@@ -2,7 +2,7 @@
  * signal-mapping.js
  * SNCF type_if -> display category + OpenRailwayMap tags.
  *
- * Each entry in SIGNAL_MAPPING has:
+ * Each entry in _SIGNAL_MAPPING has:
  *   group  — one of the application display categories (for colour and legend)
  *   tags   — array of "key=value" OSM tag strings, following the ORM wiki exactly
  *
@@ -23,28 +23,30 @@
  */
 
 // Application-level categories are coarser than ORM tag categories.
-// Used only for marker colors and the legend; ORM tags remain independent.
+// Used only for marker colours and the legend; ORM tags remain independent.
+// Private — consumers use getTypeColor() / buildLegend().
 
-export const CATEGORY_INFO = {
-    "main":             "#e00000",   // Main signals (Carré, S, GA, …)
-    "distant":          "#ffc010",   // Distant signals (A, D)
-    "speed_limit":      "#ff8000",   // All speed_limit* variants
-    "route":            "#00b0d0",   // Route* (ID, IDD, …)
+const _CATEGORY_INFO = {
+    "main": "#e00000",   // Main signals (Carré, S, GA, …)
+    "distant": "#ffc010",   // Distant signals (A, D)
+    "speed_limit": "#ff8000",   // All speed_limit* variants
+    "route": "#00b0d0",   // Route* (ID, IDD, …)
     "train_protection": "#4060c0",   // Cab signalling / ETCS
-    "electricity":      "#a00060",   // Traction electricity
-    "wrong_road":       "#00a0a0",   // Contre-sens (IPCS)
-    "crossing":         "#b09000",   // Level crossings
-    "stop":             "#f040b0",   // Stop signs
-    "station":          "#008040",   // Station and facility signals
-    "shunting":         "#a050e0",   // Shunting
-    "miscellaneous":    "#a0b0c0",   // Gabarit, whistle, …
-    "unsupported":      "#607070",   // Types not yet mapped
+    "electricity": "#a00060",   // Traction electricity
+    "wrong_road": "#00a0a0",   // Contre-sens (IPCS)
+    "crossing": "#b09000",   // Level crossings
+    "stop": "#f040b0",   // Stop signs
+    "station": "#008040",   // Station and facility signals
+    "shunting": "#a050e0",   // Shunting
+    "miscellaneous": "#a0b0c0",   // Gabarit, whistle, …
+    "unsupported": "#607070",   // Types not yet mapped
 };
 
 // Each entry defines both the display category (group) and the OSM tags (tags).
 // Types not listed here are considered "unsupported" (grey on map, no JOSM export).
+// Private — consumers use getTypeCategory(), getTypeColor(), isSupported(), buildOsmTags().
 
-export const SIGNAL_MAPPING = {
+const _SIGNAL_MAPPING = {
 
     // Main signals
 
@@ -515,6 +517,7 @@ export const SIGNAL_MAPPING = {
     },
 
     // Stop
+
     "ARRET A": {
         group: "stop",
         tags: [
@@ -550,7 +553,8 @@ export const SIGNAL_MAPPING = {
     "JAL ARRET": {
         group: "stop",
         tags: [
-            "railway:signal:stop=FR:JAL_ARRET",
+            "railway:signal:stop=FR:JALON",
+            "railway:signal:stop:type=stop_marker",
             "railway:signal:stop:form=sign",
             "railway:signal:stop:ref={{idreseau}}",
         ],
@@ -563,6 +567,7 @@ export const SIGNAL_MAPPING = {
             "railway:signal:stop:ref={{idreseau}}",
         ],
     },
+
     // Stations and facilities
 
     "APPROCHETS": {
@@ -611,7 +616,7 @@ export const SIGNAL_MAPPING = {
     "JAL MAN": {
         group: "shunting",
         tags: [
-            "railway:signal:shunting=FR:JAL_MAN",
+            "railway:signal:shunting=FR:JALON",
             "railway:signal:shunting:form=sign",
             "railway:signal:shunting:ref={{idreseau}}",
         ],
@@ -667,19 +672,18 @@ export const SIGNAL_MAPPING = {
     "HEURT...": {
         group: "shunting",
         tags: [
-            "railway=buffer_stop",
             "railway:signal:shunting=FR:HEURTOIR",
             "railway:signal:shunting:type=buffer_stop",
+            "railway:signal:shunting:form=sign",
             "railway:signal:shunting:ref={{idreseau}}",
         ],
     },
-
     "SLM": {
         group: "shunting",
         tags: [
-            "railway=buffer_stop",
-            "railway:signal:shunting=FR:HEURTOIR",
-            "railway:signal:shunting:type=buffer_stop",
+            "railway:signal:shunting=FR:SLM",
+            "railway:signal:shunting:form=light",
+            "railway:signal:shunting:states=push;pull;stop",
             "railway:signal:shunting:ref={{idreseau}}",
         ],
     },
@@ -704,36 +708,55 @@ export const SIGNAL_MAPPING = {
     },
 };
 
+
+// ===== Public query functions =====
+
 /** Return the display category for any type_if. */
 export function getTypeCategory(type_if) {
-    return SIGNAL_MAPPING[type_if]?.group || "unsupported";
+    return _SIGNAL_MAPPING[type_if]?.group || "unsupported";
 }
 
 /** Return the display colour for any type_if. */
 export function getTypeColor(type_if) {
-    return CATEGORY_INFO[getTypeCategory(type_if)];
+    return _CATEGORY_INFO[getTypeCategory(type_if)];
 }
 
 /** Return true if OSM tags are defined and non-empty for this type_if. */
 export function isSupported(type_if) {
-    return (SIGNAL_MAPPING[type_if]?.tags?.length ?? 0) > 0;
+    return (_SIGNAL_MAPPING[type_if]?.tags?.length ?? 0) > 0;
 }
 
-// The :ref tag used in OSM for each type_if (for Overpass existence checks).
-// Derived from the :ref={{idreseau}} tag in each entry's tags array.
-export const TYPE_REF_TAG = (() => {
-    const map = {};
-    for (const [type, entry] of Object.entries(SIGNAL_MAPPING)) {
-        const refTag = entry.tags.find(t => t.endsWith(":ref={{idreseau}}"));
-        if (refTag) map[type] = refTag.split("=")[0];  // key only, e.g. "railway:signal:main:ref"
+
+// ===== TYPE_REF_TAG — private cache, public accessor =====
+
+// The :ref tag key used in OSM for each type_if.
+// Derived once from the :ref={{idreseau}} tag in each mapping entry.
+// Consumers call getTypeRefTag() — the cache is an implementation detail.
+const _typeRefTagMap = (() => {
+    const m = {};
+    for (const [type, entry] of Object.entries(_SIGNAL_MAPPING)) {
+        const refTag = entry.tags.find(t => t.endsWith(':ref={{idreseau}}'));
+        if (refTag) m[type] = refTag.split('=')[0];  // key only, e.g. "railway:signal:main:ref"
     }
-    return map;
+    return m;
 })();
+
+/**
+ * Return the OSM :ref tag key for a given type_if, or null if unsupported.
+ * Used by overpass.js for Overpass existence checks.
+ *
+ * @param {string} type_if
+ * @returns {string|null}
+ */
+export function getTypeRefTag(type_if) {
+    return _typeRefTagMap[type_if] ?? null;
+}
 
 
 // ===== Field value converters for {{placeholder}} resolution =====
+// Private — consumed only by _resolve() below.
 
-export const FIELD_CONVERTERS = {
+const _FIELD_CONVERTERS = {
 
     // "077+305" -> "77.305"
     pk: (raw) => {
@@ -753,7 +776,8 @@ export const FIELD_CONVERTERS = {
 };
 
 // Tags shared across all signals in a co-located group (emitted once per node).
-export const COMMON_TAGS = [
+// Private — consumed only by buildOsmTags().
+const _COMMON_TAGS = [
     "railway=signal",
     "railway:position:exact={{pk}}",
     "railway:signal:direction={{sens}}",
@@ -762,34 +786,10 @@ export const COMMON_TAGS = [
 ];
 
 
-// ===== Marker size scale =====
-// Single source of truth for dot sizes; used by _renderGroups() in app.js
-// via the exported getDotSize() accessor.
-// count=5 covers "5 or more" — the formula caps at this entry.
-
-const DOT_SCALE = [
-    { count: 1, size: 10, label: '1' },
-    { count: 2, size: 12, label: '2' },
-    { count: 3, size: 14, label: '3' },
-    { count: 4, size: 16, label: '4' },
-    { count: 5, size: 18, label: '5+' },
-];
-
-/** Return the dot size in pixels for a given co-located signal count. */
-export function getDotSize(count) {
-    const idx = Math.min(count, DOT_SCALE.length) - 1;
-    return DOT_SCALE[Math.max(idx, 0)].size;
-}
-
-
 // ===== Legend builder =====
-// Moved here from app.js so that CATEGORY_INFO and DOT_SCALE need not be
-// exported to the orchestration layer — buildLegend() accesses them directly.
 
 /**
- * Populate #legend-body with one colour row per CATEGORY_INFO entry,
- * followed by a size-scale row showing how dot diameter relates to
- * the number of co-located signals.
+ * Populate #legend-body with one colour row per _CATEGORY_INFO entry.
  * Called once from app.js/_boot(); safe to call again on lang change.
  */
 export function buildLegend() {
@@ -799,8 +799,7 @@ export function buildLegend() {
 
     container.replaceChildren();
 
-    // Colour rows — one per display category.
-    for (const [key, color] of Object.entries(CATEGORY_INFO)) {
+    for (const [key, color] of Object.entries(_CATEGORY_INFO)) {
         const row = tpl.content.cloneNode(true).querySelector('.panel-row');
         row.querySelector('.legend-dot').style.backgroundColor = color;
         row.querySelector('.legend-label').dataset.i18n = `cat.${key}`;
@@ -809,21 +808,21 @@ export function buildLegend() {
 }
 
 
+// ===== Supported types =====
+// Returns the set of type_if values that have OSM tag mappings.
+// Exported so filters.js does not need to import the full mapping table.
 
-// ===== Returns the set of type_if values that have OSM tag mappings =====
-// Exported so filters.js does not need to import the full SIGNAL_MAPPING table.
-
-const _supportedTypes = new Set(Object.keys(SIGNAL_MAPPING));
+const _supportedTypes = new Set(Object.keys(_SIGNAL_MAPPING));
 export function getSupportedTypes() { return _supportedTypes; }
 
 
-// ===== OSM tag resolution (moved from popup.js) =====
-// These helpers depend on SIGNAL_MAPPING, FIELD_CONVERTERS, COMMON_TAGS
+// ===== OSM tag resolution =====
+// These helpers depend on _SIGNAL_MAPPING, _FIELD_CONVERTERS, _COMMON_TAGS
 // and isSupported — all local — so popup.js no longer needs to import them.
 
 function _resolve(tmpl, p) {
     return tmpl.replace(/\{\{(\w+)\}\}/g, (_, f) => {
-        const c = FIELD_CONVERTERS[f];
+        const c = _FIELD_CONVERTERS[f];
         return c ? c(p[f] ?? '') : (p[f] ?? '');
     });
 }
@@ -835,7 +834,7 @@ function _parseTag(s) {
 
 function _resolveOne(feat) {
     const tags = new Map();
-    for (const tmpl of (SIGNAL_MAPPING[feat.p.type_if]?.tags || [])) {
+    for (const tmpl of (_SIGNAL_MAPPING[feat.p.type_if]?.tags || [])) {
         const [k, v] = _parseTag(_resolve(tmpl, feat.p));
         if (k) tags.set(k, v);
     }
@@ -852,7 +851,7 @@ export function buildOsmTags(feats) {
     if (!supported.length) return new Map();
 
     const m = new Map();
-    for (const tmpl of COMMON_TAGS) {
+    for (const tmpl of _COMMON_TAGS) {
         const [k, v] = _parseTag(_resolve(tmpl, supported[0].p));
         if (k) m.set(k, v);
     }

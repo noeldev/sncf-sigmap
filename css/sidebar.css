@@ -1,0 +1,461 @@
+/* ===== Section titles ===== */
+
+.section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    font-family: var(--ff-mono);
+    color: var(--text2);
+}
+
+#tab-settings .section-title {
+    margin-bottom: 8px;
+}
+
+#tab-about .section-title {
+    margin-bottom: 6px;
+}
+
+/* ===== Header ===== */
+
+#sidebar-header {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.logo-sncf {
+    height: 40px;
+    width: auto;
+    max-width: 74px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.logo-title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+}
+
+.record-count {
+    font-size: 11px;
+    color: var(--text2);
+}
+
+/* ===== Tabs ===== */
+
+#sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.stab {
+    flex: 1;
+    background: none;
+    border: none;
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    color: var(--text2);
+    padding: 9px 4px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+}
+
+    .stab:hover {
+        color: var(--text);
+    }
+
+    .stab.active {
+        color: var(--accent2);
+        border-bottom-color: var(--accent2);
+    }
+
+.tab-panel {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    flex-direction: column;
+}
+
+    .tab-panel.active {
+        display: flex;
+    }
+
+/* ===== Filter toolbar ===== */
+
+.panel-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+/* Toolbar buttons — extend group-1 base (base.css) */
+.tbtn {
+    background: var(--accent);
+    color: #fff;
+    border: 1px solid transparent;
+    padding: 5px 12px;
+}
+
+    .tbtn:hover {
+        background: var(--accent2);
+    }
+
+    .tbtn:disabled {
+        opacity: .35;
+        cursor: default;
+        pointer-events: none;
+    }
+
+.tbtn-ghost {
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border2);
+}
+
+    .tbtn-ghost:hover {
+        background: var(--panel2);
+        color: var(--text);
+    }
+
+/* ===== Shared dropdown primitives =====
+ * Used by both the filter combo boxes (filters.css) and the language picker
+ * below, so they live here as sidebar-level shared components. */
+
+.dd-trigger {
+    display: flex;
+    align-items: center;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color .15s;
+    font-size: 11px;
+    color: var(--text);
+}
+
+    .dd-trigger:hover,
+    .dd-trigger:focus-within {
+        border-color: var(--accent);
+    }
+
+.dd-chevron {
+    color: var(--text2);
+    pointer-events: none;
+}
+
+.dd-panel {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,.6);
+}
+
+/* ===== Collapsible info panels (Legend + JOSM detect) ===== */
+
+.info-panel {
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.panel-summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--ff-mono);
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--text2);
+    background: var(--panel2);
+    user-select: none;
+}
+
+    .panel-summary::-webkit-details-marker {
+        display: none;
+    }
+
+.panel-arrow {
+    color: var(--text3);
+    transition: transform .15s;
+    flex-shrink: 0;
+    transform: rotate(-90deg);
+}
+
+details.info-panel[open] .panel-arrow {
+    transform: rotate(0deg);
+}
+
+.panel-body {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.panel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text2);
+}
+
+/* ===== Legend panel ===== */
+
+.legend-spacer {
+    flex: 1;
+    min-height: 12px;
+}
+
+#legend {
+    margin: 0 12px 12px;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(0,0,0,.3);
+    /* Default fallback colour; overridden per category by signal-mapping.js. */
+    background: var(--cat-unsupported);
+}
+
+/* ===== JOSM detect panel ===== */
+
+.josm-detect-body {
+    gap: 5px;
+}
+
+.josm-detect-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+}
+
+.josm-detect-label {
+    color: var(--text3);
+    font-size: 11px;
+}
+
+.josm-detect-val {
+    font-size: 11px;
+}
+
+.josm-val-ok {
+    color: var(--text);
+}
+
+.josm-val-dim {
+    color: var(--text3);
+    font-style: italic;
+}
+
+/* State-driven visibility for JOSM version rows.
+   [data-josm-state] elements are hidden by default.
+   Setting data-josm-status on #josm-detect-body reveals the matching elements. */
+[data-josm-state] {
+    display: none !important;
+}
+
+#josm-detect-body[data-josm-status="checking"] span[data-josm-state="checking"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="ok"] span[data-josm-state="ok"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="forbidden"] span[data-josm-state="forbidden"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="error"] span[data-josm-state="error"] {
+    display: inline !important;
+}
+
+/* Protocol and Port rows are divs — need flex restoration when visible. */
+#josm-detect-body[data-josm-status="ok"] div[data-josm-state="ok"] {
+    display: flex !important;
+}
+
+#josm-detect {
+    margin: 0 0 14px;
+}
+
+/* ===== Settings tab ===== */
+
+#tab-settings {
+    padding: 14px 12px;
+}
+
+.settings-section {
+    margin-bottom: 20px;
+}
+
+/* ===== Language picker ===== */
+
+.lang-select-wrap {
+    position: relative;
+}
+
+.lang-select-btn {
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.lang-flag-img {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.lang-chevron {
+    margin-left: auto;
+}
+
+.lang-dropdown {
+    /* Visibility managed via .is-hidden (toggled by Dropdown in dropdown.js). */
+    list-style: none;
+    overflow: hidden;
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text2);
+    transition: background .1s;
+}
+
+    .lang-option:hover {
+        background: rgba(255,255,255,.05);
+        color: var(--text);
+    }
+
+    .lang-option.active {
+        color: var(--text);
+    }
+
+/* ===== Basemap selector buttons =====
+ * Group 3 — unique style, wider, includes a thumbnail image. */
+
+.basemap-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 4px;
+    transition: border-color .15s, color .15s;
+}
+
+    .basemap-btn:hover {
+        border-color: var(--border2);
+        color: var(--text);
+    }
+
+    .basemap-btn.active {
+        border-color: var(--accent2);
+        color: var(--text);
+    }
+
+.basemap-thumb {
+    border-radius: 5px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,.18);
+    object-fit: cover;
+}
+
+/* ===== About tab ===== */
+
+#tab-about {
+    padding: 14px;
+}
+
+.about-content {
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.7;
+}
+
+.about-intro {
+    margin-bottom: 14px;
+    color: var(--text3);
+}
+
+    .about-intro strong {
+        color: var(--text2);
+    }
+
+.about-section {
+    margin-bottom: 14px;
+}
+
+.about-links {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+    .about-links li::before {
+        content: '→ ';
+        color: var(--text3);
+    }
+
+.about-credits {
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.8;
+}

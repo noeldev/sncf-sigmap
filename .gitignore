@@ -12,3 +12,4 @@ tools/TileBuilder/obj/
 /.vs
 /tools/TileBuilder/.vs
 /js/config.secret.js
+/js/config.local.js

@@ -1,15 +1,15 @@
 /**
- * map.js — Leaflet initialisation, basemap tile layers, map controls.
+ * map.js — Leaflet initialisation and basemap tile layers.
  *
  * Responsibilities (intentionally narrow):
  *   - Create and export the Leaflet map instance.
  *   - Manage basemap tile layers and their selector buttons.
- *   - Wire map-level controls: zoom, geolocation, fullscreen, sidebar toggle.
  *
- * Legend, language picker, tab handlers, JOSM detection panel, and
- * applyTranslations() are all orchestrated by app.js after initMap() returns.
+ * Map toolbar button wiring (zoom, geolocation, fullscreen, sidebar toggle)
+ * is handled by map-controls.js.
+ * Status bar updates (zoom level, signal count, etc.) are handled by statusbar.js.
  *
- * refreshBasemapLabels() is exported so app.js can trigger a label update
+ * refreshBasemapLabels() is exported so sidebar.js can trigger a label update
  * when the UI language changes, without exposing any internal basemap state.
  */
 
@@ -54,9 +54,9 @@ let _current = null;
 export async function initMap(containerId) {
     let jawgKey = '';
     try {
-        const secret = await import('./config.secret.js');
+        const secret = await import('./config.local.js');
         jawgKey = (secret.JAWG_API_KEY || '').trim();
-    } catch { /* config.secret.js absent — fall back to OSM */ }
+    } catch { /* config.local.js absent — fall back to OSM */ }
 
     _current = jawgKey ? DEFAULT_BASEMAP : 'osm';
 
@@ -75,7 +75,6 @@ export async function initMap(containerId) {
 
     _tileLayers[_current].addTo(map);
     _buildBasemapButtons();
-    _buildControls();
     return map;
 }
 
@@ -100,26 +99,10 @@ function _buildBasemapButtons() {
 
 /**
  * Rebuild basemap selector buttons with updated translated labels.
- * Called by app.js whenever the UI language changes.
+ * Called by sidebar.js whenever the UI language changes.
  */
 export function refreshBasemapLabels() {
     _buildBasemapButtons();
-}
-
-/* ===== Map controls ===== */
-
-function _buildControls() {
-    document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
-    document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
-    document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
-    document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
-    document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
-        setTimeout(() => map.invalidateSize(), 210);
-    });
-    document.addEventListener('fullscreenchange', () =>
-        document.getElementById('btn-fullscreen')?.classList.toggle('active', !!document.fullscreenElement)
-    );
 }
 
 /* ===== Private helpers ===== */
@@ -132,36 +115,4 @@ function _setBasemap(key) {
     document.querySelectorAll('.basemap-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.map === key)
     );
-}
-
-function _geolocate() {
-    if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
-    const btn = document.getElementById('btn-geolocate');
-    btn?.classList.add('active');
-    navigator.geolocation.getCurrentPosition(
-        pos => {
-            const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-            L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1 }).addTo(map);
-            L.circleMarker([lat, lng], {
-                radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
-            }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
-            map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
-            btn?.classList.remove('active');
-        },
-        err => { btn?.classList.remove('active'); alert('Location error: ' + err.message); },
-        { enableHighAccuracy: true, timeout: 10000 }
-    );
-}
-
-function _toggleFullscreen() {
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => { });
-    } else {
-        document.getElementById('app')?.requestFullscreen().catch(() => { });
-    }
-}
-
-export function updateZoomStatus(zoom) {
-    const el = document.getElementById('st-zoom');
-    if (el) el.textContent = zoom;
 }

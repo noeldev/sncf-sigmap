@@ -1,0 +1,239 @@
+/* ===== map.css — Map controls, overlays, markers, tooltip, Leaflet overrides =====
+ *
+ * Covers: map-controls.js, progress.js, statusbar.js, map-layer.js, tooltip.js,
+ * and all .leaflet-* overrides that affect the map viewport. */
+
+/* ===== Map controls ===== */
+
+#map-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 12px rgba(0,0,0,.5);
+    overflow: hidden;
+}
+
+.mc-btn {
+    width: var(--ctrl-h);
+    height: var(--ctrl-h);
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s;
+}
+
+    .mc-btn:hover {
+        background: var(--panel2);
+        color: var(--text);
+    }
+
+    .mc-btn.active {
+        color: var(--accent2);
+    }
+
+.mc-sep {
+    width: 60%;
+    height: 1px;
+    background: var(--border);
+    margin: 0 auto;
+}
+
+/* ===== Progress overlay ===== */
+
+#progress-overlay {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 600;
+    background: rgba(13,17,23,.92);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 7px 14px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    color: var(--text2);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+    #progress-overlay.hidden {
+        display: none;
+    }
+
+.progress-spinner {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===== Status bar ===== */
+
+:root {
+    --sb-h: 26px;
+}
+#statusbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    background: rgba(13,17,23,.94);
+    backdrop-filter: blur(4px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    height: var(--sb-h);
+}
+
+.sb-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    height: 100%;
+}
+
+.sb-label {
+    font-size: 10px;
+    font-family: var(--ff-mono);
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+
+.sb-val {
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.sb-sampled {
+    font-size: 11px;
+    color: var(--warn);
+    font-family: var(--ff-mono);
+    cursor: help;
+}
+
+.sb-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border2);
+    flex-shrink: 0;
+}
+
+/* ===== Signal markers ===== */
+
+.sig-dot {
+    /* --sz is set inline by _renderGroups: 10 px (single) to 18 px (5+ signals). */
+    width: var(--sz, 10px);
+    height: var(--sz, 10px);
+    background: var(--c, #6b7280);
+    border: 1.5px solid rgba(0,0,0,.35);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform .1s;
+}
+
+    .sig-dot.multi {
+        border: 2px solid rgba(255,255,255,.45);
+        box-shadow: 0 0 0 2px var(--c, #6b7280);
+    }
+
+    .sig-dot:hover {
+        transform: scale(1.5);
+    }
+
+/* ===== Tooltip ===== */
+
+.leaflet-tooltip.sig-tooltip {
+    background: rgba(13,17,23,.96) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text) !important;
+    font-family: var(--ff-mono) !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,.55) !important;
+    line-height: 1.6 !important;
+}
+
+    .leaflet-tooltip.sig-tooltip::before,
+    .leaflet-tooltip.sig-tooltip::after {
+        display: none !important;
+    }
+
+.tt-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 0;
+}
+
+/* Type label in tooltip: colour comes from --tt-type-color set by tooltip.js
+   via getTypeColor(). Falls back to --text if not set. */
+.tt-type {
+    font-weight: 700;
+    font-size: 11px;
+    min-width: 72px;
+    flex-shrink: 0;
+    color: var(--tt-type-color, var(--text));
+}
+
+.tt-id {
+    font-size: 10px;
+    color: var(--text2);
+}
+
+.tt-key {
+    color: var(--text2);
+    min-width: 72px;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.tt-val {
+    font-size: 11px;
+    color: var(--text);
+}
+
+.tt-sep {
+    height: 1px;
+    background: rgba(255,255,255,.08);
+    margin: 4px 0 3px;
+}
+
+/* ===== Leaflet overrides ===== */
+
+.leaflet-control-attribution {
+    line-height: var(--sb-h) !important;
+    padding: 0 10px !important;
+    background: none !important;
+    color: var(--text2) !important;
+}
