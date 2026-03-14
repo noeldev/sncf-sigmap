@@ -1,38 +1,38 @@
 /**
  * popup.js
- * Signal popup: display, navigation, OSM tag export, JOSM Remote Control.
+ * Signal popup and OSM tags preview popup.
  *
- * All HTML structure lives in index.html (tpl-signal-popup, tpl-osm-tag-row).
- * This module only fills values and toggles CSS classes — no HTML strings.
+ * Two Leaflet popups are managed:
+ *   _popup      - main signal popup (signal data + export actions)
+ *   _tagsPopup  - OSM tags preview, opened on demand from _popup
  *
- * Badge colour is driven by CSS custom properties --signal-color and
- * --signal-contrast set on .pu-wrap (from getTypeColor / _contrastColor).
+ * Opening _tagsPopup replaces _popup (Leaflet limitation). Closing _tagsPopup
+ * restores _popup in exactly the same state without re-querying Overpass.
  *
- * The copy/JOSM flash animation is CSS-driven via class "is-flash".
+ * OSM node logic is delegated to signal-mapping.js (getOsmNodes).
+ * Network checks come from overpass.js (checkSignalGroup).
  *
- * NOTE — unfiltered features:
- *   openSignalPopup() always receives the COMPLETE list of co-located
- *   features (group.all from the worker), not the filtered subset.
- *   Filters control marker visibility only; the popup always exports all
- *   signals at a location so that no OSM tags are lost on JOSM import.
+ * NOTE - unfiltered features:
+ *   openSignalPopup() always receives the COMPLETE set of co-located features
+ *   (group.all from the worker). Filters control marker visibility only.
  */
 
 import { map } from './map.js';
-import { getTypeColor, isSupported, buildOsmTags } from './signal-mapping.js';
+import { getTypeColor, getOsmNodes, markNodeAsExported } from './signal-mapping.js';
 import { t, applyI18n, onLangChange } from './i18n.js';
-import { checkOsmBatch, invalidateNotInOsm } from './overpass.js';
+import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
 import { josmAddNode } from './josm.js';
 
-/* ===== Module-level template accessors ===== */
+
+/* ===== Template accessors ===== */
 
 const _tplPopup = () => document.getElementById('tpl-signal-popup');
-const _tplOsmRow = () => document.getElementById('tpl-osm-tag-row');
+const _tplTagsPopup = () => document.getElementById('tpl-osm-tags-popup');
+const _tplTagRow = () => document.getElementById('tpl-osm-tag-row');
+
 
 /* ===== Contrast helper ===== */
 
-/**
- * Returns '#000' or '#fff' for readable text on the given hex background.
- */
 function _contrastColor(hex) {
     if (!hex) return '#fff';
     const h = hex.replace('#', '');
@@ -42,93 +42,115 @@ function _contrastColor(hex) {
     return ((r * 299 + g * 587 + b * 114) / 1000) >= 128 ? '#000' : '#fff';
 }
 
-/* ===== Tag helpers ===== */
 
-function _tagsToText(m) {
-    return [...m.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
-}
-
-/* ===== Popup state ===== */
+/* ===== Module state ===== */
 
 let _popup = null;
-let _statuses = null;
-let _currentIdx = 0;
+let _tagsPopup = null;
+let _tagsNodeIdx = 0;
+
+let _feats = null;    // complete co-located feature list
+let _latlng = null;    // anchor position for both popups
+let _statuses = null;    // Overpass results, one entry per feat
+let _currentIdx = 0;       // currently displayed signal index
+
+let _nodes = null;    // OsmNode[] from getOsmNodes, refreshed per _build()
+let _featToNodeIdx = null;
+let _currentNodeIdx = -1;
+
+
+/* ===== Public entry point ===== */
 
 export function openSignalPopup(latlng, feats, idx = 0) {
-    if (_popup) {
-        _popup.remove();
-        _popup = null;
-    }
+    _closeTagsPopup();
+    if (_popup) { _popup.remove(); _popup = null; }
 
+    _feats = feats;
+    _latlng = latlng;
     _statuses = null;
     _currentIdx = idx;
 
+    _openMainPopup();
+
+    checkSignalGroup(feats).then(results => {
+        _statuses = results;
+        if (_popup?.isOpen()) _popup.setContent(_build(_currentIdx));
+    });
+}
+
+
+/* ===== Main popup ===== */
+
+function _openMainPopup() {
     _popup = L.popup({
-        maxWidth: 600,
+        maxWidth: 520,
         autoPan: true,
         closeButton: false,
         className: 'pu-leaflet',
-    }).setLatLng(latlng).setContent(_build(feats, idx)).openOn(map);
+    }).setLatLng(_latlng).setContent(_build(_currentIdx)).openOn(map);
 
-    checkOsmBatch(feats).then(results => {
-        _statuses = results;
-        if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
-    });
-
-    _popup.getElement()?.addEventListener('click', e => {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        e.stopPropagation();
-
-        switch (btn.dataset.action) {
-            case 'close':
-                _popup?.remove();
-                _popup = null;
-                break;
-
-            case 'nav-prev': {
-                const next = (_currentIdx - 1 + feats.length) % feats.length;
-                _currentIdx = next;
-                _popup.setContent(_build(feats, next));
-                break;
-            }
-            case 'nav-next': {
-                const next = (_currentIdx + 1) % feats.length;
-                _currentIdx = next;
-                _popup.setContent(_build(feats, next));
-                break;
-            }
-            case 'copy':
-                _copyTags(feats, btn);
-                break;
-
-            case 'josm':
-                _sendToJOSM(feats, latlng, btn);
-                break;
-
-            case 'osm-retry':
-                _statuses = null;
-                if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
-                checkOsmBatch(feats, true).then(results => {
-                    _statuses = results;
-                    if (_popup?.isOpen()) _popup.setContent(_build(feats, _currentIdx));
-                });
-                break;
-        }
-    });
-
+    _popup.getElement()?.addEventListener('click', _onMainPopupClick);
     _trapFocus(_popup.getElement());
-    _initKeyboard(_popup.getElement(), feats);
+    _initKeyboard(_popup.getElement());
 }
 
-/* ===== Popup DOM (template-driven) ===== */
+function _onMainPopupClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.stopPropagation();
+
+    switch (btn.dataset.action) {
+        case 'close':
+            _popup?.remove();
+            _popup = null;
+            break;
+
+        case 'nav-prev': {
+            const next = (_currentIdx - 1 + _feats.length) % _feats.length;
+            _currentIdx = next;
+            _popup.setContent(_build(next));
+            break;
+        }
+        case 'nav-next': {
+            const next = (_currentIdx + 1) % _feats.length;
+            _currentIdx = next;
+            _popup.setContent(_build(next));
+            break;
+        }
+
+        case 'node-preview':
+            _openTagsPopup(_currentNodeIdx);
+            break;
+
+        case 'copy':
+            _copyTags(_currentNode(), btn);
+            break;
+
+        case 'josm':
+            _sendToJOSM(_currentNode(), btn);
+            break;
+
+        case 'osm-retry':
+            _statuses = null;
+            _popup.setContent(_build(_currentIdx));
+            checkSignalGroup(_feats, true).then(results => {
+                _statuses = results;
+                if (_popup?.isOpen()) _popup.setContent(_build(_currentIdx));
+            });
+            break;
+    }
+}
+
+function _currentNode() {
+    if (!_nodes || _currentNodeIdx < 0) return null;
+    return _nodes[_currentNodeIdx] ?? null;
+}
+
+
+/* ===== Main popup DOM ===== */
 
 const _DATA_FIELDS = ['code_ligne', 'code_voie', 'nom_voie', 'sens', 'position', 'pk'];
 
-/**
- * Build a DOM element map from the cloned popup wrapper.
- * All .pu-row[data-field] elements are indexed by field name for O(1) access.
- */
 function _mapElements(wrap) {
     const rows = Object.fromEntries(
         [...wrap.querySelectorAll('.pu-row[data-field]')].map(r => [r.dataset.field, r])
@@ -136,22 +158,31 @@ function _mapElements(wrap) {
     return {
         navGroup: wrap.querySelector('.pu-nav-group'),
         navLabel: wrap.querySelector('.pu-nav-label'),
-        osmSummary: wrap.querySelector('.pu-osm-summary'),
-        osmNote: wrap.querySelector('.pu-osm-note'),
-        osmList: wrap.querySelector('.pu-osm-list'),
-        coordsVal: rows.coords?.querySelector('.pu-val'),
-        coordsLink: rows.coords?.querySelector('.pu-coords-btn'),
-        idRow: rows.idreseau,
         idVal: rows.idreseau?.querySelector('.pu-val'),
+        idRow: rows.idreseau,
+        coordsVal: rows.coords?.querySelector('.pu-val'),
+        nodeCounter: wrap.querySelector('.pu-node-counter'),
+        nodePending: wrap.querySelector('.pu-node-pending'),
+        nodeExported: wrap.querySelector('.pu-node-exported'),
+        nodePreviewBtn: wrap.querySelector('[data-action="node-preview"]'),
+        josmBtn: wrap.querySelector('[data-action="josm"]'),
+        copyBtn: wrap.querySelector('[data-action="copy"]'),
         rows,
     };
 }
 
-function _build(feats, idx) {
-    const s = feats[idx];
+function _build(idx) {
+    const s = _feats[idx];
     const p = s.p;
-    const total = feats.length;
+    const total = _feats.length;
     const osmInfo = _statuses?.[idx] ?? { status: 'checking', nodeId: null };
+
+    const result = getOsmNodes(_feats);
+    _nodes = result.nodes;
+    _featToNodeIdx = result.featToNodeIdx;
+    const nodeIdx = _featToNodeIdx.get(s);
+    _currentNodeIdx = nodeIdx ?? -1;
+    const node = nodeIdx !== undefined ? _nodes[nodeIdx] : null;
 
     const wrap = _tplPopup().content.cloneNode(true).querySelector('.pu-wrap');
     applyI18n(wrap);
@@ -168,46 +199,27 @@ function _build(feats, idx) {
     }
 
     wrap.querySelector('.pu-row[data-field="type_if"] .pu-badge').textContent = p.type_if ?? '';
-
     for (const field of _DATA_FIELDS) {
         const row = el.rows[field];
         if (row) row.querySelector('.pu-val').textContent = p[field] ?? '';
     }
 
     el.idVal.textContent = p.idreseau ?? '';
-    _applyOsmStatus(el.idRow, osmInfo);
+    _applyOsmStatus(el.idRow, osmInfo, s);
 
-    el.coordsVal.textContent =
-        `${s.lat.toFixed(6)}\u2009\u2009${s.lng.toFixed(6)}`;
-    el.coordsLink.href =
-        `https://www.openstreetmap.org/?mlat=${s.lat.toFixed(6)}&mlon=${s.lng.toFixed(6)}&zoom=18`;
+    el.coordsVal.textContent = `${s.lat.toFixed(6)}\u2009\u2009${s.lng.toFixed(6)}`;
 
-    const supportedCount = feats.filter(f => isSupported(f.p.type_if)).length;
-    el.osmSummary.textContent = t('popup.osmTags', supportedCount);
-    el.osmSummary.dataset.count = supportedCount;
+    _applyNodeRow(el, node, nodeIdx);
 
-    if (supportedCount > 1) {
-        el.osmNote.textContent = t('popup.merged', supportedCount);
-        el.osmNote.classList.remove('is-hidden');
+    if (!node) {
+        el.josmBtn.disabled = true;
+        el.copyBtn.disabled = true;
     }
-
-    // OSM tag rows — single DocumentFragment append avoids per-row reflow.
-    const tplRow = _tplOsmRow();
-    const frag = document.createDocumentFragment();
-    for (const [k, v] of buildOsmTags(feats).entries()) {
-        const row = tplRow.content.cloneNode(true).querySelector('.pu-osm-row');
-        row.querySelector('.pu-osm-key').textContent = k;
-        const valEl = row.querySelector('.pu-osm-val');
-        valEl.textContent = v;
-        if (v === '*') valEl.classList.add('pu-osm-unknown');
-        frag.appendChild(row);
-    }
-    el.osmList.appendChild(frag);
 
     return wrap;
 }
 
-function _applyOsmStatus(idRow, { status, nodeId }) {
+function _applyOsmStatus(idRow, { status, nodeId }, feat) {
     if (status === 'checking') return;
 
     idRow.querySelector('.osm-checking').classList.add('is-hidden');
@@ -220,38 +232,158 @@ function _applyOsmStatus(idRow, { status, nodeId }) {
         link.title = lbl;
         link.setAttribute('aria-label', lbl);
     } else if (status === 'not-in-osm') {
-        idRow.querySelector('.osm-not-in-osm').classList.remove('is-hidden');
+        const link = idRow.querySelector('.osm-locate');
+        link.classList.remove('is-hidden');
+        link.href =
+            `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
     } else if (status === 'error') {
         idRow.querySelector('.osm-retry').classList.remove('is-hidden');
     }
 }
 
-/* ===== Actions ===== */
+function _applyNodeRow(el, node, nodeIdx) {
+    const total = _nodes?.length ?? 0;
+    const exported = _nodes?.filter(n => n.isExported).length ?? 0;
+    const pending = total - exported;
 
-function _copyTags(feats, btn) {
-    const tagMap = buildOsmTags(feats);
-    if (!tagMap.size) return;
-    const tagText = _tagsToText(tagMap);
-    // Invalidate 'not-in-osm' so the next popup open triggers a fresh check.
-    invalidateNotInOsm(feats);
-    navigator.clipboard.writeText(tagText)
-        .then(() => _flash(btn))
-        .catch(() => prompt(t('popup.copyPrompt'), tagText));
+    if (total === 0) {
+        el.nodeCounter.textContent = t('popup.nodeNone');
+        el.nodePreviewBtn.disabled = true;
+        return;
+    }
+
+    el.nodeCounter.textContent = t('popup.nodeLabel', (nodeIdx ?? 0) + 1, total);
+
+    el.nodePending.textContent = pending > 0
+        ? t('popup.nodePending', pending)
+        : t('popup.nodeAllExported');
+
+    if (node?.isExported) {
+        el.nodeExported.classList.remove('is-hidden');
+        el.nodeExported.title = t('popup.nodeExported');
+    }
+
+    el.nodePreviewBtn.disabled = !node;
 }
 
-async function _sendToJOSM(feats, latlng, btn) {
-    const tagMap = buildOsmTags(feats);
-    if (!tagMap.size) return;
+
+/* ===== Tags popup ===== */
+
+function _openTagsPopup(startNodeIdx) {
+    _closeTagsPopup();
+    if (!_nodes?.length) return;
+
+    _tagsNodeIdx = Math.max(0, Math.min(startNodeIdx, _nodes.length - 1));
+
+    _tagsPopup = L.popup({
+        autoPan: true,
+        closeButton: false,
+        className: 'pu-leaflet pu-tags-leaflet',
+    }).setLatLng(_latlng).setContent(_buildTagsPopup()).openOn(map);
+
+    _tagsPopup.getElement()?.addEventListener('click', _onTagsPopupClick);
+}
+
+function _onTagsPopupClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.stopPropagation();
+
+    switch (btn.dataset.action) {
+        case 'tags-close':
+            _closeTagsPopup();
+            break;
+        case 'tags-prev':
+            _tagsNodeIdx = (_tagsNodeIdx - 1 + _nodes.length) % _nodes.length;
+            _tagsPopup.setContent(_buildTagsPopup());
+            break;
+        case 'tags-next':
+            _tagsNodeIdx = (_tagsNodeIdx + 1) % _nodes.length;
+            _tagsPopup.setContent(_buildTagsPopup());
+            break;
+    }
+}
+
+function _closeTagsPopup() {
+    if (!_tagsPopup) return;
+    _tagsPopup.remove();
+    _tagsPopup = null;
+    // Restore main popup (openOn had replaced it); reuse cached Overpass results.
+    if (_feats && _latlng) {
+        _openMainPopup();
+        if (_statuses) _popup.setContent(_build(_currentIdx));
+    }
+}
+
+function _buildTagsPopup() {
+    const total = _nodes.length;
+    const node = _nodes[_tagsNodeIdx];
+
+    const wrap = _tplTagsPopup().content.cloneNode(true).querySelector('.pu-tags-wrap');
+    applyI18n(wrap);
+
+    // Always show node counter, even for a single node
+    wrap.querySelector('.pu-tags-node-label').textContent =
+        t('popup.nodeLabel', _tagsNodeIdx + 1, total);
+
+    // Navigation arrows only when there are multiple nodes
+    if (total > 1) {
+        wrap.querySelector('.pu-tags-nav-arrows').classList.remove('is-hidden');
+    }
+
+    // Tag rows
+    const list = wrap.querySelector('.pu-tags-list');
+    const tplRow = _tplTagRow();
+    const frag = document.createDocumentFragment();
+    if (node?.tags?.size) {
+        for (const [k, v] of node.tags.entries()) {
+            const row = tplRow.content.cloneNode(true).querySelector('.pu-osm-row');
+            row.querySelector('.pu-osm-key').textContent = k;
+            row.querySelector('.pu-osm-val').textContent = v;
+            frag.appendChild(row);
+        }
+    }
+    list.appendChild(frag);
+
+    return wrap;
+}
+
+
+/* ===== Actions ===== */
+
+function _copyTags(node, btn) {
+    if (!node?.tags?.size) return;
+    invalidateSignalGroup(_feats);
+    const text = [...node.tags.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
+    navigator.clipboard.writeText(text)
+        .then(() => _flash(btn))
+        .catch(() => prompt(t('popup.copyPrompt'), text));
+}
+
+async function _sendToJOSM(node, btn) {
+    if (!node?.tags?.size) return;
+
+    if (node.isExported && !confirm(t('osm.warnAlreadyExported'))) return;
 
     if (_statuses?.some(s => s.status === 'in-osm')) {
-        const msg = feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
+        const msg = _feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
         if (!confirm(msg)) return;
     }
 
+    // Small lat offset per node index so separately created nodes don't overlap in JOSM.
+    const lat = _latlng[0] + node.index * 0.00001;
+
     try {
-        await josmAddNode(latlng, tagMap);
-        // Invalidate 'not-in-osm' so the next popup open triggers a fresh check.
-        invalidateNotInOsm(feats);
+        await josmAddNode([lat, _latlng[1]], node.tags);
+        invalidateSignalGroup(_feats);
+        markNodeAsExported(node.id);
+
+        if (_nodes?.[node.index]) _nodes[node.index] = { ...node, isExported: true };
+
+        // Refresh the node row without a full rebuild.
+        const popupEl = _popup?.getElement();
+        if (popupEl) _applyNodeRow(_mapElements(popupEl), _nodes[node.index], node.index);
+
         _flash(btn);
     } catch (err) {
         console.warn('[JOSM]', err.message);
@@ -259,17 +391,14 @@ async function _sendToJOSM(feats, latlng, btn) {
     }
 }
 
-/**
- * Flash a footer button into its success state.
- * All visual changes are in style.css via .is-flash.
- */
 function _flash(btn) {
     if (!btn) return;
     btn.classList.add('is-flash');
     setTimeout(() => btn.classList.remove('is-flash'), 2400);
 }
 
-/* ===== Accessibility helpers ===== */
+
+/* ===== Accessibility ===== */
 
 function _trapFocus(popupEl) {
     if (!popupEl) return;
@@ -282,7 +411,7 @@ function _trapFocus(popupEl) {
     });
 }
 
-function _initKeyboard(popupEl, feats) {
+function _initKeyboard(popupEl) {
     if (!popupEl) return;
     popupEl.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
@@ -291,13 +420,13 @@ function _initKeyboard(popupEl, feats) {
             _popup = null;
             return;
         }
-        if (feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if (_feats.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
             e.stopPropagation();
             e.preventDefault();
             const next =
-                (_currentIdx + (e.key === 'ArrowRight' ? 1 : -1) + feats.length) % feats.length;
+                (_currentIdx + (e.key === 'ArrowRight' ? 1 : -1) + _feats.length) % _feats.length;
             _currentIdx = next;
-            _popup.setContent(_build(feats, next));
+            _popup.setContent(_build(next));
             return;
         }
         if (e.key === 'Tab') {
@@ -308,21 +437,37 @@ function _initKeyboard(popupEl, feats) {
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
             if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
+                e.preventDefault(); last.focus();
             } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
+                e.preventDefault(); first.focus();
             }
         }
     });
 }
 
-/* ===== Lang change: update open popup summary text ===== */
+
+/* ===== Language change ===== */
 
 onLangChange(() => {
-    const summary = document.querySelector('.pu-osm-summary');
-    if (!summary) return;
-    const count = parseInt(summary.dataset.count || '0', 10);
-    summary.textContent = t('popup.osmTags', count);
+    if (!_popup?.isOpen()) return;
+
+    const counter = document.querySelector('.leaflet-popup .pu-node-counter');
+    if (counter && _nodes?.length && _currentNodeIdx >= 0) {
+        counter.textContent = t('popup.nodeLabel', _currentNodeIdx + 1, _nodes.length);
+    }
+
+    const pendingEl = document.querySelector('.leaflet-popup .pu-node-pending');
+    if (pendingEl && _nodes?.length) {
+        const pending = _nodes.length - (_nodes.filter(n => n.isExported).length);
+        pendingEl.textContent = pending > 0
+            ? t('popup.nodePending', pending)
+            : t('popup.nodeAllExported');
+    }
+
+    if (_tagsPopup?.isOpen()) {
+        const lbl = document.querySelector('.pu-tags-leaflet .pu-tags-node-label');
+        if (lbl && _nodes?.length) {
+            lbl.textContent = t('popup.nodeLabel', _tagsNodeIdx + 1, _nodes.length);
+        }
+    }
 });

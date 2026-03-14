@@ -168,9 +168,9 @@
     color: var(--signal-contrast, #fff);
 }
 
-/* OSM indicator — all four states share the group-2 base (base.css).
-   osm-checking is visible by default; the other three carry .is-hidden.
-   JS hides checking and reveals exactly one state when the result arrives. */
+/* OSM indicator buttons — all four states share the group-2 base (base.css).
+ * osm-checking is visible by default; the other three carry .is-hidden.
+ * JS hides checking and reveals exactly one state when the result arrives. */
 .pu-osm-btn {
     width: 22px;
     height: 22px;
@@ -185,10 +185,9 @@
         letter-spacing: -.5px;
     }
 
-        /* Ellipsis rendered via CSS: the span is intentionally empty so screen readers
-   read the aria-label ("Checking in OpenStreetMap…") without duplication. */
+        /* Ellipsis via CSS so screen readers read the aria-label without duplication. */
         .pu-osm-btn.osm-checking::after {
-            content: "…";
+            content: "...";
         }
 
 a.pu-osm-btn.osm-in-osm {
@@ -199,11 +198,16 @@ a.pu-osm-btn.osm-in-osm {
         border-color: var(--accent2);
     }
 
-.pu-osm-btn.osm-not-in-osm {
-    cursor: default;
-    opacity: .35;
-    /* pointer-events intentionally NOT disabled so the browser shows the title tooltip */
+/* osm-locate: signal not yet in OSM, links to map position */
+a.pu-osm-btn.osm-locate {
+    cursor: pointer;
 }
+
+    a.pu-osm-btn.osm-locate:hover {
+        color: var(--accent2);
+        border-color: var(--accent2);
+        text-decoration: none;
+    }
 
 button.pu-osm-btn.osm-retry {
     border-color: var(--warn);
@@ -216,66 +220,116 @@ button.pu-osm-btn.osm-retry {
         border-color: #f0b429;
     }
 
-/* Coordinate link button — group-2 base (base.css) */
-.pu-coords-btn {
+/* Signal Node row -----
+ * Always-present row showing node counter, pending count, and preview button. */
+
+.pu-node-row {
+    border-top: 1px solid var(--border);
+}
+
+.pu-node-counter {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    color: var(--text);
+}
+
+.pu-node-pending {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-left: 4px;
+    flex: 1;
+}
+
+/* Export indicator — shown when the current node was sent to JOSM this session */
+.pu-node-exported {
+    color: var(--success);
+    flex-shrink: 0;
+}
+
+/* Preview button — opens the OSM tags popup, group-2 base (base.css) */
+.pu-node-preview-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
     width: 22px;
     height: 22px;
-    margin-left: 6px;
     color: var(--text3);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    margin-left: auto;
 }
 
-    .pu-coords-btn:hover {
+    .pu-node-preview-btn:hover {
         color: var(--accent2);
-        text-decoration: none;
+        border-color: var(--accent2);
     }
 
-/* OSM tags section */
-.pu-osm-preview {
-    border-top: 1px solid var(--border);
+    .pu-node-preview-btn:disabled {
+        opacity: .3;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+
+/* ===== OSM tags preview popup ===== */
+
+.pu-tags-wrap {
+    min-width: 380px;
+    max-width: 640px;
 }
 
-    .pu-osm-preview summary {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 14px;
-        cursor: pointer;
-        list-style: none;
-        font-family: var(--ff-sans);
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text2);
-        user-select: none;
-    }
-
-        .pu-osm-preview summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .pu-osm-preview summary::before {
-            content: '▶';
-            font-size: 7px;
-            color: var(--text3);
-        }
-
-    .pu-osm-preview[open] summary::before {
-        content: '▼';
-    }
-
-.pu-osm-scroll {
-    max-height: 190px;
-    overflow-y: auto;
-    padding: 6px 14px 10px;
-    border-top: 1px solid var(--border);
+/* Reuse .pu-nav layout for the tags popup header */
+.pu-tags-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 36px 5px 10px;
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    min-height: 34px;
+    position: relative;
 }
 
-/* Merge note: human-readable sentence, sans-serif */
-.pu-osm-note {
-    font-family: var(--ff-sans);
+.pu-tags-brand {
+    flex-shrink: 0;
+    display: block;
+}
+
+.pu-tags-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.pu-tags-node-label {
     font-size: 11px;
+    font-family: var(--ff-mono);
+    color: var(--text2);
+    min-width: 42px;
+    text-align: center;
+}
+
+.pu-tags-body {
+    padding: 0 14px 10px;
+}
+
+/* "OSM Tags" section label above the tag list */
+.pu-tags-section-label {
+    font-family: var(--ff-sans);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
     color: var(--text3);
-    font-style: italic;
-    padding: 0 0 5px;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
 }
 
 /* OSM tag table: two columns, all rows share the same column widths via CSS subgrid.

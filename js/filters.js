@@ -31,6 +31,12 @@ import { t, applyI18n, onLangChange } from './i18n.js';
 import { FilterPanel } from './ui/filter-panel.js';
 import { updateFilterCount } from './statusbar.js';
 
+// When a dropdown has more than MIN_SEARCH_THRESHOLD values, require the user
+// to type at least MIN_SEARCH_CHARS characters before rendering any items.
+// Prevents painting hundreds of DOM nodes on first open (e.g. idreseau: 1550 values).
+const MIN_SEARCH_THRESHOLD = 500;
+const MIN_SEARCH_CHARS = 2;
+
 const _ALL_FILTER_FIELDS = [
     { key: 'type_if', labelKey: 'field.type_if' },
     { key: 'code_ligne', labelKey: 'field.code_ligne', numericOnly: true },
@@ -321,6 +327,15 @@ function _refreshDropdown(idx) {
     const isMappedOnly = _mappedOnly && isTypeIf;
 
     if (isMappedOnly) all = all.filter(v => _mappedTypes.has(v));
+
+    // Large value lists: hold off rendering items until the user has typed enough.
+    // The placeholder already hints that typing is needed; an empty list below it
+    // reinforces that without requiring any error-style message.
+    if (all.length > MIN_SEARCH_THRESHOLD && q.length < MIN_SEARCH_CHARS) {
+        def.panel.setInputPlaceholder(t('dropdown.search', all.length));
+        def.panel.refreshList([]);
+        return;
+    }
 
     def.panel.setInputPlaceholder(t('dropdown.search', all.length));
 

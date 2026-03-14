@@ -95,14 +95,24 @@ async function _boot() {
     _lastZoom = map.getZoom();
     updateZoomStatus(_lastZoom);
 
-    map.on('moveend zoomend', _debounce(() => {
+    // zoomend fires immediately — a zoom always warrants a fresh tile request
+    // and should never be swallowed by a debounce window.
+    map.on('zoomend', () => {
         const z = map.getZoom();
         updateZoomStatus(z);
         const crossedThreshold =
             (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
         _lastZoom = z;
         refresh(crossedThreshold);
-    }, 280));
+    });
+
+    // moveend is debounced: panning generates continuous events; we only need
+    // one refresh 150 ms after the user stops moving.
+    map.on('moveend', _debounce(() => {
+        const z = map.getZoom();
+        updateZoomStatus(z);
+        refresh(false);
+    }, 150));
 
     refresh(true);
 

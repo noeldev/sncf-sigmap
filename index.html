@@ -29,7 +29,9 @@
 
             <div id="sidebar-header">
                 <div class="logo-row">
-                    <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau" class="logo-sncf">
+                    <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener" class="logo-sncf-link">
+                        <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau" class="logo-sncf">
+                    </a>
                     <div class="logo-text">
                         <div class="logo-title" data-i18n="subtitle1">Signalisation</div>
                         <div class="logo-title" data-i18n="subtitle2">Permanente</div>
@@ -211,7 +213,9 @@
         <div class="pu-wrap">
 
             <div class="pu-nav">
-                <img src="assets/png/sncf-logo.png" alt="SNCF" class="pu-brand-logo">
+                <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener" class="pu-brand-link">
+                    <img src="assets/png/sncf-logo.png" alt="SNCF Réseau" class="pu-brand-logo">
+                </a>
                 <div class="pu-nav-group is-hidden">
                     <button class="pu-nav-btn" data-action="nav-prev"
                             data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
@@ -260,8 +264,11 @@
                 </div>
 
                 <!-- idreseau: osm-checking is the default visible state.
-                     JS hides it and reveals exactly one other indicator once the
-                     Overpass result arrives. -->
+                     JS hides it and reveals exactly one of the three other states
+                     once the Overpass result arrives:
+                       osm-in-osm   — signal found, links to OSM node page
+                       osm-locate   — not yet in OSM, links to map position
+                       osm-retry    — network error, offers a retry button -->
                 <div class="pu-row" data-field="idreseau">
                     <span class="pu-label">ID RÉSEAU</span>
                     <span class="pu-val"></span>
@@ -271,37 +278,40 @@
                        href="#" target="_blank" rel="noopener">
                         <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img">
                     </a>
-                    <span class="pu-osm-btn osm-not-in-osm is-hidden"
-                          data-i18n-title="osm.notInOsm" data-i18n-aria="osm.notInOsm">
-                        <img src="assets/svg/osm.svg" width="16" height="16" alt="" class="osm-img-dim">
-                    </span>
+                    <a class="pu-osm-btn osm-locate is-hidden"
+                       href="#" target="_blank" rel="noopener"
+                       data-i18n-title="osm.locateOnOsm" data-i18n-aria="osm.locateOnOsm">
+                        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                    </a>
                     <button class="pu-osm-btn osm-retry is-hidden" data-action="osm-retry"
                             data-i18n-title="osm.retry" data-i18n-aria="osm.retry">
                         <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
                     </button>
                 </div>
 
-                <!-- Coordinates: always present -->
+                <!-- Coordinates: always present, no action button -->
                 <div class="pu-row" data-field="coords">
                     <span class="pu-label">COORDS</span>
                     <span class="pu-val"></span>
-                    <a class="pu-coords-btn" href="#" target="_blank" rel="noopener"
-                       data-i18n-title="popup.viewOnOsm" data-i18n-aria="popup.viewOnOsm">
-                        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
-                    </a>
                 </div>
             </div>
 
-            <!-- OSM tags preview — always visible (there is always at least one signal) -->
-            <details class="pu-osm-preview">
-                <summary class="pu-osm-summary"></summary>
-                <div class="pu-osm-scroll">
-                    <!-- Merge note: hidden until more than one supported signal is present -->
-                    <div class="pu-osm-note is-hidden"></div>
-                    <!-- Tag rows injected by JS using tpl-osm-tag-row -->
-                    <div class="pu-osm-list"></div>
-                </div>
-            </details>
+            <!-- Signal Node row: always present.
+                 Shows which node this signal belongs to, how many remain to export,
+                 and opens the OSM tags preview popup. -->
+            <div class="pu-row pu-node-row">
+                <span class="pu-label">SIGNAL NODE</span>
+                <span class="pu-node-counter"></span>
+                <span class="pu-node-pending"></span>
+                <svg class="icon pu-node-exported is-hidden" width="12" height="12" aria-hidden="true"
+                     data-i18n-title="popup.nodeExported">
+                    <use href="#icon-node-sent"></use>
+                </svg>
+                <button class="pu-node-preview-btn" data-action="node-preview"
+                        data-i18n-title="popup.previewTags" data-i18n-aria="popup.previewTags">
+                    <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-document"></use></svg>
+                </button>
+            </div>
             <div class="pu-footer">
                 <button class="pu-action-btn" data-action="copy"
                         data-i18n-title="popup.copy">
@@ -321,7 +331,7 @@
         </div>
     </template>
 
-    <!-- One OSM tag key=value row inside the popup preview -->
+    <!-- One OSM tag key=value row — used in tpl-osm-tags-popup -->
     <template id="tpl-osm-tag-row">
         <div class="pu-osm-row">
             <span class="pu-osm-key"></span>
@@ -329,7 +339,43 @@
         </div>
     </template>
 
-    <!-- Signal tooltip -->
+    <!-- OSM tags preview popup — opened by the Signal Node preview button -->
+    <template id="tpl-osm-tags-popup">
+        <div class="pu-tags-wrap">
+
+            <div class="pu-tags-nav">
+                <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener" class="pu-tags-brand-link">
+                    <img src="assets/svg/osm.svg" width="18" height="18" alt="OpenStreetMap" class="pu-tags-brand">
+                </a>
+                <span class="pu-label">SIGNAL NODE</span>
+                <!-- Counter — always visible, even for a single node -->
+                <span class="pu-tags-node-label pu-nav-label"></span>
+                <!-- Nav arrows — hidden when there is only one node -->
+                <div class="pu-tags-nav-arrows is-hidden">
+                    <button class="pu-nav-btn" data-action="tags-prev"
+                            data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                    </button>
+                    <button class="pu-nav-btn" data-action="tags-next"
+                            data-i18n-title="popup.next" data-i18n-aria="popup.next">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </button>
+                </div>
+                <button class="pu-close-btn" data-action="tags-close"
+                        data-i18n-title="popup.close" data-i18n-aria="popup.close">
+                    &#10005;
+                </button>
+            </div>
+
+            <div class="pu-tags-body">
+                <p class="pu-tags-section-label" data-i18n="popup.osmTags"></p>
+                <!-- Tag rows injected by JS using tpl-osm-tag-row -->
+                <div class="pu-osm-list pu-tags-list"></div>
+            </div>
+
+        </div>
+    </template>
+
     <template id="tpl-signal-tooltip">
         <div class="tt-wrap">
             <!-- Signal groups injected by tooltip.js -->
@@ -504,6 +550,19 @@
         <!-- Filled triangle — collapsible panel arrow and dropdown chevron -->
         <symbol id="icon-panel-arrow" viewBox="0 0 8 8" fill="currentColor">
             <polygon points="0,0 8,0 4,8" />
+        </symbol>
+        <!-- Diagonal arrow — node sent to JOSM indicator -->
+        <symbol id="icon-node-sent" viewBox="0 0 14 14">
+            <path d="M2.5 11.5L11.5 2.5M11.5 2.5H6.5M11.5 2.5V7.5"
+                  stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        </symbol>
+        <!-- Document / file — OSM tags preview button -->
+        <symbol id="icon-document" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="8" y1="13" x2="16" y2="13" />
+            <line x1="8" y1="17" x2="12" y2="17" />
         </symbol>
     </svg>
 
