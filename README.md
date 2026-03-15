@@ -79,7 +79,7 @@ Each signal popup queries the [Overpass API](https://overpass-api.de/) to check 
 | Badge | Meaning |
 |-------|---------|
 | OSM logo (colour) | Signal found in OSM — export shows a confirmation prompt |
-| Locate icon | Not yet mapped — links to map position on openstreetmap.org |
+| Locate icon | Not yet mapped — links to map position on [openstreetmap.org](https://www.openstreetmap.org/) |
 | … | Check in progress |
 | ↻ | Check failed — click to retry |
 
