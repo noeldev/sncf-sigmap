@@ -282,9 +282,10 @@ button.pu-osm-btn.osm-retry {
     min-width: 380px;
     width: max-content;
     max-width: min(680px, 94vw);
-    max-height: 50vh;
+    max-height: 43vh;
     display: flex;
     flex-direction: column;
+    padding-bottom: 16px;
 }
 
 /* Nav bar: symmetric padding mirrors .pu-nav so the center group is truly centered.
@@ -327,7 +328,7 @@ button.pu-osm-btn.osm-retry {
 }
 
 .pu-tags-body {
-    padding: 0 14px 10px;
+    padding: 0 4px 0 14px;
     overflow-y: auto;
     overflow-x: auto;
     flex: 1;
@@ -341,15 +342,12 @@ button.pu-osm-btn.osm-retry {
     text-transform: uppercase;
     letter-spacing: .5px;
     color: var(--text3);
-    padding: 3px 0 2px;
-    margin-bottom: 1px;
 }
 
-/* Tag list: each column at natural width, no line wrapping.
-   Separator between rows restored for readability. */
+/* Tag list: self-contained grid. */
 .pu-tags-list {
+    display: grid;
     grid-template-columns: max-content max-content;
-    gap: 0 20px;
     width: max-content;
 }
 
@@ -378,11 +376,6 @@ button.pu-osm-btn.osm-retry {
     .pu-tags-list .pu-osm-val {
         color: var(--text);
     }
-
-.pu-osm-list {
-    display: grid;
-    grid-template-columns: 1fr max-content;
-}
 
 .pu-osm-row {
     display: grid;
