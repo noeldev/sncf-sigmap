@@ -15,6 +15,7 @@
  */
 
 import { map } from './map.js';
+import { t } from './i18n.js';
 
 /**
  * Wire all map toolbar buttons.
@@ -39,21 +40,39 @@ export function initMapControls() {
 /* ===== Private helpers ===== */
 
 function _geolocate() {
-    if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
+    if (!navigator.geolocation) {
+        alert(t('ctrl.geolocateUnavailable'));
+        return;
+    }
     const btn = document.getElementById('btn-geolocate');
     btn?.classList.add('active');
     navigator.geolocation.getCurrentPosition(
         pos => {
             const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-            L.circle([lat, lng], { radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1 }).addTo(map);
+            L.circle([lat, lng], {
+                radius: accuracy,
+                color: '#2589c7',
+                fillOpacity: .1,
+                weight: 1,
+            }).addTo(map);
             L.circleMarker([lat, lng], {
-                radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
+                radius: 7,
+                color: '#fff',
+                fillColor: '#2589c7',
+                fillOpacity: 1,
+                weight: 2,
             }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
             map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
             btn?.classList.remove('active');
         },
-        err => { btn?.classList.remove('active'); alert('Location error: ' + err.message); },
-        { enableHighAccuracy: true, timeout: 10000 }
+        err => {
+            btn?.classList.remove('active');
+            alert(t('ctrl.geolocateError', err.message));
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+        }
     );
 }
 

@@ -82,8 +82,16 @@ export function invalidateSignalGroup(feats) {
     for (const f of feats) {
         const refTag = getSignalId(f.p.type_if);
         if (!refTag || !f.p.idreseau) continue;
+        // Clear the forward key (used as the canonical cache key for both directions).
         const key = _cacheKey(refTag, f.p.idreseau);
         if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
+        // Also clear a potential entry keyed under the backward ref tag,
+        // in case the signal was found via its :ref:backward key in a previous check.
+        const bwdTag = getBackwardSignalId(f.p.type_if);
+        if (bwdTag) {
+            const bwdKey = _cacheKey(bwdTag, f.p.idreseau);
+            if (_cache.get(bwdKey)?.status === 'not-in-osm') _cache.delete(bwdKey);
+        }
     }
 }
 

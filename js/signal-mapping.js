@@ -670,11 +670,6 @@ const _SIGNAL_MAPPING = {
     },
 };
 
-// Persistent session memory — which node IDs have been sent to JOSM.
-// Never cleared automatically; persists across popup opens.
-const _exportedNodeIds = new Set();
-
-
 /* ===== Private conversion helpers ===== */
 
 /** Convert SNCF sens code to OSM direction string. */
@@ -1019,6 +1014,16 @@ export function buildLegend() {
 /* ===== OSM node computation ===== */
 
 /**
+ * Returns the first 4 digits of an idreseau string as a cluster key.
+ * Signals with the same 4-digit prefix are considered numerically related
+ * and are sorted together before the node-grouping pass.
+ * Signals without an idreseau use an empty string so they sort last.
+ */
+function _idrCluster(idreseau) {
+    return idreseau ? String(idreseau).slice(0, 4) : '';
+}
+
+/**
  * Group co-located features into one or more OSM nodes, respecting ORM tagging
  * conflict rules, then build the complete tag Map for each node.
  *
@@ -1032,25 +1037,31 @@ export function buildLegend() {
  *   }
  *
  * OsmNode:
- *   { id: string, index: number, tags: Map<string,string>, isExported: boolean }
+ *   { id: string, index: number, tags: Map<string,string> }
  *
  * Unsupported features are silently skipped and absent from featToNodeIdx.
  * nodes is empty when all features at this location are unsupported types.
  */
 export function getOsmNodes(feats) {
     const priority = Object.keys(_SIGNAL_MAPPING);
-    const supported = feats
-        .filter(f => isSupported(f.p.type_if))
-        .sort((a, b) => priority.indexOf(a.p.type_if) - priority.indexOf(b.p.type_if));
+    const supported = feats.filter(f => isSupported(f.p.type_if));
 
     if (!supported.length) return { nodes: [], featToNodeIdx: new Map() };
 
-    // Assign each supported feature to a node group in priority order.
-    // Priority ordering ensures high-importance signal types get the best
-    // fitting node, but the resulting node indices are later remapped so
-    // that node 0 belongs to feats[0], node 1 to the next distinct node, etc.
-    const nodeGroups = [];   // array of feat-arrays, one per OSM node
-    const rawNodeIdx = new Map();   // feat -> node index in priority order
+    // Sort so signals with similar idreseau prefixes are processed consecutively.
+    // This increases the chance that numerically close signals (e.g. 94560-94563)
+    // share a node when their cats allow it, while unrelated clusters (e.g. 118480+)
+    // naturally go to separate nodes. Within a cluster, _SIGNAL_MAPPING priority
+    // order is preserved so higher-priority types still claim the best node first.
+    supported.sort((a, b) => {
+        const clA = _idrCluster(a.p.idreseau);
+        const clB = _idrCluster(b.p.idreseau);
+        if (clA !== clB) return clA < clB ? -1 : 1;
+        return priority.indexOf(a.p.type_if) - priority.indexOf(b.p.type_if);
+    });
+
+    const nodeGroups = [];
+    const rawNodeIdx = new Map();
 
     for (const feat of supported) {
         let idx = nodeGroups.findIndex(g => _canFit(feat, g));
@@ -1062,11 +1073,9 @@ export function getOsmNodes(feats) {
         rawNodeIdx.set(feat, idx);
     }
 
-    // Remap node indices to follow the original feats order.
-    // Walk feats in their original order; the first unseen node index encountered
-    // becomes node 0, the second becomes node 1, etc.
-    // This guarantees: signal 1 -> node 1, signal 2 -> node 2, never swapped.
-    const indexRemap = new Map();   // old index -> new index
+    // Remap node indices to follow the original feats order so that
+    // signal 1 -> node 1, signal 2 -> node 2, never swapped.
+    const indexRemap = new Map();
     for (const feat of feats) {
         if (!rawNodeIdx.has(feat)) continue;
         const old = rawNodeIdx.get(feat);
@@ -1080,8 +1089,7 @@ export function getOsmNodes(feats) {
         nodes[newIdx] = {
             id,
             index: newIdx,
-            tags: _buildNodeTags(group),
-            isExported: _exportedNodeIds.has(id),
+            tags: _buildNodeTags(group)
         };
     }
 
@@ -1091,12 +1099,4 @@ export function getOsmNodes(feats) {
     }
 
     return { nodes, featToNodeIdx };
-}
-
-/**
- * Record that a node has been sent to JOSM during this session.
- * The export indicator icon in the popup persists across popup opens.
- */
-export function markNodeAsExported(nodeId) {
-    _exportedNodeIds.add(nodeId);
 }

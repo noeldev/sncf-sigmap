@@ -68,8 +68,10 @@ const STRINGS = {
         'ctrl.toggle': 'Toggle panel',
         'ctrl.zoomIn': 'Zoom in',
         'ctrl.zoomOut': 'Zoom out',
-        'ctrl.locate': 'My location',
+        'ctrl.locate': 'Show My Location',
         'ctrl.fullscreen': 'Fullscreen',
+        'ctrl.geolocateUnavailable': 'Geolocation not available.',
+        'ctrl.geolocateError': msg => `Location error: ${msg}`,
 
         // Status bar
         'status.signals': 'Signals',
@@ -83,13 +85,11 @@ const STRINGS = {
         'progress.tiles': n => `Loading ${n} tile(s)…`,
         'progress.filtering': 'Filtering…',
 
-        // Popup — use complete sentences to keep word order correct across languages
+        // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
         'popup.nodeNone': 'No mapping',
-        'popup.nodePending': n => `\u00b7 ${n} to export`,
-        'popup.nodeAllExported': 'All exported',
-        'popup.nodeExported': 'Already sent to JOSM',
+        'popup.signalNode': 'Signal Node',
         'popup.previewTags': 'Preview OSM tags',
         'popup.osmTags': 'OSM Tags',
         'popup.copy': 'Copy tags',
@@ -104,11 +104,9 @@ const STRINGS = {
         // OSM existence check
         'osm.locateOnOsm': 'Locate on OpenStreetMap',
         'osm.checking': 'Checking in OpenStreetMap\u2026',
-        'osm.inOsm': nodeId => `In OpenStreetMap \u2014 Node\u00a0#${nodeId}`,
-        'osm.notInOsm': 'Not yet in OpenStreetMap',
+        'osm.inOsm': nodeId => `Already in OpenStreetMap \u2014 Node #${nodeId}`,
         'osm.error': 'OSM check failed',
         'osm.retry': 'Retry OSM check',
-        'osm.warnAlreadyExported': 'This node was already sent to JOSM this session. Send again?',
         'osm.warnSingle': 'This signal appears to already be in OpenStreetMap. Export anyway?',
         'osm.warnMulti': 'One or more signals in this group appear to already be in OpenStreetMap. Export anyway?',
 
@@ -204,6 +202,8 @@ const STRINGS = {
         'ctrl.zoomOut': 'Zoom arrière',
         'ctrl.locate': 'Afficher mon emplacement',
         'ctrl.fullscreen': 'Plein écran',
+        'ctrl.geolocateUnavailable': 'Géolocalisation non disponible.',
+        'ctrl.geolocateError': msg => `Erreur de localisation : ${msg}`,
 
         // Status bar
         'status.signals': 'Signaux',
@@ -217,34 +217,30 @@ const STRINGS = {
         'progress.tiles': n => `Chargement de ${n} tuile(s)…`,
         'progress.filtering': 'Filtrage…',
 
-        // Popup — phrases complètes pour respecter l'ordre des mots
+        // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
         'popup.nodeNone': 'Pas de correspondance',
-        'popup.nodePending': n => `\u00b7 ${n} \u00e0 exporter`,
-        'popup.nodeAllExported': 'Tout export\u00e9',
-        'popup.nodeExported': 'D\u00e9j\u00e0 envoy\u00e9 \u00e0 JOSM',
-        'popup.previewTags': 'Pr\u00e9visualiser les tags OSM',
+        'popup.signalNode': 'Nœud de signal',
+        'popup.previewTags': 'Prévisualiser les tags OSM',
         'popup.osmTags': 'Tags OSM',
         'popup.copy': 'Copier les tags',
         'popup.josm': 'Ouvrir dans JOSM',
-        'popup.copied': 'Copi\u00e9\u00a0!',
-        'popup.josmSent': 'Envoy\u00e9 \u00e0 JOSM',
-        'popup.prev': 'Signal pr\u00e9c\u00e9dent',
+        'popup.copied': 'Copié !',
+        'popup.josmSent': 'Envoyé à JOSM',
+        'popup.prev': 'Signal précédent',
         'popup.next': 'Signal suivant',
         'popup.close': 'Fermer',
         'popup.copyPrompt': 'Copier les tags OSM',
 
         // OSM existence check
         'osm.locateOnOsm': 'Localiser dans OpenStreetMap',
-        'osm.checking': 'V\u00e9rification dans OpenStreetMap\u2026',
-        'osm.inOsm': nodeId => `Dans OpenStreetMap \u2014 N\u0153ud\u00a0#${nodeId}`,
-        'osm.notInOsm': 'Pas encore dans OpenStreetMap',
-        'osm.error': '\u00c9chec de la v\u00e9rification OSM',
-        'osm.retry': 'Relancer la v\u00e9rification OSM',
-        'osm.warnAlreadyExported': 'Ce n\u0153ud a d\u00e9j\u00e0 \u00e9t\u00e9 envoy\u00e9 \u00e0 JOSM cette session. Envoyer \u00e0 nouveau\u00a0?',
-        'osm.warnSingle': 'Ce signal semble d\u00e9j\u00e0 pr\u00e9sent dans OpenStreetMap. Exporter quand m\u00eame\u00a0?',
-        'osm.warnMulti': 'Un ou plusieurs signaux semblent d\u00e9j\u00e0 pr\u00e9sents dans OpenStreetMap. Exporter quand m\u00eame\u00a0?',
+        'osm.checking': 'Vérification dans OpenStreetMap\u2026',
+        'osm.inOsm': nodeId => `Déjà présent dans OpenStreetMap \u2014 Nœud #${nodeId}`,
+        'osm.error': 'Échec de la vérification OSM',
+        'osm.retry': 'Relancer la vérification OSM',
+        'osm.warnSingle': 'Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?',
+        'osm.warnMulti': 'Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?',
 
         // JOSM errors
         'josm.notReachable': 'JOSM inaccessible',

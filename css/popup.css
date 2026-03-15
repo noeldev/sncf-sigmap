@@ -59,12 +59,19 @@
     min-height: 34px;
 }
 
-/* SNCF brand icon — absolute left of nav bar, mirrors .pu-close-btn on the right. */
-.pu-brand-logo {
+/* SNCF brand link — absolute left of nav bar, mirrors .pu-close-btn on the right. */
+.pu-brand-link {
     position: absolute;
     left: 8px;
     top: 50%;
     transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.pu-brand-logo {
     height: 20px;
     width: auto;
     object-fit: contain;
@@ -123,23 +130,37 @@
     }
 
 .pu-body {
-    padding: 8px 14px;
+    padding: 8px 14px 0 22px;
 }
 
-.pu-row {
+/* Shared flex base for data rows and the Signal Node badge */
+.pu-row,
+.pu-node-badge {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 3px 0;
-    border-bottom: 1px solid var(--border);
     font-size: 11px;
+}
+
+.pu-row {
+    border-bottom: 1px solid var(--border);
 }
 
     .pu-row:last-child {
         border-bottom: none;
     }
 
-.pu-label {
+.pu-node-badge {
+    margin: 3px 14px 14px 14px;
+    padding: 3px 8px;
+    background: var(--panel2);
+    border-radius: var(--radius);
+}
+
+/* Shared label style: SNCF data row labels and Signal Node badge label */
+.pu-label,
+.pu-node-badge-label {
     font-family: var(--ff-mono);
     font-size: 9px;
     font-weight: 700;
@@ -150,9 +171,12 @@
     width: 78px;
 }
 
-.pu-val {
+/* Shared value style: SNCF data row values and Signal Node counter */
+.pu-val,
+.pu-node-counter {
     font-family: var(--ff-mono);
     color: var(--text);
+    min-width: 45px;
 }
 
 /* Signal type badge: colours come from --signal-color and --signal-contrast
@@ -220,53 +244,29 @@ button.pu-osm-btn.osm-retry {
         border-color: #f0b429;
     }
 
-/* Signal Node row -----
- * Always-present row showing node counter, pending count, and preview button. */
+/* Signal Node badge — visually distinct from SNCF data rows: tinted background
+   with rounded corners. Layout rules shared with .pu-row above. */
 
-.pu-node-row {
-    border-top: 1px solid var(--border);
-}
-
-.pu-node-counter {
-    font-family: var(--ff-mono);
-    font-size: 11px;
-    color: var(--text);
-}
-
-.pu-node-pending {
-    font-family: var(--ff-mono);
-    font-size: 10px;
-    color: var(--text3);
-    margin-left: 4px;
-    flex: 1;
-}
-
-/* Export indicator — shown when the current node was sent to JOSM this session */
-.pu-node-exported {
-    color: var(--success);
-    flex-shrink: 0;
-}
-
-/* Preview button — opens the OSM tags popup, group-2 base (base.css) */
+/* Preview button */
 .pu-node-preview-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--panel2);
+    background: transparent;
     border: 1px solid var(--border2);
     border-radius: 3px;
     width: 22px;
     height: 22px;
-    color: var(--text3);
+    margin-left: 6px;
+    color: var(--accent3);
     flex-shrink: 0;
     cursor: pointer;
-    transition: color .15s, border-color .15s, background .15s;
-    margin-left: auto;
+    transition: color .15s, border-color .15s;
 }
 
     .pu-node-preview-btn:hover {
-        color: var(--accent2);
-        border-color: var(--accent2);
+        color: var(--accent3);
+        border-color: var(--accent3);
     }
 
     .pu-node-preview-btn:disabled {
@@ -280,46 +280,60 @@ button.pu-osm-btn.osm-retry {
 
 .pu-tags-wrap {
     min-width: 380px;
-    max-width: 640px;
+    width: max-content;
+    max-width: min(680px, 94vw);
+    max-height: 50vh;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Reuse .pu-nav layout for the tags popup header */
+/* Nav bar: symmetric padding mirrors .pu-nav so the center group is truly centered.
+   Brand header and close button are both absolute, leaving the full container
+   for flex-centering the counter + arrow group. */
 .pu-tags-nav {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 36px 5px 10px;
+    justify-content: center;
+    padding: 5px 36px;
     background: var(--panel2);
     border-bottom: 1px solid var(--border);
     min-height: 34px;
-    position: relative;
+    gap: 4px;
+}
+
+/* Brand header: OSM icon + SIGNAL NODE label, absolutely positioned on the left */
+.pu-tags-header {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.pu-tags-brand-link {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    text-decoration: none;
 }
 
 .pu-tags-brand {
-    flex-shrink: 0;
     display: block;
-}
-
-.pu-tags-nav-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-}
-
-.pu-tags-node-label {
-    font-size: 11px;
-    font-family: var(--ff-mono);
-    color: var(--text2);
-    min-width: 42px;
-    text-align: center;
+    flex-shrink: 0;
 }
 
 .pu-tags-body {
     padding: 0 14px 10px;
+    overflow-y: auto;
+    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
 }
 
-/* "OSM Tags" section label above the tag list */
 .pu-tags-section-label {
     font-family: var(--ff-sans);
     font-size: 10px;
@@ -327,15 +341,44 @@ button.pu-osm-btn.osm-retry {
     text-transform: uppercase;
     letter-spacing: .5px;
     color: var(--text3);
-    padding: 8px 0 4px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 2px;
+    padding: 3px 0 2px;
+    margin-bottom: 1px;
 }
 
-/* OSM tag table: two columns, all rows share the same column widths via CSS subgrid.
-   Column 1 (key): 1fr — takes all remaining space.
-   Column 2 (val): max-content — exactly the width of the longest value in the list.
-   .pu-osm-row uses subgrid so each row participates in the parent grid. */
+/* Tag list: each column at natural width, no line wrapping.
+   Separator between rows restored for readability. */
+.pu-tags-list {
+    grid-template-columns: max-content max-content;
+    gap: 0 20px;
+    width: max-content;
+}
+
+    .pu-tags-list .pu-osm-row {
+        padding: 2px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+        .pu-tags-list .pu-osm-row:last-child {
+            border-bottom: none;
+        }
+
+    .pu-tags-list .pu-osm-key,
+    .pu-tags-list .pu-osm-val {
+        white-space: nowrap;
+        font-family: var(--ff-mono);
+        font-size: 11px;
+        line-height: 1.5;
+        word-break: normal;
+    }
+
+    .pu-tags-list .pu-osm-key {
+        color: var(--text2);
+    }
+
+    .pu-tags-list .pu-osm-val {
+        color: var(--text);
+    }
+
 .pu-osm-list {
     display: grid;
     grid-template-columns: 1fr max-content;
