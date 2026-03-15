@@ -24,7 +24,7 @@ import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
 import { map } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
-import { openSignalPopup } from './popup.js';
+import { openSignalPopup } from './signal-popup.js';
 import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t } from './i18n.js';

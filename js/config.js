@@ -30,3 +30,8 @@ export const MAP_STARTUP_ZOOM = 6;
 
 // Default basemap key: 'jawg-transport' | 'osm' | 'satellite'
 export const DEFAULT_BASEMAP = 'jawg-transport';
+
+// Dropdown search: when a value list exceeds this count, require the user to
+// type characters before rendering any items. The minimum character count is
+// derived dynamically from the list size in filters.js.
+export const MIN_SEARCH_THRESHOLD = 300;

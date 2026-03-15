@@ -51,7 +51,7 @@ const STRINGS = {
         'filter.indexError': 'Filter index unavailable — suggestions may be incomplete.',
 
         // Dropdown (for other filterable fields)
-        'dropdown.search': n => `Search ${n} values…`,
+        'dropdown.search': n => `Search among ${n} values\u2026`,
         'dropdown.noMatch': 'No matching values',
         'dropdown.remove': 'Remove filter',
 
@@ -68,8 +68,10 @@ const STRINGS = {
         'ctrl.toggle': 'Toggle panel',
         'ctrl.zoomIn': 'Zoom in',
         'ctrl.zoomOut': 'Zoom out',
-        'ctrl.locate': 'My location',
+        'ctrl.locate': 'Show My Location',
         'ctrl.fullscreen': 'Fullscreen',
+        'ctrl.geolocateUnavailable': 'Geolocation not available.',
+        'ctrl.geolocateError': msg => `Location error: ${msg}`,
 
         // Status bar
         'status.signals': 'Signals',
@@ -83,10 +85,13 @@ const STRINGS = {
         'progress.tiles': n => `Loading ${n} tile(s)…`,
         'progress.filtering': 'Filtering…',
 
-        // Popup — use complete sentences to keep word order correct across languages
+        // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
-        'popup.osmTags': n => n > 1 ? `OSM tags (${n} signals)` : 'OSM tags',
-        'popup.merged': n => `Tags merged for ${n} co-located signals`,
+        'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
+        'popup.nodeNone': 'No mapping',
+        'popup.signalNode': 'Signal Node',
+        'popup.previewTags': 'Preview OSM tags',
+        'popup.osmTags': 'OSM Tags',
         'popup.copy': 'Copy tags',
         'popup.josm': 'Open in JOSM',
         'popup.copied': 'Copied!',
@@ -94,14 +99,13 @@ const STRINGS = {
         'popup.prev': 'Previous signal',
         'popup.next': 'Next signal',
         'popup.close': 'Close',
-        'popup.viewOnOsm': 'View on OpenStreetMap',
         'popup.copyPrompt': 'Copy OSM tags',
 
         // OSM existence check
-        'osm.checking': 'Checking in OpenStreetMap…',
-        'osm.inOsm': 'Already in OpenStreetMap',
-        'osm.notInOsm': 'Not yet in OpenStreetMap',
-        'osm.error': 'OSM check failed (network error)',
+        'osm.locateOnOsm': 'Locate on OpenStreetMap',
+        'osm.checking': 'Checking in OpenStreetMap\u2026',
+        'osm.inOsm': nodeId => `Already in OpenStreetMap \u2014 Node #${nodeId}`,
+        'osm.error': 'OSM check failed',
         'osm.retry': 'Retry OSM check',
         'osm.warnSingle': 'This signal appears to already be in OpenStreetMap. Export anyway?',
         'osm.warnMulti': 'One or more signals in this group appear to already be in OpenStreetMap. Export anyway?',
@@ -179,7 +183,7 @@ const STRINGS = {
         'filter.indexError': 'Index des filtres indisponible — les suggestions peuvent être incomplètes.',
 
         // Dropdown (pour les autres champs filtrables)
-        'dropdown.search': n => `Rechercher parmi ${n} valeurs…`,
+        'dropdown.search': n => `Rechercher parmi ${n} valeurs\u2026`,
         'dropdown.noMatch': 'Aucune valeur',
         'dropdown.remove': 'Supprimer le filtre',
 
@@ -196,8 +200,10 @@ const STRINGS = {
         'ctrl.toggle': 'Afficher/masquer le panneau',
         'ctrl.zoomIn': 'Zoom avant',
         'ctrl.zoomOut': 'Zoom arrière',
-        'ctrl.locate': 'Ma position',
+        'ctrl.locate': 'Afficher mon emplacement',
         'ctrl.fullscreen': 'Plein écran',
+        'ctrl.geolocateUnavailable': 'Géolocalisation non disponible.',
+        'ctrl.geolocateError': msg => `Erreur de localisation : ${msg}`,
 
         // Status bar
         'status.signals': 'Signaux',
@@ -211,10 +217,13 @@ const STRINGS = {
         'progress.tiles': n => `Chargement de ${n} tuile(s)…`,
         'progress.filtering': 'Filtrage…',
 
-        // Popup — phrases complètes pour respecter l'ordre des mots
+        // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
-        'popup.osmTags': n => n > 1 ? `Tags OSM (${n} signaux)` : 'Tags OSM',
-        'popup.merged': n => `Tags fusionnés pour ${n} signaux co-localisés`,
+        'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
+        'popup.nodeNone': 'Pas de correspondance',
+        'popup.signalNode': 'Nœud de signal',
+        'popup.previewTags': 'Prévisualiser les tags OSM',
+        'popup.osmTags': 'Tags OSM',
         'popup.copy': 'Copier les tags',
         'popup.josm': 'Ouvrir dans JOSM',
         'popup.copied': 'Copié !',
@@ -222,17 +231,16 @@ const STRINGS = {
         'popup.prev': 'Signal précédent',
         'popup.next': 'Signal suivant',
         'popup.close': 'Fermer',
-        'popup.viewOnOsm': 'Voir sur OpenStreetMap',
         'popup.copyPrompt': 'Copier les tags OSM',
 
         // OSM existence check
-        'osm.checking': 'Vérification dans OpenStreetMap…',
-        'osm.inOsm': 'Déjà dans OpenStreetMap',
-        'osm.notInOsm': 'Pas encore dans OpenStreetMap',
-        'osm.error': 'Échec de la vérification OSM (erreur réseau)',
+        'osm.locateOnOsm': 'Localiser dans OpenStreetMap',
+        'osm.checking': 'Vérification dans OpenStreetMap\u2026',
+        'osm.inOsm': nodeId => `Déjà présent dans OpenStreetMap \u2014 Nœud #${nodeId}`,
+        'osm.error': 'Échec de la vérification OSM',
         'osm.retry': 'Relancer la vérification OSM',
         'osm.warnSingle': 'Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?',
-        'osm.warnMulti': 'Un ou plusieurs signaux de ce groupe semblent déjà présents dans OpenStreetMap. Exporter quand même ?',
+        'osm.warnMulti': 'Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?',
 
         // JOSM errors
         'josm.notReachable': 'JOSM inaccessible',
@@ -253,7 +261,7 @@ const STRINGS = {
         'cat.unsupported': 'Types non supportés',
 
         // About
-        'about.intro': 'Visualisation des données open data de la <strong>signalisation permanente SNCF</strong> avec intégration OSM via JOSM ou presse-papiers.',
+        'about.intro': 'Visualisation des données open data <strong>SNCF Signalisation Permanente</strong> avec intégration OSM via JOSM ou presse-papiers.',
         'about.usage.title': 'Utilisation',
         'about.usage.text': 'Zoomez pour charger les signaux. À faible zoom, les résultats sont spatialement échantillonnés pour garder la carte lisible ; zoom ≥10 affiche tous les signaux dans la vue sans limite. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
         'about.links.title': 'Liens',

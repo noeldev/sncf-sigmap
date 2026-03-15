@@ -30,6 +30,7 @@ import { getSupportedTypes } from './signal-mapping.js';
 import { t, applyI18n, onLangChange } from './i18n.js';
 import { FilterPanel } from './ui/filter-panel.js';
 import { updateFilterCount } from './statusbar.js';
+import { MIN_SEARCH_THRESHOLD } from './config.js';
 
 const _ALL_FILTER_FIELDS = [
     { key: 'type_if', labelKey: 'field.type_if' },
@@ -327,8 +328,31 @@ function _refreshDropdown(idx) {
     const numericSort = def.field === 'code_ligne';
     const sel = _activeFilters[def.field] || new Set();
 
-    const items = all
-        .filter(v => v.includes(q))
+    // Build the filtered candidate list first.
+    const filtered = q ? all.filter(v => v.includes(q)) : all;
+
+    // Large value lists: when the set of matches still exceeds the threshold,
+    // the list would be too long to render usefully. Keep requiring more input
+    // until the match count drops below MIN_SEARCH_THRESHOLD.
+    // The minimum query length is derived from the full list size (proportional gate),
+    // but the actual render decision uses the filtered count — a rare prefix unlocks
+    // the list sooner than a common one.
+    if (filtered.length > MIN_SEARCH_THRESHOLD) {
+        const minChars = Math.max(1, Math.ceil(Math.log10(all.length / MIN_SEARCH_THRESHOLD)));
+        if (q.length < minChars) {
+            // Show only active selections so the user can always uncheck them.
+            const activeItems = [...sel].map(v => ({
+                v,
+                count: _counts[def.field]?.get(v) || 0,
+                active: true,
+                showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
+            }));
+            def.panel.refreshList(activeItems);
+            return;
+        }
+    }
+
+    const items = filtered
         .map(v => ({
             v,
             count: _counts[def.field]?.get(v) || 0,
@@ -374,12 +398,9 @@ function _toggle(field, val) {
     const idx = _defs.findIndex(d => d.field === field);
     if (idx >= 0) {
         const def = _defs[idx];
-        // On deselect: clear the query so the full list reappears rather than
-        // only the previously filtered subset.
-        if (wasActive && def.panel) {
-            def.search = '';
-            def.panel.clearSearch();
-        }
+        // On deselect: do NOT clear the query. The typed text stays visible so
+        // the user can see which items are still selected among their search results.
+        // Only clear when the user explicitly clears the input themselves.
         _refreshTags(idx);
         _refreshDropdown(idx);
         _openDropdown(idx);

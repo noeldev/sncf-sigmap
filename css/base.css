@@ -18,6 +18,7 @@
     --text3: #606b7a;
     --accent: #1d6fa4;
     --accent2: #2589c7;
+    --accent3: #1a7f3c;
     --success: #238636;
     --warn: #d29922;
     --radius: 5px;
@@ -160,9 +161,10 @@ svg.icon {
  * Group 1 — Action (text) buttons: toolbar (.tbtn) and popup footer (.pu-action-btn).
  *   Large enough for a label; var(--radius) rounding; var(--ff-sans) font.
  *
- * Group 2 — Small square icon buttons: OSM status (.pu-osm-btn),
- *   coordinate link (.pu-coords-btn), popup nav (.pu-nav-btn).
- *   Fixed 22 × 22 px (nav: 24 × 24); 3 px radius; icon-only.
+ * Group 2 — Small square icon buttons: popup nav (.pu-nav-btn).
+ *   Fixed 24 x 24 px; 3 px radius; icon-only.
+ *   Popup-specific icon buttons (.pu-osm-locate, .pu-osm-retry, .pu-node-preview-btn)
+ *   are defined in popup.css with their own sizing.
  *
  * Group 3 — Basemap selector (.basemap-btn): wider, image thumbnail, unique style.
  *   Defined in sidebar.css with the rest of the Settings tab.
@@ -190,8 +192,10 @@ svg.icon {
 
 /* ----- Group 2: small square icon buttons ----- */
 
+/* .pu-nav-btn: popup navigation arrows (24x24).
+ * .pu-osm-btn: OSM status indicator (22x22) — 4 states in popup.css.
+ * .pu-node-preview-btn is defined in popup.css with its own sizing. */
 .pu-osm-btn,
-.pu-coords-btn,
 .pu-nav-btn {
     display: inline-flex;
     align-items: center;
@@ -207,12 +211,6 @@ svg.icon {
 }
 
     .pu-osm-btn:hover,
-    .pu-coords-btn:hover,
     .pu-nav-btn:hover {
         border-color: var(--accent2);
-    }
-
-    /* not-in-osm: override the generic hover so border stays muted */
-    .pu-osm-btn.osm-not-in-osm:hover {
-        border-color: var(--border2);
     }
