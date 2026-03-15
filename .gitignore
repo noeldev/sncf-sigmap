@@ -13,3 +13,4 @@ tools/TileBuilder/obj/
 /tools/TileBuilder/.vs
 /js/config.secret.js
 /js/config.local.js
+/tree.txt
