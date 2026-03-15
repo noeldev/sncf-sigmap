@@ -40,7 +40,6 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
-let _lastTileKeys = new Set();
 
 
 // ===== Dot size scale =====
@@ -92,23 +91,23 @@ export function setManifest(manifest) {
 export function refresh(force = false) {
     if (_loadRunning) { _loadPending = true; return; }
 
+    if (!_manifest) return;
+
     const bounds = map.getBounds();
     const zoom = map.getZoom();
-    const tileUrls = getTileUrlsForBounds(bounds, _manifest);
-    const tileKeys = new Set(tileUrls);
+    const fetchUrls = getTileUrlsForBounds(bounds, _manifest, 1);
 
-    if (!force && _eqSets(tileKeys, _lastTileKeys) && !_loadPending) return;
-    _lastTileKeys = tileKeys;
-    _loadPending = false;
-
-    if (!_manifest || tileUrls.length === 0) {
+    if (fetchUrls.length === 0) {
         _markersLayer.clearLayers();
         updateVisibleCount(0);
         setSampledBadge(false);
         return;
     }
-    _runWorker(bounds, tileUrls, zoom);
+
+    _loadPending = false;
+    _runWorker(bounds, fetchUrls, zoom);
 }
+
 
 
 // ===== Worker lifecycle =====
@@ -242,10 +241,3 @@ function _renderGroups(groups) {
 }
 
 
-// ===== Utilities =====
-
-function _eqSets(a, b) {
-    if (a.size !== b.size) return false;
-    for (const v of a) if (!b.has(v)) return false;
-    return true;
-}

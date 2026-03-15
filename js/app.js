@@ -102,7 +102,7 @@ async function _boot() {
             (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
         _lastZoom = z;
         refresh(crossedThreshold);
-    }, 280));
+    }, 150));
 
     refresh(true);
 

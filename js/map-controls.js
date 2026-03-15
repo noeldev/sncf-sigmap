@@ -53,7 +53,7 @@ function _geolocate() {
                 radius: accuracy,
                 color: '#2589c7',
                 fillOpacity: .1,
-                weight: 1,
+                weight: 1
             }).addTo(map);
             L.circleMarker([lat, lng], {
                 radius: 7,
@@ -71,7 +71,7 @@ function _geolocate() {
         },
         {
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 10000
         }
     );
 }
