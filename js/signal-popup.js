@@ -14,12 +14,12 @@
  *   openSignalPopup(latlng, feats, idx?)
  */
 
-import { map }                                    from './map.js';
-import { getTypeColor, getOsmNodes }              from './signal-mapping.js';
-import { t, applyI18n, onLangChange }             from './i18n.js';
+import { map } from './map.js';
+import { getTypeColor, getOsmNodes, isSupported } from './signal-mapping.js';
+import { t, applyI18n, onLangChange } from './i18n.js';
 import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
-import { josmAddNode }                            from './josm.js';
-import { openTagsPopup }                          from './tags-popup.js';
+import { josmAddNode } from './josm.js';
+import { openTagsPopup } from './tags-popup.js';
 
 
 /* ===== Template accessors ===== */
@@ -41,32 +41,53 @@ function _contrastColor(hex) {
 
 /* ===== Module state ===== */
 
-let _popup          = null;
-let _feats          = null;
-let _latlng         = null;
-let _statuses       = null;
-let _currentIdx     = 0;
-let _nodes          = null;
-let _featToNodeIdx  = null;
+let _popup = null;
+let _feats = null;
+let _latlng = null;
+let _statuses = null;
+let _currentIdx = 0;
+let _nodes = null;
+let _featToNodeIdx = null;
 let _currentNodeIdx = -1;
 
 
 /* ===== Public entry point ===== */
 
 export function openSignalPopup(latlng, feats, idx = 0) {
+    _initState(latlng, feats, idx);
+    _openSignalPopup();
+    _scheduleOsmCheck();
+}
+
+/**
+ * Initialise module state for a new popup.
+ * Pre-sets _statuses so _build() has the correct initial state immediately:
+ *   supported   → 'checking'   (Overpass will update these)
+ *   unsupported → 'unsupported' (Locate button shown right away, no Overpass)
+ */
+function _initState(latlng, feats, idx) {
     if (_popup) {
         _popup.remove();
         _popup = null;
     }
-
-    _feats      = feats;
-    _latlng     = latlng;
-    _statuses   = null;
+    _feats = feats;
+    _latlng = latlng;
     _currentIdx = idx;
 
-    _openSignalPopup();
+    const supported = feats.map(f => isSupported(f.p.type_if));
+    _statuses = supported.map(s =>
+        s ? { status: 'checking', nodeId: null }
+          : { status: 'unsupported', nodeId: null }
+    );
+}
 
-    checkSignalGroup(feats).then(results => {
+/**
+ * Fire the Overpass check for any feat whose status is still 'checking'.
+ * No-op when every feat is unsupported (avoids a network request).
+ */
+function _scheduleOsmCheck(force = false) {
+    if (!_statuses.some(s => s.status === 'checking')) return;
+    checkSignalGroup(_feats, force).then(results => {
         _statuses = results;
         if (_popup?.isOpen()) {
             _popup.setContent(_build(_currentIdx));
@@ -79,10 +100,10 @@ export function openSignalPopup(latlng, feats, idx = 0) {
 
 function _openSignalPopup() {
     _popup = L.popup({
-        maxWidth:    520,
-        autoPan:     true,
+        maxWidth: 520,
+        autoPan: true,
         closeButton: false,
-        className:   'pu-leaflet',
+        className: 'pu-leaflet',
     }).setLatLng(_latlng).setContent(_build(_currentIdx));
 
     // Register BEFORE openOn(): Leaflet fires 'popupopen' synchronously inside
@@ -145,14 +166,11 @@ function _onSignalPopupClick(e) {
             break;
 
         case 'osm-retry':
-            _statuses = null;
+            _statuses = _statuses.map(s =>
+                s.status === 'error' ? { status: 'checking', nodeId: null } : s
+            );
             _popup.setContent(_build(_currentIdx));
-            checkSignalGroup(_feats, true).then(results => {
-                _statuses = results;
-                if (_popup?.isOpen()) {
-                    _popup.setContent(_build(_currentIdx));
-                }
-            });
+            _scheduleOsmCheck(true);
             break;
     }
 }
@@ -172,37 +190,37 @@ function _mapElements(wrap) {
         [...wrap.querySelectorAll('.pu-row[data-field]')].map(r => [r.dataset.field, r])
     );
     return {
-        navGroup:       wrap.querySelector('.pu-nav-group'),
-        navLabel:       wrap.querySelector('.pu-nav-label'),
-        idVal:          rows.idreseau?.querySelector('.pu-val'),
-        idRow:          rows.idreseau,
-        coordsVal:      rows.coords?.querySelector('.pu-val'),
-        nodeCounter:    wrap.querySelector('.pu-node-counter'),
+        navGroup: wrap.querySelector('.pu-nav-group'),
+        navLabel: wrap.querySelector('.pu-nav-label'),
+        idVal: rows.idreseau?.querySelector('.pu-val'),
+        idRow: rows.idreseau,
+        coordsVal: rows.coords?.querySelector('.pu-val'),
+        nodeCounter: wrap.querySelector('.pu-node-counter'),
         nodePreviewBtn: wrap.querySelector('[data-action="node-preview"]'),
-        josmBtn:        wrap.querySelector('[data-action="josm"]'),
-        copyBtn:        wrap.querySelector('[data-action="copy"]'),
+        josmBtn: wrap.querySelector('[data-action="josm"]'),
+        copyBtn: wrap.querySelector('[data-action="copy"]'),
         rows,
     };
 }
 
 function _build(idx) {
-    const s       = _feats[idx];
-    const p       = s.p;
-    const total   = _feats.length;
-    const osmInfo = _statuses?.[idx] ?? { status: 'checking', nodeId: null };
+    const s = _feats[idx];
+    const p = s.p;
+    const total = _feats.length;
+    const osmInfo = _statuses[idx];
 
-    const result    = getOsmNodes(_feats);
-    _nodes          = result.nodes;
-    _featToNodeIdx  = result.featToNodeIdx;
-    const nodeIdx   = _featToNodeIdx.get(s);
+    const result = getOsmNodes(_feats);
+    _nodes = result.nodes;
+    _featToNodeIdx = result.featToNodeIdx;
+    const nodeIdx = _featToNodeIdx.get(s);
     _currentNodeIdx = nodeIdx ?? -1;
-    const node      = nodeIdx !== undefined ? _nodes[nodeIdx] : null;
+    const node = nodeIdx !== undefined ? _nodes[nodeIdx] : null;
 
     const wrap = _tplPopup().content.cloneNode(true).querySelector('.pu-wrap');
     applyI18n(wrap);
 
     const color = getTypeColor(p.type_if);
-    wrap.style.setProperty('--signal-color',    color);
+    wrap.style.setProperty('--signal-color', color);
     wrap.style.setProperty('--signal-contrast', _contrastColor(color));
 
     const el = _mapElements(wrap);
@@ -226,17 +244,18 @@ function _build(idx) {
 
     el.coordsVal.textContent = `${s.lat.toFixed(6)}\u2009\u2009${s.lng.toFixed(6)}`;
 
-    if (_nodes.length === 0) {
-        el.nodeCounter.textContent = t('popup.nodeNone');
-        el.nodePreviewBtn.disabled = true;
+    if (nodeIdx === undefined) {
+        // Current signal is unsupported — no OSM node mapping for it.
+        el.nodeCounter.textContent = t('popup.nodeNA');
+        el.nodePreviewBtn.style.visibility = 'hidden';
     } else {
-        el.nodeCounter.textContent = t('popup.nodeLabel', (nodeIdx ?? 0) + 1, _nodes.length);
-        el.nodePreviewBtn.disabled = !node;
+        el.nodeCounter.textContent = t('popup.nodeLabel', nodeIdx + 1, _nodes.length);
+        el.nodePreviewBtn.style.visibility = node ? '' : 'hidden';
     }
 
     if (!node) {
         el.josmBtn.disabled = true;
-        el.copyBtn.disabled  = true;
+        el.copyBtn.disabled = true;
     }
 
     return wrap;
@@ -254,7 +273,7 @@ function _applyOsmStatus(idRow, { status, nodeId }, feat) {
         const lbl = t('osm.inOsm', nodeId);
         link.title = lbl;
         link.setAttribute('aria-label', lbl);
-    } else if (status === 'not-in-osm') {
+    } else if (status === 'not-in-osm' || status === 'unsupported') {
         const link = idRow.querySelector('.osm-locate');
         link.classList.remove('is-hidden');
         link.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
@@ -342,7 +361,7 @@ function _initSignalKeyboard(popupEl) {
             )].filter(n => !n.closest('.is-hidden'));
             if (!focusable.length) return;
             const first = focusable[0];
-            const last  = focusable[focusable.length - 1];
+            const last = focusable[focusable.length - 1];
             if (e.shiftKey && document.activeElement === first) {
                 e.preventDefault();
                 last.focus();

@@ -88,7 +88,7 @@ const STRINGS = {
         // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
-        'popup.nodeNone': 'No mapping',
+        'popup.nodeNA': 'N/A',
         'popup.signalNode': 'Signal Node',
         'popup.previewTags': 'Preview OSM tags',
         'popup.osmTags': 'OSM Tags',
@@ -220,7 +220,7 @@ const STRINGS = {
         // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
-        'popup.nodeNone': 'Pas de correspondance',
+        'popup.nodeNA': 'N/A',
         'popup.signalNode': 'Nœud de signal',
         'popup.previewTags': 'Prévisualiser les tags OSM',
         'popup.osmTags': 'Tags OSM',

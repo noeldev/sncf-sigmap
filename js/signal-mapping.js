@@ -109,6 +109,14 @@ const _SIGNAL_MAPPING = {
             form: "light"
         }
     },
+    "VOIE CONV": {
+        group: "main",
+        cat: "main",
+        type: "FR:TLC",
+        properties: {
+            form: "light"
+        }
+    },
 
     // Distant signals
     "CARRE A": {

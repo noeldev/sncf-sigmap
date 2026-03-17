@@ -36,42 +36,15 @@ function _initLangPicker() {
     const btn = document.getElementById('lang-select-btn');
     if (!dropdown || !btn) return;
 
-    // Start hidden — Dropdown controller manages visibility via .is-hidden.
     dropdown.classList.add('is-hidden');
-
-    const _updateBtn = () => {
-        const lang = getLang();
-        const option = dropdown.querySelector(`[data-val="${lang}"]`);
-        const flagEl = document.getElementById('lang-flag');
-        const lblEl = document.getElementById('lang-label');
-
-        if (flagEl && option) {
-            const imgSrc = option.querySelector('img')?.src;
-            let img = flagEl.querySelector('img');
-            if (!img) {
-                img = document.createElement('img');
-                img.className = 'flag-img';
-                flagEl.appendChild(img);
-            }
-            if (imgSrc) img.src = imgSrc;
-            img.alt = option.querySelector('span')?.textContent || '';
-        }
-        if (lblEl && option) lblEl.textContent = option.querySelector('span')?.textContent || lang;
-
-        dropdown.querySelectorAll('.lang-option').forEach(o =>
-            o.classList.toggle('active', o.dataset.val === lang)
-        );
-    };
 
     const _activate = (val) => {
         setLang(val);
-        _updateBtn();
+        _updateLangBtn(dropdown);
         refreshBasemapLabels();
         langDd.close();
     };
 
-    // Dropdown handles: ARIA (aria-expanded, role=listbox, role=option),
-    // keyboard navigation, and outside-click closing.
     const langDd = new Dropdown({
         panel: document.getElementById('lang-select-wrap'),
         dropdownEl: dropdown,
@@ -81,7 +54,6 @@ function _initLangPicker() {
         onActivate: _activate,
     });
 
-    // Mouse activation: delegate to list container to avoid per-item listeners.
     dropdown.addEventListener('mousedown', e => {
         const opt = e.target.closest('.lang-option');
         if (!opt) return;
@@ -89,18 +61,42 @@ function _initLangPicker() {
         _activate(opt.dataset.val);
     });
 
-    // Button click: close every other open dropdown, then toggle this one.
-    // closeAllDropdowns() goes through the shared registry so each instance's
-    // _open flag stays in sync with the DOM — unlike raw classList manipulation.
     btn.addEventListener('click', e => {
         e.stopPropagation();
         const wasOpen = langDd.isOpen();
         closeAllDropdowns();
         if (!wasOpen) langDd.open();
     });
-    // Outside-click closing handled by Dropdown's shared registry in dropdown.js.
 
-    _updateBtn();
+    _updateLangBtn(dropdown);
+}
+
+/**
+ * Sync the language button flag + label with the current language,
+ * and mark the active option in the dropdown.
+ */
+function _updateLangBtn(dropdown) {
+    const lang = getLang();
+    const option = dropdown.querySelector(`[data-val="${lang}"]`);
+    const flagEl = document.getElementById('lang-flag');
+    const lblEl = document.getElementById('lang-label');
+
+    if (flagEl && option) {
+        const imgSrc = option.querySelector('img')?.src;
+        let img = flagEl.querySelector('img');
+        if (!img) {
+            img = document.createElement('img');
+            img.className = 'flag-img';
+            flagEl.appendChild(img);
+        }
+        if (imgSrc) img.src = imgSrc;
+        img.alt = option.querySelector('span')?.textContent || '';
+    }
+    if (lblEl && option) lblEl.textContent = option.querySelector('span')?.textContent || lang;
+
+    dropdown.querySelectorAll('.lang-option').forEach(o =>
+        o.classList.toggle('active', o.dataset.val === lang)
+    );
 }
 
 
@@ -134,10 +130,12 @@ async function _refreshJosmStatus() {
     const result = await josmGetVersion();
     body.dataset.josmStatus = result.status;
 
-    if (result.status === 'ok') {
-        document.getElementById('josm-val-version').textContent = result.version;
-        document.getElementById('josm-val-protocol').textContent =
-            `${result.protocolMajor}.${result.protocolMinor}`;
-        document.getElementById('josm-val-port').textContent = result.port;
-    }
+    if (result.status === 'ok') _updateJosmFields(result);
+}
+
+/** Populate the JOSM detection panel with version/protocol/port values. */
+function _updateJosmFields({ version, protocolMajor, protocolMinor, port }) {
+    document.getElementById('josm-val-version').textContent = version;
+    document.getElementById('josm-val-protocol').textContent = `${protocolMajor}.${protocolMinor}`;
+    document.getElementById('josm-val-port').textContent = port;
 }

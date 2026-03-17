@@ -133,48 +133,17 @@ function _runWorker(bounds, tileUrls, zoom) {
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
-    const _workerDone = () => {
-        _terminateWorker();
-        _loadRunning = false;
-        hideProgress();
-    };
-
     _worker.onmessage = e => {
-        // Discard any message not originating from our own worker
-        // (e.g. browser extension noise such as Malwarebytes injection).
         if (!isOwnWorkerMessage(e)) return;
-
         const { status, msg, groups, sampled, total } = e.data;
-        if (status === 'progress') {
-            showProgress(msg);
-            return;
-        }
-        if (status === 'error') {
-            _workerDone();
-            console.error('[Worker]', e.data.error);
-            return;
-        }
-        if (status === 'done') {
-            // Rebuild counts before releasing _loadRunning.  Any refresh() call
-            // triggered between _workerDone() and indexSignals() would start a new
-            // worker cycle and call indexSignals() a second time on the same data,
-            // doubling every counter.  Keeping _loadRunning = true for the duration
-            // of the rebuild ensures such calls queue as _loadPending instead.
-            resetCounts();
-            indexSignals(groups.flatMap(g => g.all));
-            _renderGroups(groups);
-            setSampledBadge(sampled, total);
-            _workerDone();
-            if (_loadPending) {
-                _loadPending = false;
-                refresh(true);
-            }
-        }
+        if (status === 'progress') { showProgress(msg); return; }
+        if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
+        if (status === 'done') { _onWorkerDone(groups, sampled, total); }
     };
 
     _worker.onerror = err => {
         console.error('[Worker error]', err.message);
-        _workerDone();
+        _terminateLoad();
     };
 
     _worker.postMessage({
@@ -184,6 +153,31 @@ function _runWorker(bounds, tileUrls, zoom) {
         bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
         maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
     });
+}
+
+/** Release the worker and clear the running flag. */
+function _terminateLoad() {
+    _terminateWorker();
+    _loadRunning = false;
+    hideProgress();
+}
+
+/**
+ * Handle a successful worker 'done' message.
+ * Rebuilds filter counts, renders markers, then runs any pending refresh.
+ * _loadRunning stays true until _terminateLoad() to prevent double-counting
+ * if a refresh() arrives during indexSignals().
+ */
+function _onWorkerDone(groups, sampled, total) {
+    resetCounts();
+    indexSignals(groups.flatMap(g => g.all));
+    _renderGroups(groups);
+    setSampledBadge(sampled, total);
+    _terminateLoad();
+    if (_loadPending) {
+        _loadPending = false;
+        refresh(true);
+    }
 }
 
 
@@ -239,5 +233,3 @@ function _renderGroups(groups) {
 
     updateVisibleCount(groups.length);
 }
-
-

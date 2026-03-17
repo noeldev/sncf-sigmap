@@ -86,15 +86,21 @@ function _buildBasemapButtons() {
     list.replaceChildren();
     const tpl = document.getElementById('tpl-basemap-btn');
     Object.entries(BASEMAPS).forEach(([key, def]) => {
-        const btn = tpl.content.cloneNode(true).querySelector('.basemap-btn');
-        btn.classList.toggle('active', key === _current);
-        btn.dataset.map = key;
-        btn.querySelector('.basemap-thumb').src = def.thumb;
-        btn.querySelector('.basemap-thumb').onerror = function () { this.style.display = 'none'; };
-        btn.querySelector('.basemap-label').textContent = t(def.labelKey);
-        btn.addEventListener('click', () => _setBasemap(key));
-        list.appendChild(btn);
+        list.appendChild(_makeBasemapBtn(key, def, tpl));
     });
+}
+
+/** Clone and configure one basemap selector button from the template. */
+function _makeBasemapBtn(key, def, tpl) {
+    const btn = tpl.content.cloneNode(true).querySelector('.basemap-btn');
+    btn.classList.toggle('active', key === _current);
+    btn.dataset.map = key;
+    const thumb = btn.querySelector('.basemap-thumb');
+    thumb.src = def.thumb;
+    thumb.onerror = function () { this.style.display = 'none'; };
+    btn.querySelector('.basemap-label').textContent = t(def.labelKey);
+    btn.addEventListener('click', () => _setBasemap(key));
+    return btn;
 }
 
 /**

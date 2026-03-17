@@ -38,10 +38,6 @@ import { initStatusBar, updateZoomStatus } from './statusbar.js';
 
 let _lastZoom = -1;
 
-// Cached DOM ref for the record-count display — owned here because
-// it is updated by app.js after the manifest loads, not by any sub-module.
-let _elRecordCount = null;
-
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
 async function _boot() {
     await initMap('map');
@@ -60,8 +56,6 @@ async function _boot() {
         refresh(true);
     });
 
-    _elRecordCount = document.getElementById('record-count');
-
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
@@ -76,25 +70,37 @@ async function _boot() {
         return;
     }
 
-    const { tileCount, totalSignals } = getManifestStats(manifest);
-    console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-
-    setRecordCount({ totalSignals, tileCount });
-
-    if (_elRecordCount) {
-        _elRecordCount.textContent =
-            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
-            `${tileCount} ${t('status.tiles_lower')}`;
-    }
-
+    _updateRecordCount(manifest);
     hideProgress();
-
-    // Hand the manifest to the layer module before the first refresh.
     setManifest(manifest);
 
     _lastZoom = map.getZoom();
     updateZoomStatus(_lastZoom);
+    _initMapEvents();
 
+    refresh(true);
+    applyTranslations();
+}
+
+/**
+ * Update the record-count display and status bar after the manifest loads.
+ * @param {object} manifest
+ */
+function _updateRecordCount(manifest) {
+    const { tileCount, totalSignals } = getManifestStats(manifest);
+    console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
+    setRecordCount({ totalSignals, tileCount });
+    const el = document.getElementById('record-count');
+    if (el) el.textContent =
+        `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
+        `${tileCount} ${t('status.tiles_lower')}`;
+}
+
+/**
+ * Wire Leaflet map events to refresh() with zoom-threshold detection.
+ * Debounced so rapid pan/zoom sequences produce a single refresh call.
+ */
+function _initMapEvents() {
     map.on('moveend zoomend', _debounce(() => {
         const z = map.getZoom();
         updateZoomStatus(z);
@@ -103,10 +109,6 @@ async function _boot() {
         _lastZoom = z;
         refresh(crossedThreshold);
     }, 150));
-
-    refresh(true);
-
-    applyTranslations();
 }
 
 _boot();
