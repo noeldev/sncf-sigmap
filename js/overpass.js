@@ -8,8 +8,8 @@
  *   checkSignalGroup(feats, force?)  — check a co-located group in one request
  *   invalidateSignalGroup(feats)     — clear 'not-in-osm' cache entries after export
  *
- * Each signal is checked under both its forward and backward ref key in a
- * single Overpass union query, so a hit on either counts as 'in-osm'.
+ * Each signal is checked by its railway:signal:<cat>:ref tag in a single
+ * Overpass union query — one clause per supported signal.
  *
  * Result shape per feat:
  *   { status: 'in-osm',      nodeId: number }
@@ -21,7 +21,7 @@
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 import { map } from './map.js';
-import { getSignalId, getBackwardSignalId } from './signal-mapping.js';
+import { getSignalId } from './signal-mapping.js';
 
 
 /* ===== Cache and in-flight state ===== */
@@ -63,24 +63,21 @@ async function _fetchOverpass(query, signal) {
  */
 function _buildEntries(feats) {
     return feats.map(f => {
-        const fwdRef = getSignalId(f.p.type_if);
-        const bwdRef = getBackwardSignalId(f.p.type_if);
-        if (!fwdRef || !f.p.idreseau) {
-            return { key: null, fwdRef: null, bwdRef: null, idreseau: null };
+        const refTag = getSignalId(f.p.type_if);
+        if (!refTag || !f.p.idreseau) {
+            return { key: null, refTag: null, idreseau: null };
         }
-        return { key: _cacheKey(fwdRef, f.p.idreseau), fwdRef, bwdRef, idreseau: f.p.idreseau };
+        return { key: _cacheKey(refTag, f.p.idreseau), refTag, idreseau: f.p.idreseau };
     });
 }
 
 /**
- * Build an Overpass union query for the given unique entries.
- * Two clauses per signal: forward ref + backward ref.
+ * Build an Overpass union query — one node clause per unique entry.
  */
 function _buildBatchQuery(unique, bbox) {
-    const unions = unique.flatMap(e => [
-        `node["${e.fwdRef}"="${e.idreseau}"](${bbox});`,
-        `node["${e.bwdRef}"="${e.idreseau}"](${bbox});`,
-    ]).join('');
+    const unions = unique.map(e =>
+        `node["${e.refTag}"="${e.idreseau}"](${bbox});`
+    ).join('');
     return `[out:json][timeout:15];(${unions});out ids tags;`;
 }
 
@@ -92,8 +89,7 @@ function _updateCacheFromResponse(data, unique) {
     for (const el of (data.elements || [])) {
         for (const e of unique) {
             if (_cache.has(e.key)) continue;
-            if (el.tags?.[e.fwdRef] === e.idreseau ||
-                el.tags?.[e.bwdRef] === e.idreseau) {
+            if (el.tags?.[e.refTag] === e.idreseau) {
                 _cache.set(e.key, { status: 'in-osm', nodeId: el.id });
             }
         }
@@ -129,15 +125,10 @@ function _resolveStatuses(entries, hadError) {
  */
 export function invalidateSignalGroup(feats) {
     for (const f of feats) {
-        const fwdRef = getSignalId(f.p.type_if);
-        if (!fwdRef || !f.p.idreseau) continue;
-        const key = _cacheKey(fwdRef, f.p.idreseau);
+        const refTag = getSignalId(f.p.type_if);
+        if (!refTag || !f.p.idreseau) continue;
+        const key = _cacheKey(refTag, f.p.idreseau);
         if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
-        const bwdRef = getBackwardSignalId(f.p.type_if);
-        if (bwdRef) {
-            const bwdKey = _cacheKey(bwdRef, f.p.idreseau);
-            if (_cache.get(bwdKey)?.status === 'not-in-osm') _cache.delete(bwdKey);
-        }
     }
 }
 

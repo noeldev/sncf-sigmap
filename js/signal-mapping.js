@@ -12,12 +12,12 @@
  * Tags added automatically for every node:
  *   railway=signal
  *   railway:position:exact    — PK converted to decimal km (e.g. "077+305" → "77.305")
- *   railway:signal:direction  — forward | backward | both
+ *   railway:signal:direction  — forward | backward (one per node)
  *   railway:signal:position   — bridge | right | left
  *   railway:signal:<cat>:ref  — idreseau (suffixed when a forward partner exists in same cat)
  *   source=SNCF - 03/2022     — always written last
  *
- * :backward suffix rules — see _buildNodeTags() for the complete algorithm.
+ *   Each physical signal gets its own node when directions differ,
  *
  * Reference: https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
@@ -152,8 +152,7 @@ const _SIGNAL_MAPPING = {
         cat: "speed_limit_distant",
         type: "FR:TIV-D_MOB",
         properties: {
-            form: "light",
-            states: "open;closed"
+            form: "light"
         }
     },
     "TIV R MOB": {
@@ -161,8 +160,7 @@ const _SIGNAL_MAPPING = {
         cat: "speed_limit_reminder",
         type: "FR:TIV-R_MOB",
         properties: {
-            form: "light",
-            states: "open;closed"
+            form: "light"
         }
     },
     "TIV D FIXE": {
@@ -270,7 +268,8 @@ const _SIGNAL_MAPPING = {
         cat: "route",
         type: "FR:ID",
         properties: {
-            form: "light"
+            form: "light",
+            states: "FR:ID1;FR:ID2"
         }
     },
     "IDD": {
@@ -278,8 +277,7 @@ const _SIGNAL_MAPPING = {
         cat: "route_distant",
         type: "FR:TIDD",
         properties: {
-            form: "light",
-            states: "off;left;right"
+            form: "light"
         }
     },
     "TLD": {
@@ -332,7 +330,7 @@ const _SIGNAL_MAPPING = {
     "CC EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC_EXE",
+        type: "FR:CC",
         properties: {
             type: "power_off",
             form: "sign",
@@ -342,7 +340,7 @@ const _SIGNAL_MAPPING = {
     "CC FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC_FIN",
+        type: "FR:CC",
         properties: {
             type: "power_on",
             form: "sign",
@@ -362,7 +360,7 @@ const _SIGNAL_MAPPING = {
     "BP DIS": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_DIS",
+        type: "FR:BP",
         properties: {
             type: "pantograph_down_advance",
             form: "sign"
@@ -371,7 +369,7 @@ const _SIGNAL_MAPPING = {
     "BP EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_EXE",
+        type: "FR:BP",
         properties: {
             type: "pantograph_down",
             form: "sign",
@@ -381,7 +379,7 @@ const _SIGNAL_MAPPING = {
     "BP FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_FIN",
+        type: "FR:BP",
         properties: {
             type: "pantograph_up",
             form: "sign",
@@ -391,7 +389,7 @@ const _SIGNAL_MAPPING = {
     "FIN CAT": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:FIN_CAT",
+        type: "FR:CAT",
         properties: {
             type: "end_of_catenary",
             form: "sign"
@@ -424,7 +422,7 @@ const _SIGNAL_MAPPING = {
         }
     },
 
-    // Cab signalling / ETCS
+    // Cab signalling (TVM)
     "CAB E": {
         group: "train_protection",
         cat: "train_protection",
@@ -436,7 +434,7 @@ const _SIGNAL_MAPPING = {
     "CAB R": {
         group: "train_protection",
         cat: "train_protection",
-        type: "FR:CAB_E",
+        type: "FR:CAB_R",
         properties: {
             form: "sign",
             function: "entry"
@@ -545,7 +543,7 @@ const _SIGNAL_MAPPING = {
     "APPROCHETS": {
         group: "station",
         cat: "station_distant",
-        type: "FR:APPROCHE_ETS",
+        type: "FR:ETS",
         properties: {
             form: "sign"
         }
@@ -553,14 +551,14 @@ const _SIGNAL_MAPPING = {
     "APPROETSA": {
         group: "station",
         cat: "station_distant",
-        type: "FR:APPROCHE_ETS_A",
+        type: "FR:ETS_A",
         properties: {
             form: "sign"
         }
     },
     "LIMITETS": {
         group: "station",
-        cat: "station_distant",
+        cat: "station",
         type: "FR:LIMITE_ETS",
         properties: {
             form: "sign"
@@ -654,8 +652,7 @@ const _SIGNAL_MAPPING = {
         cat: "shunting",
         type: "FR:SLM",
         properties: {
-            form: "light",
-            states: "push;pull;stop"
+            form: "light"
         }
     },
 
@@ -682,13 +679,7 @@ const _SIGNAL_MAPPING = {
 
 /** Convert SNCF sens code to OSM direction string. */
 function _osmDir(sens) {
-    return { C: "forward", D: "backward", B: "both" }[sens] ?? "forward";
-}
-
-/** True when dir1 and dir2 are strictly opposite (forward ↔ backward). */
-function _isOpposite(dir1, dir2) {
-    return (dir1 === "forward" && dir2 === "backward") ||
-        (dir1 === "backward" && dir2 === "forward");
+    return { C: "forward", D: "backward" }[sens] ?? "forward";
 }
 
 /** Convert SNCF PK string "077+305" to decimal km "77.305". */
@@ -713,119 +704,33 @@ function _convertPosition(raw) {
  * Returns true when the incoming feature can be placed in the given group
  * without producing conflicting OSM tags.
  *
- * Two signals with the SAME ORM category (cat) conflict when they face the
- * SAME direction — they would both generate the same tag key prefix, with or
- * without the :backward suffix, overwriting each other.
- *
- * Two same-cat signals facing STRICTLY OPPOSITE directions can coexist in one
- * node. Their type values may differ (e.g. FR:Z forward + FR:R backward).
- * Whether direction=both is valid is a separate concern — see _isSymmetric.
- *
- * sens=B ("both") is treated as covering all directions and therefore conflicts
- * with any other same-cat signal regardless of the other's direction.
+ * Two conditions must both hold:
+ *   1. Same direction — every signal on a node faces the same way, matching
+ *      the JOSM preset model where one node = one physical signal location.
+ *   2. No category conflict — each ORM category maps to a unique tag key prefix
+ *      (railway:signal:<cat>), so two signals of the same category on the same
+ *      node would overwrite each other.
  */
 function _canFit(feat, group) {
-    const e1 = _SIGNAL_MAPPING[feat.p.type_if];
-    const dir1 = _osmDir(feat.p.sens);
-
-    for (const other of group) {
-        const e2 = _SIGNAL_MAPPING[other.p.type_if];
-        const dir2 = _osmDir(other.p.sens);
-
-        if (e1.cat !== e2.cat) continue;   // different category — no conflict
-
-        // Same category: only strictly opposite directions avoid a key collision.
-        if (!_isOpposite(dir1, dir2)) return false;
-    }
-    return true;
-}
-
-/**
- * Returns true when every signal in the group is perfectly paired: for each
- * ORM category, exactly one forward signal and one backward signal share the
- * same type value, with no unpaired signals.
- */
-function _isSymmetric(group) {
-    const byCat = new Map();
-    for (const feat of group) {
-        const e = _SIGNAL_MAPPING[feat.p.type_if];
-        const dir = _osmDir(feat.p.sens);
-        if (dir === "both") return false;   // sens=B would make direction=both ambiguous
-        if (!byCat.has(e.cat)) byCat.set(e.cat, { fwd: null, bwd: null });
-        const slot = byCat.get(e.cat);
-        if (dir === "forward") slot.fwd = feat;
-        else slot.bwd = feat;
-    }
-    for (const { fwd, bwd } of byCat.values()) {
-        if (!fwd || !bwd) return false;   // unpaired signal in this category
-        if (_SIGNAL_MAPPING[fwd.p.type_if].type !==
-            _SIGNAL_MAPPING[bwd.p.type_if].type) return false;   // types differ
-    }
-    return true;
+    const cat1 = _SIGNAL_MAPPING[feat.p.type_if].cat;
+    const dir1 = feat.p.sens;
+    return group.every(other =>
+        other.p.sens === dir1 &&
+        _SIGNAL_MAPPING[other.p.type_if].cat !== cat1
+    );
 }
 
 
-/* ===== OSM tag construction — step functions ===== */
+/* ===== OSM tag construction ===== */
 
 /**
- * Step 1 of _buildNodeTags.
- *
- * Determine the node's railway:signal:direction value and which direction is
- * "principal" (the one that writes tags without any suffix).
- *
- *   direction=both      iff the group is perfectly symmetric (see _isSymmetric).
- *   direction=forward   when fwdCount >= bwdCount (tie breaks to forward).
- *   direction=backward  when bwdCount > fwdCount.
- *
- * The principal direction is forward in all cases except direction=backward.
- *
- * Returns { nodeDir, principal } where principal is "forward" or "backward".
- */
-function _computeNodeDirection(group) {
-    if (_isSymmetric(group)) return { nodeDir: "both", principal: "forward" };
-
-    const fwdCount = group.filter(f => f.p.sens !== "D").length;
-    const bwdCount = group.filter(f => f.p.sens === "D").length;
-    const nodeDir = fwdCount >= bwdCount ? "forward" : "backward";
-    return { nodeDir, principal: nodeDir };
-}
-
-/**
- * Step 2 of _buildNodeTags.
- *
- * Distribute every signal in the group into a per-category slot map.
- * Each category gets a "principal" slot (signal whose direction matches the
- * node's principal direction, or sens=B) and an "other" slot (the opposite).
- *
- * Map insertion order follows the feature sort order from getOsmNodes, which
- * mirrors _SIGNAL_MAPPING priority — this controls the final tag output order.
- *
- * Returns Map<cat, { principal: feat|null, other: feat|null }>.
- */
-function _groupByCat(group, principal) {
-    const byCat = new Map();
-    for (const feat of group) {
-        const e = _SIGNAL_MAPPING[feat.p.type_if];
-        const dir = _osmDir(feat.p.sens);
-        if (!byCat.has(e.cat)) byCat.set(e.cat, { principal: null, other: null });
-        const slot = byCat.get(e.cat);
-        // sens=B ("both") counts as principal — it covers all directions.
-        if (dir === "both" || dir === principal) slot.principal = feat;
-        else slot.other = feat;
-    }
-    return byCat;
-}
-
-/**
- * Step 3a — Signal present in the principal direction only (no opposite partner).
- *
- * No suffix is needed anywhere: there is no key collision risk.
+ * Write all OSM tags for one signal into the tags Map.
  *
  *   railway:signal:<cat>           = <type>
- *   railway:signal:<cat>:<propKey> = <propVal>   (all properties)
+ *   railway:signal:<cat>:<propKey> = <propVal>  (all properties)
  *   railway:signal:<cat>:ref       = <idreseau>
  */
-function _writePrincipalOnlyTags(prefix, feat, tags) {
+function _writeSignalTags(prefix, feat, tags) {
     const e = _SIGNAL_MAPPING[feat.p.type_if];
     tags.set(prefix, e.type);
     for (const [k, v] of Object.entries(e.properties || {})) {
@@ -835,118 +740,29 @@ function _writePrincipalOnlyTags(prefix, feat, tags) {
 }
 
 /**
- * Step 3b — Signal present in the non-principal (backward) direction only,
- * with no forward partner in the same category.
- *
- * The type tag receives the :backward suffix to indicate its direction.
- * Properties and :ref do NOT receive :backward — with no forward partner there
- * is no key collision, and the :backward on the type provides sufficient
- * context for OSM consumers (this is the established ORM convention).
- *
- *   railway:signal:<cat>:backward  = <type>
- *   railway:signal:<cat>:<propKey> = <propVal>   (no suffix — no conflict)
- *   railway:signal:<cat>:ref       = <idreseau>  (no suffix — no conflict)
- */
-function _writeUnpairedBackwardTags(prefix, feat, tags) {
-    const e = _SIGNAL_MAPPING[feat.p.type_if];
-    tags.set(`${prefix}:backward`, e.type);
-    for (const [k, v] of Object.entries(e.properties || {})) {
-        tags.set(`${prefix}:${k}`, v);
-    }
-    if (feat.p.idreseau) tags.set(`${prefix}:ref`, feat.p.idreseau);
-}
-
-/**
- * Step 3c — Two signals back-to-back in the same category (one forward, one
- * backward).  Tags are deduplicated: shared property values are written once
- * without suffix; only divergent values receive the :backward suffix.
- *
- * Forward block (no suffix):
- *   railway:signal:<cat>           = <type_fwd>
- *   railway:signal:<cat>:<propKey> = <fwdVal>    — or <bwdVal> if fwd absent
- *   railway:signal:<cat>:ref       = <idreseau_fwd>
- *
- * Backward block (:backward suffix applied selectively):
- *   railway:signal:<cat>:backward           = <type_bwd>   always written,
- *                                             even when identical to type_fwd
- *   railway:signal:<cat>:<propKey>:backward = <bwdVal>     only when ≠ fwdVal
- *   railway:signal:<cat>:ref:backward       = <idreseau_bwd>  always written
- *                                             (idreseau values are always distinct)
- */
-function _writePairedTags(prefix, pFeat, oFeat, tags) {
-    const pEntry = _SIGNAL_MAPPING[pFeat.p.type_if];
-    const oEntry = _SIGNAL_MAPPING[oFeat.p.type_if];
-    const pProps = pEntry.properties || {};
-    const oProps = oEntry.properties || {};
-    const allPropKeys = new Set([...Object.keys(pProps), ...Object.keys(oProps)]);
-
-    // Forward block -----
-    tags.set(prefix, pEntry.type);
-
-    // Unified property set: for each key present in either direction, write
-    // the forward value without suffix. If the key only exists in the backward
-    // signal, write the backward value without suffix (no fwd key to collide).
-    for (const k of allPropKeys) {
-        tags.set(`${prefix}:${k}`, pProps[k] !== undefined ? pProps[k] : oProps[k]);
-    }
-
-    if (pFeat.p.idreseau) tags.set(`${prefix}:ref`, pFeat.p.idreseau);
-
-    // Backward block -----
-    // Type is always written even when identical to the forward type: it marks
-    // the presence of a second physical signal facing the opposite direction.
-    tags.set(`${prefix}:backward`, oEntry.type);
-
-    // Only properties whose backward value DIFFERS from the forward value need
-    // the :backward suffix; identical values are already covered by the forward
-    // block above and repeating them would be redundant.
-    for (const k of allPropKeys) {
-        if (oProps[k] !== undefined && oProps[k] !== pProps[k]) {
-            tags.set(`${prefix}:${k}:backward`, oProps[k]);
-        }
-    }
-
-    // Ref is always written with :backward suffix — idreseau values are always
-    // distinct between two physical signals even of the same type.
-    if (oFeat.p.idreseau) tags.set(`${prefix}:ref:backward`, oFeat.p.idreseau);
-}
-
-/**
  * Build the complete OSM tag Map for one node group.
  *
- * Orchestrates the four steps defined above:
- *   1. _computeNodeDirection — derive nodeDir and the principal direction
- *   2. _groupByCat           — assign each signal to a per-category slot
- *   3. Write common node header tags
- *   4. Per-category: dispatch to the appropriate tag-writer based on slot fill:
- *        principal slot only  → _writePrincipalOnlyTags    (step 3a)
- *        other slot only      → _writeUnpairedBackwardTags  (step 3b)
- *        both slots filled    → _writePairedTags            (step 3c)
- *   5. Append source=SNCF - 03/2022 as the final tag
+ * Steps:
+ *   1. Determine direction from the first signal in the group (all signals in
+ *      a group share the same direction — enforced by _canFit).
+ *   2. Write common node header tags.
+ *   3. Write per-signal tags via _writeSignalTags.
+ *   4. Append source=SNCF - 03/2022.
  */
 function _buildNodeTags(group) {
-    const { nodeDir, principal } = _computeNodeDirection(group);
-    const byCat = _groupByCat(group, principal);
-
     const tags = new Map();
 
-    // Common node header -----
     tags.set("railway", "signal");
     tags.set("railway:position:exact", _convertPk(group[0].p.pk));
-    tags.set("railway:signal:direction", nodeDir);
+    tags.set("railway:signal:direction", _osmDir(group[0].p.sens));
     tags.set("railway:signal:position", _convertPosition(group[0].p.position));
 
-    // Per-category signal tags -----
-    for (const [cat, { principal: pFeat, other: oFeat }] of byCat) {
-        const prefix = `railway:signal:${cat}`;
-        if (pFeat && !oFeat) _writePrincipalOnlyTags(prefix, pFeat, tags);
-        else if (!pFeat && oFeat) _writeUnpairedBackwardTags(prefix, oFeat, tags);
-        else if (pFeat && oFeat) _writePairedTags(prefix, pFeat, oFeat, tags);
+    for (const feat of group) {
+        const prefix = `railway:signal:${_SIGNAL_MAPPING[feat.p.type_if].cat}`;
+        _writeSignalTags(prefix, feat, tags);
     }
 
-    // Mandatory closing tag -----
     tags.set("source", "SNCF - 03/2022");
-
     return tags;
 }
 
@@ -970,26 +786,10 @@ export function isSupported(type_if) {
 /**
  * Return the OSM :ref tag key for a given type_if, or null if unsupported.
  * Example: "CARRE" -> "railway:signal:main:ref"
- *
- * A signal's idreseau can appear in OSM under either the forward ref key
- * (this function) or the backward ref key (getBackwardSignalId), regardless
- * of direction=both. overpass.js always queries both in a single request.
  */
 export function getSignalId(type_if) {
     const entry = _SIGNAL_MAPPING[type_if];
     return entry ? `railway:signal:${entry.cat}:ref` : null;
-}
-
-/**
- * Return the OSM :ref:backward tag key for a given type_if, or null if unsupported.
- * Example: "CARRE" -> "railway:signal:main:ref:backward"
- *
- * Used by overpass.js to detect signals already recorded as the backward
- * member of a back-to-back pair on an existing OSM node.
- */
-export function getBackwardSignalId(type_if) {
-    const entry = _SIGNAL_MAPPING[type_if];
-    return entry ? `railway:signal:${entry.cat}:ref:backward` : null;
 }
 
 /** Set of all type_if values that have a mapping. Exported for filters.js. */
