@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "TileBuilder": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\noeld\\OneDrive\\Documents\\Personnel\\Cartographie OSM\\Signalisation SNCF\\signalisation-permanente.geojson\" \"C:\\Users\\noeld\\OneDrive\\Desktop\\tiles\""
-    }
-  }
-}

@@ -14,3 +14,4 @@ tools/TileBuilder/obj/
 /js/config.secret.js
 /js/config.local.js
 /tree.txt
+/tools/TileBuilder/Properties/launchSettings.json
