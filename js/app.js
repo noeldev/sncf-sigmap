@@ -27,6 +27,7 @@ import {
     loadFilterIndex,
     resetFilters,
     initAddFilterButton,
+    setTotalSignals,
 } from './filters.js';
 import { buildLegend } from './signal-mapping.js';
 import { t, applyTranslations, setRecordCount } from './i18n.js';
@@ -90,10 +91,11 @@ function _updateRecordCount(manifest) {
     const { tileCount, totalSignals } = getManifestStats(manifest);
     console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
     setRecordCount({ totalSignals, tileCount });
+    setTotalSignals(totalSignals);
     const el = document.getElementById('record-count');
     if (el) el.textContent =
         `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
-        `${tileCount} ${t('status.tiles_lower')}`;
+        `${ tileCount.toLocaleString() } ${ t('status.tiles_lower') }`;
 }
 
 /**

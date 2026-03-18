@@ -24,9 +24,9 @@ const _el = {};
  */
 export function initStatusBar() {
     _el.visible = document.getElementById('st-visible');
-    _el.sampled  = document.getElementById('st-sampled');
-    _el.filters  = document.getElementById('st-filters');
-    _el.zoom     = document.getElementById('st-zoom');
+    _el.sampled = document.getElementById('st-sampled');
+    _el.filters = document.getElementById('st-filters');
+    _el.zoom = document.getElementById('st-zoom');
 }
 
 /**
@@ -54,7 +54,7 @@ export function setSampledBadge(sampled, total) {
  * @param {number} n
  */
 export function updateFilterCount(n) {
-    if (_el.filters) _el.filters.textContent = n;
+    if (_el.filters) _el.filters.textContent = n.toLocaleString();
 }
 
 /**
@@ -62,5 +62,5 @@ export function updateFilterCount(n) {
  * @param {number} zoom
  */
 export function updateZoomStatus(zoom) {
-    if (_el.zoom) _el.zoom.textContent = zoom;
+    if (_el.zoom) _el.zoom.textContent = zoom.toLocaleString();
 }

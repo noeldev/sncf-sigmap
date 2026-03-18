@@ -5,26 +5,27 @@
  *   { type, urls, activeFilters, bounds, maxSignals }
  *
  * Outgoing messages (via workerPost — see worker-contract.js):
+ *   { source, status: 'partial', groups, loaded, total }  — detail mode only
  *   { source, status: 'progress', msg }
  *   { source, status: 'done', groups, sampled, total }
  *   { source, status: 'error', error }
  *
+ * Overview mode (maxSignals set):
+ *   All tiles are fetched in parallel with Promise.all, then filtered and
+ *   spatially sampled before a single 'done' message is sent. This matches
+ *   the original behaviour and keeps the overview stable.
+ *
+ * Detail mode (maxSignals null):
+ *   Tiles are fetched sequentially. A 'partial' message is sent after each
+ *   tile so the map updates progressively as data arrives.
+ *
  * Each group represents one geographic location:
  *   { lat, lng, all: Signal[], display: Signal[] }
  *
- *   all     — every signal at that location within the viewport bounds,
- *             regardless of active filters. Used by the popup for JOSM export
- *             so that no signal is lost when a filter is active.
- *   display — the subset of `all` that passes the active filters.
- *             Used for the map marker and tooltip.
+ *   all     — every signal at that location, regardless of active filters.
+ *   display — the subset that passes the active filters.
  *
- * A group is included in the result only when display.length > 0.
- *
- * Sampling (overview mode):
- *   _spatialSampleGroups() uses a viewport-relative grid scaled to the current
- *   set of matching groups, ensuring one representative group per grid cell for
- *   good geographic spread.  Panning may cause minor marker changes at tile
- *   boundaries; this is an acceptable trade-off for consistent visual coverage.
+ * A group is included only when display.length > 0.
  */
 
 import { workerPost } from './worker-contract.js';
@@ -37,69 +38,132 @@ self.onmessage = async function (e) {
     }
 
     try {
-        workerPost.progress(`Loading ${urls.length} tile(s)…`);
+        const filterSets = _buildFilterSets(activeFilters);
 
-        const tiles = await Promise.all(urls.map(_fetchTile));
-
-        workerPost.progress('Filtering…');
-
-        const { swLat, swLng, neLat, neLng } = bounds;
-        // Pre-convert filter value arrays to Sets for O(1) .has() lookups.
-        // _matches() is called for every signal in every tile — the savings are
-        // meaningful at 230 000+ records, especially with multiple active filters.
-        const filterSets = {};
-        for (const [field, vals] of Object.entries(activeFilters)) {
-            if (Array.isArray(vals) && vals.length > 0) filterSets[field] = new Set(vals);
-        }
-        const hasFilters = Object.keys(filterSets).length > 0;
-
-        // ---- Pass 1: group all in-bounds signals by location key ----
-        const byKey = new Map();
-        for (const tile of tiles) {
-            if (!Array.isArray(tile)) continue;
-            for (const s of tile) {
-                if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
-                const p = {
-                    type_if: s.type_if || '',
-                    code_ligne: s.code_ligne || '',
-                    nom_voie: s.nom_voie || '',
-                    sens: s.sens || '',
-                    position: s.position || '',
-                    pk: s.pk || '',
-                    idreseau: s.idreseau || '',
-                    code_voie: s.code_voie || '',
-                };
-                const key = (p.code_voie && p.pk)
-                    ? `${p.code_voie}|${p.pk}`
-                    : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
-                if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
-                byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
+        if (maxSignals) {
+            // Overview mode — original parallel strategy, unchanged.
+            workerPost.progress(`Loading ${urls.length} tile(s)…`);
+            const tiles = await Promise.all(urls.map(_fetchTile));
+            workerPost.progress('Filtering…');
+            const byKey = _groupByLocation(tiles, bounds);
+            const groups = _buildGroups(byKey, filterSets);
+            const total = groups.length;
+            if (total > maxSignals) {
+                workerPost.done(_spatialSampleGroups(groups, maxSignals), true, total);
+            } else {
+                workerPost.done(groups, false, total);
             }
+        } else {
+            // Detail mode — sequential fetch with incremental partial renders.
+            const byKey = new Map();
+            const count = urls.length;
+            for (let i = 0; i < count; i++) {
+                const tile = await _fetchTile(urls[i]);
+                const newGroups = _mergeTile(tile, byKey, bounds, filterSets);
+                workerPost.progress(`Loading ${i + 1} / ${count} tile(s)…`);
+                if (newGroups.length > 0) workerPost.partial(newGroups, i + 1, count);
+            }
+            const groups = _buildGroups(byKey, filterSets);
+            workerPost.done(groups, false, groups.length);
         }
-
-        // ---- Pass 2: build display subset, keep groups with ≥1 visible signal ----
-        const groups = [];
-        for (const { lat, lng, all } of byKey.values()) {
-            const display = hasFilters
-                ? all.filter(s => _matches(s.p, filterSets))
-                : all;
-            if (display.length > 0) groups.push({ lat, lng, all, display });
-        }
-
-        // ---- Spatial sampling on groups ----
-        const totalGroups = groups.length;
-        if (maxSignals && totalGroups > maxSignals) {
-            const sampled = _spatialSampleGroups(groups, maxSignals);
-            workerPost.done(sampled, true, totalGroups);
-            return;
-        }
-
-        workerPost.done(groups, false, totalGroups);
 
     } catch (err) {
         workerPost.error(err.message);
     }
 };
+
+
+/* ===== Private helpers ===== */
+
+/** Convert activeFilters arrays to Sets for O(1) lookups. */
+function _buildFilterSets(activeFilters) {
+    const sets = {};
+    for (const [field, vals] of Object.entries(activeFilters)) {
+        if (Array.isArray(vals) && vals.length > 0) sets[field] = new Set(vals);
+    }
+    return sets;
+}
+
+/**
+ * Group all in-bounds signals from a set of tiles by location key.
+ * Used by overview mode which receives all tiles at once.
+ */
+function _groupByLocation(tiles, bounds) {
+    const { swLat, swLng, neLat, neLng } = bounds;
+    const byKey = new Map();
+    for (const tile of tiles) {
+        if (!Array.isArray(tile)) continue;
+        for (const s of tile) {
+            if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
+            const p = _normaliseProps(s);
+            const key = _groupKey(p, s);
+            if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
+            byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
+        }
+    }
+    return byKey;
+}
+
+/**
+ * Merge one tile into the cumulative byKey Map.
+ * Returns only the groups that were new or modified by this tile.
+ * Used by detail mode for incremental rendering.
+ */
+function _mergeTile(tile, byKey, bounds, filterSets) {
+    if (!Array.isArray(tile)) return [];
+    const { swLat, swLng, neLat, neLng } = bounds;
+    const hasFilters = Object.keys(filterSets).length > 0;
+    const touched = new Set();
+
+    for (const s of tile) {
+        if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
+        const p = _normaliseProps(s);
+        const key = _groupKey(p, s);
+        if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
+        byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
+        touched.add(key);
+    }
+
+    const newGroups = [];
+    for (const key of touched) {
+        const { lat, lng, all } = byKey.get(key);
+        const display = hasFilters ? all.filter(s => _matches(s.p, filterSets)) : all;
+        if (display.length > 0) newGroups.push({ lat, lng, all, display });
+    }
+    return newGroups;
+}
+
+/** Build the final group list from a completed byKey Map. */
+function _buildGroups(byKey, filterSets) {
+    const hasFilters = Object.keys(filterSets).length > 0;
+    const groups = [];
+    for (const { lat, lng, all } of byKey.values()) {
+        const display = hasFilters ? all.filter(s => _matches(s.p, filterSets)) : all;
+        if (display.length > 0) groups.push({ lat, lng, all, display });
+    }
+    return groups;
+}
+
+/** Normalise raw tile signal properties. */
+function _normaliseProps(s) {
+    return {
+        type_if: s.type_if || '',
+        code_ligne: s.code_ligne || '',
+        nom_voie: s.nom_voie || '',
+        sens: s.sens || '',
+        position: s.position || '',
+        pk: s.pk || '',
+        idreseau: s.idreseau || '',
+        code_voie: s.code_voie || '',
+    };
+}
+
+/** Derive the location key used to group co-located signals. */
+function _groupKey(p, s) {
+    return (p.code_voie && p.pk)
+        ? `${p.code_voie}|${p.pk}`
+        : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
+}
 
 async function _fetchTile(url) {
     try {
@@ -108,15 +172,12 @@ async function _fetchTile(url) {
             if (r.status !== 404) console.warn(`[Worker] ${url} → ${r.status}`);
             return [];
         }
-        // Primary path: Content-Encoding: gzip handled automatically by fetch().
         const clone = r.clone();
         try {
             const d = await r.json();
             if (Array.isArray(d)) return d;
-            // Tolerate a GeoJSON FeatureCollection if the tile format ever changes.
             if (d?.features && Array.isArray(d.features)) return d.features;
         } catch (_) { /* fallthrough to DecompressionStream */ }
-        // Fallback: manual DecompressionStream for local dev servers.
         try {
             const body = clone.body.pipeThrough(new DecompressionStream('gzip'));
             return JSON.parse(await new Response(body).text());
@@ -129,19 +190,8 @@ async function _fetchTile(url) {
 }
 
 /**
- * Spatial grid subsampling operating on groups.
- *
- * Phase 1 — fine grid (≈ 2×maxCount cells):
- *   Divide the bounding box into a grid and keep one group per cell.
- *   The first-encountered group in each cell is kept (insertion order from
- *   the tile fetch).  This preserves a natural mix of small and large groups,
- *   giving visual size diversity in overview mode.
- *
- * Phase 2 — coarser grid (≈ maxCount cells) applied to phase-1 survivors:
- *   If phase 1 still exceeds maxCount (many occupied cells), a second,
- *   coarser grid is applied to the survivors.  Using a grid rather than a
- *   stride index maintains geographic spread — stride can silently drop
- *   entire regions if they happen to fall on skipped indices.
+ * Spatial grid subsampling — original two-phase algorithm.
+ * First-encountered group per cell preserves natural size diversity.
  */
 function _spatialSampleGroups(groups, maxCount) {
     let minLat = Infinity, maxLat = -Infinity;
@@ -156,34 +206,23 @@ function _spatialSampleGroups(groups, maxCount) {
     const latRange = maxLat - minLat || 1;
     const lngRange = maxLng - minLng || 1;
 
-    /** Keep the most signal-rich group per grid cell. */
     function _gridSample(source, gridSize) {
         const cells = new Map();
         for (const g of source) {
-            const cx = Math.min(
-                Math.floor(((g.lng - minLng) / lngRange) * gridSize), gridSize - 1
-            );
-            const cy = Math.min(
-                Math.floor(((g.lat - minLat) / latRange) * gridSize), gridSize - 1
-            );
+            const cx = Math.min(Math.floor(((g.lng - minLng) / lngRange) * gridSize), gridSize - 1);
+            const cy = Math.min(Math.floor(((g.lat - minLat) / latRange) * gridSize), gridSize - 1);
             const k = cy * gridSize + cx;
             if (!cells.has(k)) cells.set(k, g);   // first-encountered → natural size diversity
         }
         return [...cells.values()];
     }
 
-    // Phase 1: fine grid
     const phase1 = _gridSample(groups, Math.ceil(Math.sqrt(maxCount * 2)));
     if (phase1.length <= maxCount) return phase1;
-
-    // Phase 2: coarser grid applied to phase-1 survivors
     return _gridSample(phase1, Math.ceil(Math.sqrt(maxCount)));
 }
 
-/**
- * Returns true when signal properties satisfy all active filters.
- * filterSets values are Sets (pre-converted from arrays) for O(1) .has() lookups.
- */
+/** Returns true when signal properties satisfy all active filters. */
 function _matches(p, filterSets) {
     for (const field in filterSets) {
         if (!filterSets[field].has(String(p[field] ?? ''))) return false;

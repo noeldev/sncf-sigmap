@@ -14,6 +14,7 @@
  *   initMapControls() — call once from app.js/_boot() after initMap() resolves.
  */
 
+import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
 import { map } from './map.js';
 import { t } from './i18n.js';
 
@@ -24,12 +25,11 @@ import { t } from './i18n.js';
 export function initMapControls() {
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
     document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
+    document.getElementById('btn-reset-view')?.addEventListener('click', _resetView);
     document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
     document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
     document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
         document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
-        // Allow the CSS transition to complete before telling Leaflet to
-        // recalculate the map container size.
         setTimeout(() => map.invalidateSize(), 210);
     });
     document.addEventListener('fullscreenchange', () =>
@@ -38,6 +38,11 @@ export function initMapControls() {
 }
 
 /* ===== Private helpers ===== */
+
+/** Return to the initial map extent. */
+function _resetView() {
+    map.fitBounds(MAP_BBOX, { maxZoom: MAP_STARTUP_ZOOM });
+}
 
 function _geolocate() {
     if (!navigator.geolocation) {

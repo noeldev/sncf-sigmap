@@ -133,12 +133,30 @@ function _runWorker(bounds, tileUrls, zoom) {
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
+    // Track markers by group key for incremental updates.
+    // Key: "lat,lng" — value: Leaflet marker instance.
+    const _markerMap = new Map();
+
     _worker.onmessage = e => {
         if (!isOwnWorkerMessage(e)) return;
-        const { status, msg, groups, sampled, total } = e.data;
+        const { status, msg, groups, loaded, total, sampled } = e.data;
+
         if (status === 'progress') { showProgress(msg); return; }
         if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
-        if (status === 'done') { _onWorkerDone(groups, sampled, total); }
+
+        if (status === 'partial') {
+            // In overview mode, skip incremental rendering — the final 'done'
+            // message will apply spatial sampling and render the stable result.
+            if (isOverview) return;
+            _renderGroupsIncremental(groups, _markerMap);
+            updateVisibleCount(_markerMap.size);
+            showProgress(`Loading ${loaded} / ${total} tile(s)…`);
+            return;
+        }
+
+        if (status === 'done') {
+            _onWorkerDone(groups, sampled, e.data.total);
+        }
     };
 
     _worker.onerror = err => {
@@ -233,3 +251,35 @@ function _renderGroups(groups) {
 
     updateVisibleCount(groups.length);
 }
+
+/**
+ * Add or update markers incrementally from a partial tile result.
+ * Uses a markerMap keyed by "lat,lng" so existing markers are replaced rather
+ * than duplicated when a group gains more signals from a subsequent tile.
+ * @param {{ lat, lng, all, display }[]} groups
+ * @param {Map<string, L.Marker>}        markerMap
+ */
+function _renderGroupsIncremental(groups, markerMap) {
+    for (const { lat, lng, all, display } of groups) {
+        const key = `${lat},${lng}`;
+        const color = getTypeColor(display[0].p.type_if);
+        const count = display.length;
+        const size = _getDotSize(count);
+        const icon = _makeDotIcon(color, size, count > 1);
+
+        if (markerMap.has(key)) _markersLayer.removeLayer(markerMap.get(key));
+
+        const marker = L.marker([lat, lng], { icon })
+            .bindTooltip(buildTooltip(display), {
+                direction: 'top',
+                offset: [0, -6],
+                className: 'sig-tooltip',
+                sticky: false,
+            })
+            .on('click', () => openSignalPopup([lat, lng], all, 0))
+            .addTo(_markersLayer);
+
+        markerMap.set(key, marker);
+    }
+}
+

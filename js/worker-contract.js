@@ -44,6 +44,15 @@ export const workerPost = {
     },
 
     /**
+     * @param {Array}   groups  Partial signal groups ready to render incrementally.
+     * @param {number}  loaded  Number of tiles loaded so far.
+     * @param {number}  total   Total number of tiles in this fetch batch.
+     */
+    partial(groups, loaded, total) {
+        self.postMessage({ source: WORKER_SOURCE, status: 'partial', groups, loaded, total });
+    },
+
+    /**
      * @param {Array}   groups  Processed signal groups ({ lat, lng, all, display }).
      * @param {boolean} sampled Whether spatial sampling was applied.
      * @param {number}  total   Total group count before sampling.

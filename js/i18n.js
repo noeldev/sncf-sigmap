@@ -51,7 +51,7 @@ const STRINGS = {
         'filter.indexError': 'Filter index unavailable — suggestions may be incomplete.',
 
         // Dropdown (for other filterable fields)
-        'dropdown.search': n => `Search among ${n} values\u2026`,
+        'dropdown.search': n => `Search among ${n.toLocaleString()} values\u2026`,
         'dropdown.noMatch': 'No matching values',
         'dropdown.remove': 'Remove filter',
 
@@ -65,6 +65,7 @@ const STRINGS = {
         'basemap.satellite': 'Satellite',
 
         // Controls
+        'ctrl.resetView': 'Reset view',
         'ctrl.toggle': 'Toggle panel',
         'ctrl.zoomIn': 'Zoom in',
         'ctrl.zoomOut': 'Zoom out',
@@ -183,7 +184,7 @@ const STRINGS = {
         'filter.indexError': 'Index des filtres indisponible — les suggestions peuvent être incomplètes.',
 
         // Dropdown (pour les autres champs filtrables)
-        'dropdown.search': n => `Rechercher parmi ${n} valeurs\u2026`,
+        'dropdown.search': n => `Rechercher parmi ${n.toLocaleString()} valeurs\u2026`,
         'dropdown.noMatch': 'Aucune valeur',
         'dropdown.remove': 'Supprimer le filtre',
 
@@ -197,6 +198,7 @@ const STRINGS = {
         'basemap.satellite': 'Satellite',
 
         // Controls
+        'ctrl.resetView': 'Vue initiale',
         'ctrl.toggle': 'Afficher/masquer le panneau',
         'ctrl.zoomIn': 'Zoom avant',
         'ctrl.zoomOut': 'Zoom arrière',
@@ -351,7 +353,7 @@ export function applyTranslations() {
         const { totalSignals, tileCount } = _recordCount;
         const el = document.getElementById('record-count');
         if (el) el.textContent =
-            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
+            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount.toLocaleString()} ${t('status.tiles_lower')}`;
     }
     _langListeners.forEach(fn => fn());
 }

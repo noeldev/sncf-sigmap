@@ -6,4 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>TileBuilder</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Program - Copy.cs" />
+  </ItemGroup>
 </Project>
