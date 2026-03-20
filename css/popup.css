@@ -1,4 +1,4 @@
-/* ===== Popup ===== */
+/* ===== Leaflet popup chrome ===== */
 
 .leaflet-popup-content-wrapper {
     background: var(--panel) !important;
@@ -22,7 +22,6 @@
     display: none !important;
 }
 
-/* Signal popup tip */
 .pu-leaflet .leaflet-popup-tip-container {
     display: block;
     height: 10px;
@@ -33,50 +32,80 @@
 .pu-leaflet .leaflet-popup-tip {
     width: 14px;
     height: 14px;
-    margin: 0 auto;
+    margin: -8px auto 0;
     background: var(--panel) !important;
     box-shadow: 2px 2px 0 0 var(--border2) !important;
     transform: rotate(45deg);
-    margin-top: -8px;
 }
+
+
+/* ===== Popup wrapper ===== */
 
 .pu-wrap {
     position: relative;
-    min-width: 300px;
-    max-width: 600px; /* upper bound for user resize */
+    display: flex;
+    flex-direction: column;
 }
 
-/* Navigation header */
+
+/* ===== Nav bar — shared by both tabs =====
+ *
+ * 3-column grid: left (1fr) | center (auto) | right (1fr)
+ * Equal 1fr columns guarantee the center group is always mathematically
+ * centered regardless of left/right content width.
+ *
+ *   Left   (.pu-nav-left)  — logo flush-left, title flush-right toward arrows.
+ *   Center (.pu-nav-group) — arrow buttons + counter, auto-width.
+ *   Right  (.pu-nav-right) — close button flush-right.
+ */
+
 .pu-nav {
-    position: relative;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
-    padding: 5px 36px;
     background: var(--panel2);
     border-bottom: 1px solid var(--border);
-    gap: 4px;
     min-height: 34px;
 }
 
-/* SNCF brand link — absolute left of nav bar, mirrors .pu-close-btn on the right. */
+.pu-nav-left {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 8px;
+}
+
 .pu-brand-link {
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: inline-flex;
+    display: flex;
     align-items: center;
     text-decoration: none;
     flex-shrink: 0;
 }
 
-.pu-brand-logo {
+.pu-brand-logo,
+.pu-brand-osm {
     height: 20px;
     width: auto;
+}
+    
+.pu-brand-logo {
     object-fit: contain;
     pointer-events: none;
     flex-shrink: 0;
+}
+
+/* OSM icon is square — explicit size prevents aspect-ratio stretch */
+.pu-brand-osm {
+    padding-left: 5px;
+}
+
+.pu-nav-title {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text2);
+    white-space: nowrap;
 }
 
 .pu-nav-group {
@@ -85,7 +114,6 @@
     gap: 4px;
 }
 
-/* Nav buttons — extend group-2 icon base (base.css) */
 .pu-nav-btn {
     width: 24px;
     height: 24px;
@@ -104,11 +132,14 @@
     text-align: center;
 }
 
+.pu-nav-right {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 6px;
+}
+
 .pu-close-btn {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
     background: none;
     border: none;
     color: var(--text3);
@@ -129,17 +160,20 @@
         background: rgba(255,255,255,.06);
     }
 
-.pu-body {
-    padding: 8px 14px 0 22px;
-}
 
-/* Shared flex base for data rows and the Signal Node badge */
+/* ===== SNCF data rows + Signal Node badge — shared base =====
+ *
+ * Both are horizontal flex rows with the same label/value alignment.
+ *   .pu-row        — flush with body padding, separated by bottom borders.
+ *   .pu-node-badge — tinted pill with its own margin and border-radius.
+ */
+
 .pu-row,
 .pu-node-badge {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 3px 0;
+    padding: 3px 10px;
     font-size: 11px;
 }
 
@@ -152,13 +186,12 @@
     }
 
 .pu-node-badge {
-    margin: 3px 14px 14px 14px;
-    padding: 3px 8px;
+    width: 100%;
+    padding: 4px 10px;
     background: var(--panel2);
     border-radius: var(--radius);
 }
 
-/* Shared label style: SNCF data row labels and Signal Node badge label */
 .pu-label,
 .pu-node-badge-label {
     font-family: var(--ff-mono);
@@ -168,10 +201,9 @@
     letter-spacing: .5px;
     color: var(--text2);
     flex-shrink: 0;
-    width: 78px;
+    width: 110px;
 }
 
-/* Shared value style: SNCF data row values and Signal Node counter */
 .pu-val,
 .pu-node-counter {
     font-family: var(--ff-mono);
@@ -179,8 +211,6 @@
     min-width: 45px;
 }
 
-/* Signal type badge: colours come from --signal-color and --signal-contrast
-   written by popup.js via getTypeColor() / _contrastColor(). */
 .pu-badge {
     display: inline-block;
     font-size: 10px;
@@ -192,9 +222,9 @@
     color: var(--signal-contrast, #fff);
 }
 
-/* OSM indicator buttons — all four states share the group-2 base (base.css).
- * osm-checking is visible by default; the other three carry .is-hidden.
- * JS hides checking and reveals exactly one state when the result arrives. */
+
+/* ===== OSM indicator buttons (ID Réseau row) ===== */
+
 .pu-osm-btn {
     width: 22px;
     height: 22px;
@@ -209,9 +239,8 @@
         letter-spacing: -.5px;
     }
 
-        /* Ellipsis via CSS so screen readers read the aria-label without duplication. */
         .pu-osm-btn.osm-checking::after {
-            content: "...";
+            content: "…";
         }
 
 a.pu-osm-btn.osm-in-osm {
@@ -222,7 +251,6 @@ a.pu-osm-btn.osm-in-osm {
         border-color: var(--accent2);
     }
 
-/* osm-locate: signal not yet in OSM, links to map position */
 a.pu-osm-btn.osm-locate {
     cursor: pointer;
 }
@@ -244,210 +272,77 @@ button.pu-osm-btn.osm-retry {
         border-color: #f0b429;
     }
 
-/* Signal Node badge — visually distinct from SNCF data rows: tinted background
-   with rounded corners. Layout rules shared with .pu-row above. */
 
-/* Preview button */
-.pu-node-preview-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid var(--border2);
-    border-radius: 3px;
-    width: 22px;
-    height: 22px;
-    margin-left: 6px;
-    color: var(--accent3);
-    flex-shrink: 0;
-    cursor: pointer;
-    transition: color .15s, border-color .15s;
-}
+/* ===== OSM Tags panel — tag list ===== */
 
-    .pu-node-preview-btn:hover {
-        color: var(--accent3);
-        border-color: var(--accent3);
-    }
-
-    .pu-node-preview-btn:disabled {
-        opacity: .3;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-
-
-/* ===== OSM tags preview popup ===== */
-
-.pu-tags-wrap {
-    min-width: 380px;
-    width: max-content;
-    max-width: min(680px, 94vw);
-    max-height: 43vh;
-    display: flex;
-    flex-direction: column;
-    padding-bottom: 16px;
-}
-
-/* Nav bar: symmetric padding mirrors .pu-nav so the center group is truly centered.
-   Brand header and close button are both absolute, leaving the full container
-   for flex-centering the counter + arrow group. */
-.pu-tags-nav {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 5px 36px;
-    background: var(--panel2);
-    border-bottom: 1px solid var(--border);
-    min-height: 34px;
-    gap: 4px;
-}
-
-/* Brand header: OSM icon + SIGNAL NODE label, absolutely positioned on the left */
-.pu-tags-header {
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-}
-
-.pu-tags-brand-link {
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
-    text-decoration: none;
-}
-
-.pu-tags-brand {
-    display: block;
-    flex-shrink: 0;
-}
-
-.pu-tags-body {
-    padding: 0 4px 0 14px;
-    overflow-y: auto;
-    overflow-x: auto;
-    flex: 1;
-    min-height: 0;
-}
-
-.pu-tags-section-label {
-    font-family: var(--ff-sans);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    color: var(--text3);
-}
-
-/* Tag list: self-contained grid. */
 .pu-tags-list {
     display: grid;
     grid-template-columns: max-content max-content;
     width: max-content;
 }
 
-    .pu-tags-list .pu-osm-row {
-        padding: 2px 0;
+    .pu-tags-list .pu-osm-row,
+    .pu-osm-row {
+        display: grid;
+        grid-template-columns: subgrid;
+        grid-column: 1 / -1;
+        gap: 10px;
+        padding: 3px 0;
+        font-size: 10px;
+        font-family: var(--ff-mono);
         border-bottom: 1px solid var(--border);
+        align-items: flex-start;
+        white-space: nowrap;
     }
 
-        .pu-tags-list .pu-osm-row:last-child {
+        .pu-tags-list .pu-osm-row:last-child,
+        .pu-osm-row:last-child {
             border-bottom: none;
         }
 
-    .pu-tags-list .pu-osm-key,
-    .pu-tags-list .pu-osm-val {
-        white-space: nowrap;
-        font-family: var(--ff-mono);
-        font-size: 11px;
-        line-height: 1.5;
-        word-break: normal;
-    }
-
-    .pu-tags-list .pu-osm-key {
-        color: var(--text2);
-    }
-
-    .pu-tags-list .pu-osm-val {
-        color: var(--text);
-    }
-
-.pu-osm-row {
-    display: grid;
-    grid-template-columns: subgrid;
-    grid-column: 1 / -1;
-    gap: 10px;
-    font-size: 10px;
-    font-family: var(--ff-mono);
-    padding: 3px 0;
-    border-bottom: 1px solid var(--border);
-    align-items: flex-start;
-}
-
-    .pu-osm-row:last-child {
-        border-bottom: none;
-    }
-
 .pu-osm-key {
     color: var(--text2);
-    word-break: break-all;
-    line-height: 1.45;
-    min-width: 0;
 }
 
 .pu-osm-val {
     color: var(--text);
-    word-break: break-word;
-    line-height: 1.45;
-    text-align: left;
 }
 
-.pu-osm-unknown {
-    color: var(--warn);
-    font-style: italic;
-}
 
-/* ===== Popup footer action buttons =====
+/* ===== Footer action buttons =====
  *
- * Each button carries two content states:
- *   idle  : .btn-icon-default + .btn-label
- *   flash : .btn-flash-label only (no icon for JOSM; checkmark icon for copy)
- *
- * Adding .is-flash to the button swaps the content and applies a success colour.
- * JS adds .is-flash and removes it after 2400 ms. */
+ * flex-shrink:0 keeps footer height fixed so .pu-tags-body (flex:1) fills
+ * the remaining panel space without any margin/padding arithmetic.
+ */
 
 .pu-footer {
-    padding: 8px 14px 10px;
-    border-top: 1px solid var(--border);
+    flex: 1;
     display: flex;
-    gap: 6px;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
 }
 
-/* Flash-state content hidden by default */
 svg.btn-icon-flash,
 span.btn-flash-label {
     display: none;
 }
 
-/* .btn-label uses sans-serif (human-readable label, not data) */
 .btn-label,
 .btn-flash-label {
     font-family: var(--ff-sans);
 }
 
-/* Action buttons — extend group-1 base (base.css) */
 .pu-action-btn {
-    flex: 1;
+    flex: 0 0 auto;
+    width: 130px;
     background: var(--panel2);
     border: 1px solid var(--border2);
     color: var(--text);
     font-size: 11px;
-    padding: 6px 8px;
+    padding: 6px 10px;
+    justify-content: center;
+    text-align: center;
 }
 
     .pu-action-btn:hover {
@@ -466,7 +361,6 @@ span.btn-flash-label {
     pointer-events: none;
 }
 
-/* Flash state: success colour, swap idle content for flash content */
 .pu-action-btn.is-flash {
     background: var(--success);
     border-color: var(--success);
@@ -483,4 +377,93 @@ span.btn-flash-label {
     .pu-action-btn.is-flash .btn-flash-label {
         display: inline-flex;
         align-items: center;
+    }
+
+
+/* ===== Unified tab panels — stable dimensions =====
+ *
+ * Both panels sit in the same CSS grid area.
+ * The hidden panel stays in layout (visibility:hidden, not display:none)
+ * so popup dimensions never change on tab switch.
+ *
+ * Height strategy: fixed height on .pu-tab-panel.
+ * Each panel is a column flex container: nav (flex-shrink:0) + body (flex:1)
+ * + badge/footer (flex-shrink:0). The body fills whatever height remains
+ * without any margin/padding arithmetic.
+ */
+
+.pu-panels-grid {
+    display: grid;
+    grid-template-areas: "panel";
+}
+
+.pu-tab-panel {
+    grid-area: panel;
+    display: flex;
+    flex-direction: column;
+    width: 340px;
+    height: 315px;
+}
+
+    .pu-tab-panel.is-hidden {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+/* Scrollable body */
+.pu-body,
+.pu-tags-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 14px 0 14px;
+}
+
+/* Signals body — fixed height */
+.pu-body {
+    height: 240px;
+}
+
+/* Badge zone — flex:1 fills remaining space and centers the badge,
+   mirroring .pu-footer in the tags panel. */
+.pu-badge-zone {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+}
+
+/* Tags body fixed height — leaves the rest for .pu-footer */
+.pu-tags-body {
+    height: 220px;
+}
+
+
+/* ===== Bottom tab bar ===== */
+
+.pu-tabs-bar {
+    display: flex;
+    border-top: 1px solid var(--border);
+}
+
+.pu-tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    border-top: 2px solid transparent;
+    font-family: var(--ff-sans);
+    font-size: 11px;
+    color: var(--text2);
+    padding: 7px 16px;
+    cursor: pointer;
+    text-align: center;
+    transition: color .15s, border-color .15s;
+}
+
+    .pu-tab-btn:hover {
+        color: var(--text);
+    }
+
+    .pu-tab-btn.active {
+        color: var(--accent2);
+        border-top-color: var(--accent2);
     }

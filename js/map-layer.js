@@ -223,37 +223,46 @@ function _makeDotIcon(color, size, multi) {
 }
 
 /**
- * Render markers from worker groups.
- * - Marker colour and tooltip use group.display (filtered signals only).
- * - Popup receives group.all so the JOSM export contains every co-located
- *   signal regardless of which filters are currently active.
- * - Dot size is driven by _getDotSize() / DOT_SCALE:
- *   1→10 px, 2→12 px, 3→14 px, 4→16 px, 5+→18 px.
+ * Build a fully configured Leaflet marker for one group.
+ * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all      all co-located signals (for JOSM export)
+ * @param {object[]} display  filtered signals (for icon colour and tooltip)
+ * @returns {L.Marker}
+ */
+function _makeMarker(lat, lng, all, display) {
+    const color = getTypeColor(display[0].p.type_if);
+    const count = display.length;
+    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
+    return L.marker([lat, lng], { icon })
+        .bindTooltip(buildTooltip(display), {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'sig-tooltip',
+            sticky: false,
+        })
+        .on('click', e => {
+            const startTab = (e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey)
+                ? 'tags' : 'signals';
+            openSignalPopup([lat, lng], all, 0, startTab);
+        });
+}
+
+/**
+ * Full render — clears the layer and rebuilds all markers from scratch.
+ * Used by overview mode and the final 'done' message in detail mode.
  */
 function _renderGroups(groups) {
     _markersLayer.clearLayers();
-
     for (const { lat, lng, all, display } of groups) {
-        const color = getTypeColor(display[0].p.type_if);
-        const count = display.length;
-        const size = _getDotSize(count);
-        const icon = _makeDotIcon(color, size, count > 1);
-        L.marker([lat, lng], { icon })
-            .bindTooltip(buildTooltip(display), {
-                direction: 'top',
-                offset: [0, -6],
-                className: 'sig-tooltip',
-                sticky: false,
-            })
-            .on('click', () => openSignalPopup([lat, lng], all, 0))
-            .addTo(_markersLayer);
+        _makeMarker(lat, lng, all, display).addTo(_markersLayer);
     }
-
     updateVisibleCount(groups.length);
 }
 
 /**
- * Add or update markers incrementally from a partial tile result.
+ * Incremental render — adds or replaces markers for the given groups only.
  * Uses a markerMap keyed by "lat,lng" so existing markers are replaced rather
  * than duplicated when a group gains more signals from a subsequent tile.
  * @param {{ lat, lng, all, display }[]} groups
@@ -262,23 +271,8 @@ function _renderGroups(groups) {
 function _renderGroupsIncremental(groups, markerMap) {
     for (const { lat, lng, all, display } of groups) {
         const key = `${lat},${lng}`;
-        const color = getTypeColor(display[0].p.type_if);
-        const count = display.length;
-        const size = _getDotSize(count);
-        const icon = _makeDotIcon(color, size, count > 1);
-
         if (markerMap.has(key)) _markersLayer.removeLayer(markerMap.get(key));
-
-        const marker = L.marker([lat, lng], { icon })
-            .bindTooltip(buildTooltip(display), {
-                direction: 'top',
-                offset: [0, -6],
-                className: 'sig-tooltip',
-                sticky: false,
-            })
-            .on('click', () => openSignalPopup([lat, lng], all, 0))
-            .addTo(_markersLayer);
-
+        const marker = _makeMarker(lat, lng, all, display).addTo(_markersLayer);
         markerMap.set(key, marker);
     }
 }

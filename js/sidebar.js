@@ -103,15 +103,24 @@ function _updateLangBtn(dropdown) {
 // ===== Tabs =====
 
 function _initTabs() {
-    document.querySelectorAll('.stab').forEach(tab =>
+    const tabs = document.querySelectorAll('.stab');
+    const panels = document.querySelectorAll('.tab-panel');
+
+    tabs.forEach(tab =>
         tab.addEventListener('click', () => {
-            // Close any open dropdown before switching panels so it doesn't
-            // remain visible behind a different tab's content.
+            // Close any open dropdown before switching panels.
             closeAllDropdowns();
-            document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            panels.forEach(p => p.classList.remove('active'));
+
             tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
             document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
+
             if (tab.dataset.tab === 'settings') _refreshJosmStatus();
         })
     );

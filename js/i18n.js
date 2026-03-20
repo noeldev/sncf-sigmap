@@ -101,6 +101,10 @@ const STRINGS = {
         'popup.next': 'Next signal',
         'popup.close': 'Close',
         'popup.copyPrompt': 'Copy OSM tags',
+        'popup.tabSignals': 'Signals',
+        'popup.tabTags': 'OSM Tags',
+        'popup.captionSignal': 'Signal',
+        'popup.captionNode': 'Node',
 
         // OSM existence check
         'osm.locateOnOsm': 'Locate on OpenStreetMap',
@@ -223,7 +227,7 @@ const STRINGS = {
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
         'popup.nodeNA': 'N/A',
-        'popup.signalNode': 'Nœud de signal',
+        'popup.signalNode': 'Nœud du signal',
         'popup.previewTags': 'Prévisualiser les tags OSM',
         'popup.osmTags': 'Tags OSM',
         'popup.copy': 'Copier les tags',
@@ -234,6 +238,10 @@ const STRINGS = {
         'popup.next': 'Signal suivant',
         'popup.close': 'Fermer',
         'popup.copyPrompt': 'Copier les tags OSM',
+        'popup.tabSignals': 'Signaux',
+        'popup.tabTags': 'Tags OSM',
+        'popup.captionSignal': 'Signal',
+        'popup.captionNode': 'Nœud',
 
         // OSM existence check
         'osm.locateOnOsm': 'Localiser dans OpenStreetMap',

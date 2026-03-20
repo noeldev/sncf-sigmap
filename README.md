@@ -70,30 +70,32 @@ Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.g
 
 ## Signal popup
 
-Click a signal marker to open a popup with detailed information and OSM tags.
+Click a signal marker to open a two-tab popup. Hold **Shift** or **Ctrl** while clicking to open directly on the OSM Tags tab.
 
-### OpenStreetMap existence check
+### Signals tab
 
-Each signal popup queries the [Overpass API](https://overpass-api.de/) to check whether a node with the corresponding `railway:signal:*:ref` tag(s) already exists in [OpenStreetMap](https://www.openstreetmap.org/) (OSM). The result appears as a button next to the **ID Réseau** value:
+Displays the SNCF open data fields for the selected signal. When multiple co-located signals share the same geographic position, arrow buttons navigate between them.
+
+The **OSM existence check** queries the [Overpass API](https://overpass-api.de/) to detect whether a node with the matching `railway:signal:*:ref` tag already exists in [OpenStreetMap](https://www.openstreetmap.org/). The result appears as a button next to the **ID Réseau** value:
 
 | Icon | Meaning |
 |------|---------|
-| OSM logo (colour) | Signal found in OSM — Click to view the node in OSM |
-| Locate icon | Not yet mapped — click to open [openstreetmap.org](https://www.openstreetmap.org/) centered on the signal |
+| OSM logo (colour) | Signal found in OSM — click to view the node |
+| Locate icon | Not yet mapped — click to open [openstreetmap.org](https://www.openstreetmap.org/) centred on the signal |
 | … | Check in progress |
-| ↻ | Check failed — Click to retry |
+| ↻ | Check failed — click to retry |
 
 Results are cached for the session. Unsupported signal types skip the Overpass check and show the locate button immediately.
 
-### Signal Node
+The **Signal Node** badge at the bottom shows which OSM node the signal maps to (`X / N` when the group produces multiple nodes). Click it or the **OSM Tags** tab to switch to the export view. Unsupported types show **N/A**.
 
-The **Signal Node** row at the bottom of the data section shows which node the current signal maps to (a co-located signal group may produce multiple nodes in case of conflicting tags).
-The **Preview tags** button opens the OSM tags preview popup listing all key=value pairs that would be exported.
-Unsupported types show **N/A** and hide the preview button.
+### OSM Tags tab
+
+Displays the generated OSM tags for the current node. When a group produces multiple nodes, arrow buttons navigate between them — each node corresponds to a distinct physical signal or panel at the same location.
 
 ### Copy tags
 
-Click **Copy tags** to copy the signal's OSM tags for the current node to the clipboard.
+Click **Copy tags** to copy the current node's OSM tags to the clipboard.
 
 ### Open in JOSM
 
@@ -152,7 +154,6 @@ sncf-sigmap/
 │   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
 │   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
-│   ├── tags-popup.js             ← OSM tags preview popup (opened from signal popup)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
 │   ├── tooltip.js                ← hover tooltip builder
 │   ├── worker-contract.js        ← worker message types and postMessage helpers
