@@ -25,14 +25,16 @@ Only tiles visible in the current viewport are fetched — no full dataset downl
 ## Architecture
 
 ```
-signalisation-permanente.geojson   (never committed — 102 MB)
+sncf-data/
+  signalisation-permanente.geojson          (never committed — 102 MB)
+  mode-de-cantonnement-des-lignes.geojson   (never committed — 2 MB)
         │
         ▼  TileBuilder  (C# tool)
         │
 data/tiles/
-  manifest.json       ← tile index (~20 KB)
-  index.json          ← filter index (type_if, code_ligne values)
-  -4_97.json.gz       ← one tile per 0.5° cell, 5–30 KB each
+  manifest.json   ← tile index (~20 KB)
+  index.json      ← filter values, line labels, cantonment modes (~300 KB)
+  -4_97.json.gz   ← one tile per 0.5° cell, 5–30 KB each
         │
         ▼  git commit + push  →  Netlify auto-deploys
         │
@@ -47,13 +49,22 @@ Tiles are committed to GitHub and deployed by Netlify alongside the source code.
 
 Open `tools/TileBuilder/TileBuilder.csproj` in [Microsoft Visual Studio](https://visualstudio.microsoft.com/downloads/).
 
+Download the two SNCF open data files from [data.sncf.com](https://data.sncf.com/) into a local folder (never committed):
+
+- `signalisation-permanente.geojson`
+- `mode-de-cantonnement-des-lignes.geojson`
+
 Set the debug profile arguments (*Project → Properties → Debug → Open debug launch profiles UI*):
 
 | Field | Value |
 |-------|-------|
-| Command line arguments | `"C:\path\to\signalisation-permanente.geojson" "C:\path\to\sncf-sigmap\data\tiles"` |
+| Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"` |
 
 Press **Ctrl+F5**. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
+
+The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the canton mode abbreviation table. Edit it to add new acronyms without recompiling.
+
+To rebuild only `index.json` and `manifest.json` without regenerating tile files, add `-n` (`--no-tiles`) to the arguments.
 
 ### Configure the Jawg API key (optional)
 
@@ -138,6 +149,8 @@ sncf-sigmap/
 │   └── *.json.gz
 ├── js/
 │   ├── app.js                    ← boot sequencer, map event wiring
+│   ├── cantonment.js             ← line label and cantonment mode lookup from index.json
+│   ├── cat-mapping.js            ← application signal categories, colours, and legend
 │   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
 │   ├── config.local.js           ← JAWG_API_KEY — git-ignored, never committed
 │   ├── config.local.example.js   ← template, safe to commit
@@ -150,9 +163,10 @@ sncf-sigmap/
 │   ├── map-layer.js              ← signal marker pipeline (worker → render)
 │   ├── overpass.js               ← Overpass API existence check (batch)
 │   ├── progress.js               ← progress overlay
-│   ├── signal-mapping.js         ← SNCF type_if → display category + OSM tag builder
-│   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
 │   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel
+│   ├── signal-mapping.js         ← SNCF type_if → OSM tag builder
+│   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
+│   ├── sncf-convert.js           ← shared SNCF field conversion utilities (PK, direction…)
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
 │   ├── tooltip.js                ← hover tooltip builder
@@ -164,7 +178,22 @@ sncf-sigmap/
 │       └── pill-list.js          ← selected-value pill container
 └── tools/
     └── TileBuilder/              ← C# tile generator
-        ├── Program.cs
+        ├── AcronymEntry.cs         ← canton label abbreviation entry record
+        ├── BuildConfig.cs          ← deserialized tilebuilder.config.json
+        ├── CantonProcessor.cs      ← reads cantonnement GeoJSON, builds index tables
+        ├── CantonResult.cs         ← output record of CantonProcessor
+        ├── CliOptions.cs           ← CLI argument parsing
+        ├── ConfigLoader.cs         ← loads tilebuilder.config.json
+        ├── Constants.cs            ← shared constants (TileDeg, default filenames)
+        ├── CrossCheck.cs           ← DEBUG-only cross-check between datasets
+        ├── IndexWriter.cs          ← writes index.json
+        ├── LigneInfo.cs            ← merged line entry (signal count + label)
+        ├── Program.cs              ← entry point and orchestration
+        ├── Signal.cs               ← signal point record (tile serialisation)
+        ├── SignalData.cs           ← output record of SignalReader
+        ├── SignalReader.cs         ← reads signal GeoJSON, groups into tiles
+        ├── TileWriter.cs           ← writes .json.gz tiles and manifest.json
+        ├── tilebuilder.config.json ← SNCF filenames + canton acronym table
         └── TileBuilder.csproj
 ```
 

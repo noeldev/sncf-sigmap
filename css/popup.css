@@ -173,7 +173,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 3px 10px;
+    padding: 3px 0 3px 10px;
     font-size: 11px;
 }
 
@@ -221,6 +221,30 @@
     background: var(--signal-color, #6b7280);
     color: var(--signal-contrast, #fff);
 }
+
+
+/* ===== Line name row — wrapping override =====
+ *
+ * LIBELLE LIGNE values can be long (e.g. "Ligne de Paris-Austerlitz à
+ * Bordeaux-Saint-Jean (rive gauche)"). A smaller font and white-space:normal
+ * let the value wrap without widening the popup. The body is already
+ * overflow-y:auto so a taller row simply becomes scrollable.
+ *
+ * align-items:flex-start keeps the label vertically anchored to the first
+ * text line when the value wraps to two or more lines.
+ */
+
+.pu-row[data-field="libelle_ligne"] {
+    align-items: flex-start;
+}
+
+    .pu-row[data-field="libelle_ligne"] .pu-val {
+        font-size: 10px;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.4;
+        min-width: 0; /* allows flex child to shrink below content size */
+    }
 
 
 /* ===== OSM indicator buttons (ID Réseau row) ===== */
@@ -294,11 +318,6 @@ button.pu-osm-btn.osm-retry {
         align-items: flex-start;
         white-space: nowrap;
     }
-
-        .pu-tags-list .pu-osm-row:last-child,
-        .pu-osm-row:last-child {
-            border-bottom: none;
-        }
 
 .pu-osm-key {
     color: var(--text2);
@@ -415,7 +434,7 @@ span.btn-flash-label {
 .pu-tags-body {
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 14px 0 14px;
+    padding: 8px 3px 0 14px;
 }
 
 /* Signals body — fixed height */

@@ -107,12 +107,17 @@ export async function loadFilterIndex(tilesBase) {
                 // Legacy format: plain value array, no counts.
                 _indexValues[f.key] = entry;
             } else if (typeof entry === 'object') {
-                // New format: { value: count, ... } — counts from full dataset.
+                // New format: either { value: count, … } (type_if)
+                // or { value: { count, label? }, … } (code_ligne — merged LigneInfo).
+                // Always extract the numeric count so countMap.get() returns a number.
                 _indexValues[f.key] = Object.keys(entry);
-                _globalCounts[f.key] = new Map(Object.entries(entry).map(([k, v]) => [k, v]));
+                _globalCounts[f.key] = new Map(
+                    Object.entries(entry).map(([k, v]) => [k, typeof v === 'object' && v !== null ? v.count : v])
+                );
             }
         });
         _defs.forEach((_, i) => _refreshDropdown(i));
+        return data;
     } catch (err) {
         console.warn('[Filters] index.json:', err.message);
         const container = document.getElementById('filters-container');

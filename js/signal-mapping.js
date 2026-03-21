@@ -3,7 +3,7 @@
  * SNCF type_if → display category + OpenRailwayMap node/tag computation.
  *
  * _SIGNAL_MAPPING entry fields:
- *   group      — application display category (colour and legend; keys into _CATEGORY_INFO)
+ *   group      — application display category key (defined in cat-mapping.js)
  *   cat        — ORM tag category:  railway:signal:<cat>=…
  *   type       — ORM main value:    railway:signal:<cat>=<type>
  *   properties — ORM sub-tags:      railway:signal:<cat>:<key>=<value>
@@ -17,28 +17,17 @@
  *   railway:signal:<cat>:ref  — idreseau (suffixed when a forward partner exists in same cat)
  *   source=SNCF - 03/2022     — always written last
  *
- *   Each physical signal gets its own node when directions differ,
+ *   Each physical signal gets its own node when directions differ.
  *
  * Reference: https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
 
-// Application display categories — used only for marker colours and the legend.
-// Private; consumers call getTypeColor() / buildLegend().
-const _CATEGORY_INFO = {
-    "main":             "#e00000",
-    "distant":          "#ffc010",
-    "speed_limit":      "#ff8000",
-    "route":            "#00b0d0",
-    "train_protection": "#4060c0",
-    "electricity":      "#a00060",
-    "wrong_road":       "#00a0a0",
-    "crossing":         "#b09000",
-    "stop":             "#f040b0",
-    "station":          "#008040",
-    "shunting":         "#a050e0",
-    "miscellaneous":    "#a0b0c0",
-    "unsupported":      "#607070",
-};
+import {
+    pkToDecimalKm,
+    sensToOsmDirection,
+    positionToOsmValue,
+} from './sncf-convert.js';
+import { getColorForCategory } from './cat-mapping.js';
 
 // Signal type definitions ordered by priority (highest first).
 // Priority controls which signals occupy earlier nodes when conflicts arise.
@@ -675,27 +664,9 @@ const _SIGNAL_MAPPING = {
     },
 };
 
-/* ===== Private conversion helpers ===== */
-
-/** Convert SNCF sens code to OSM direction string. */
-function _osmDir(sens) {
-    return { C: "forward", D: "backward" }[sens] ?? "forward";
-}
-
-/** Convert SNCF PK string "077+305" to decimal km "77.305". */
-function _convertPk(raw) {
-    if (!raw) return "";
-    const m = raw.match(/^(\d+)\+(\d+)$/);
-    if (!m) return raw;
-    const km = parseInt(m[1], 10);
-    const dec = m[2].padEnd(3, "0").slice(0, 3);
-    return `${km}.${dec}`;
-}
-
-/** Convert SNCF position code to OSM value. */
-function _convertPosition(raw) {
-    return { A: "bridge", D: "right", G: "left" }[raw] ?? (raw ?? "");
-}
+// Type priority list derived once from _SIGNAL_MAPPING insertion order.
+// Pre-computed so getOsmNodes does not rebuild it on every popup open.
+const _PRIORITY = Object.keys(_SIGNAL_MAPPING);
 
 
 /* ===== Node conflict resolution ===== */
@@ -753,9 +724,9 @@ function _buildNodeTags(group) {
     const tags = new Map();
 
     tags.set("railway", "signal");
-    tags.set("railway:position:exact", _convertPk(group[0].p.pk));
-    tags.set("railway:signal:direction", _osmDir(group[0].p.sens));
-    tags.set("railway:signal:position", _convertPosition(group[0].p.position));
+    tags.set("railway:position:exact", pkToDecimalKm(group[0].p.pk));
+    tags.set("railway:signal:direction", sensToOsmDirection(group[0].p.sens));
+    tags.set("railway:signal:position", positionToOsmValue(group[0].p.position));
 
     for (const feat of group) {
         const prefix = `railway:signal:${_SIGNAL_MAPPING[feat.p.type_if].cat}`;
@@ -768,14 +739,10 @@ function _buildNodeTags(group) {
 
 /* ===== Public query functions ===== */
 
-/** Return the display category key for any type_if. */
-export function getTypeCategory(type_if) {
-    return _SIGNAL_MAPPING[type_if]?.group ?? "unsupported";
-}
-
 /** Return the display colour for any type_if. */
 export function getTypeColor(type_if) {
-    return _CATEGORY_INFO[getTypeCategory(type_if)];
+    const group = _SIGNAL_MAPPING[type_if]?.group ?? 'unsupported';
+    return getColorForCategory(group);
 }
 
 /** Return true when this type_if has an OSM mapping. */
@@ -795,29 +762,6 @@ export function getSignalId(type_if) {
 /** Set of all type_if values that have a mapping. Exported for filters.js. */
 const _supportedTypes = new Set(Object.keys(_SIGNAL_MAPPING));
 export function getSupportedTypes() { return _supportedTypes; }
-
-
-/* ===== Legend ===== */
-
-/**
- * Populate #legend-body with one colour row per _CATEGORY_INFO entry.
- * Called once from app.js; safe to call again on language change.
- */
-export function buildLegend() {
-    const container = document.getElementById("legend-body");
-    const tpl = document.getElementById("tpl-legend-row");
-    if (!container || !tpl) return;
-
-    container.replaceChildren();
-
-    for (const [key, color] of Object.entries(_CATEGORY_INFO)) {
-        const row = tpl.content.cloneNode(true).querySelector(".panel-row");
-        row.querySelector(".legend-dot").style.backgroundColor = color;
-        row.querySelector(".legend-label").dataset.i18n = `cat.${key}`;
-        container.appendChild(row);
-    }
-}
-
 
 /* ===== OSM node computation ===== */
 
@@ -851,7 +795,6 @@ function _idrCluster(idreseau) {
  * nodes is empty when all features at this location are unsupported types.
  */
 export function getOsmNodes(feats) {
-    const priority = Object.keys(_SIGNAL_MAPPING);
     const supported = feats.filter(f => isSupported(f.p.type_if));
 
     if (!supported.length) return { nodes: [], featToNodeIdx: new Map() };
@@ -865,7 +808,7 @@ export function getOsmNodes(feats) {
         const clA = _idrCluster(a.p.idreseau);
         const clB = _idrCluster(b.p.idreseau);
         if (clA !== clB) return clA < clB ? -1 : 1;
-        return priority.indexOf(a.p.type_if) - priority.indexOf(b.p.type_if);
+        return _PRIORITY.indexOf(a.p.type_if) - _PRIORITY.indexOf(b.p.type_if);
     });
 
     const nodeGroups = [];

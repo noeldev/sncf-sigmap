@@ -13,7 +13,7 @@
  *   map.js           — Leaflet infrastructure (basemaps, basemap selector)
  *   map-controls.js  — map toolbar button wiring (zoom, geolocate, fullscreen)
  *   map-layer.js     — signal marker pipeline (worker, filter, render)
- *   signal-mapping.js — legend builder, OSM tag data
+ *   signal-mapping.js — OSM tag data and category colours
  *   filters.js       — filter state and panel UI
  *   statusbar.js     — status bar DOM updates
  */
@@ -29,12 +29,13 @@ import {
     initAddFilterButton,
     setTotalSignals,
 } from './filters.js';
-import { buildLegend } from './signal-mapping.js';
+import { buildLegend } from './cat-mapping.js';
 import { t, applyTranslations, setRecordCount } from './i18n.js';
 import { initLayer, setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
 import { initStatusBar, updateZoomStatus } from './statusbar.js';
+import { initCantonment } from './cantonment.js';
 
 
 let _lastZoom = -1;
@@ -60,10 +61,12 @@ async function _boot() {
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
-    const [manifest] = await Promise.all([
+    const [manifest, index] = await Promise.all([
         loadManifest(),
         loadFilterIndex(TILES_BASE),
     ]);
+
+    if (index) initCantonment(index);
 
     if (!manifest) {
         hideProgress();
@@ -95,7 +98,7 @@ function _updateRecordCount(manifest) {
     const el = document.getElementById('record-count');
     if (el) el.textContent =
         `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
-        `${ tileCount.toLocaleString() } ${ t('status.tiles_lower') }`;
+        `${tileCount.toLocaleString()} ${t('status.tiles_lower')}`;
 }
 
 /**

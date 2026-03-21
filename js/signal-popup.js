@@ -22,6 +22,7 @@ import { getTypeColor, getOsmNodes, isSupported } from './signal-mapping.js';
 import { t, applyI18n, onLangChange } from './i18n.js';
 import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
 import { josmAddNode } from './josm.js';
+import { getLineLabel, getCantonMode } from './cantonment.js';
 
 
 /* ===== Template accessor ===== */
@@ -63,8 +64,8 @@ let _activeTab = 'signals';
  * Open the unified popup for a co-located signal group.
  * @param {[number,number]} latlng
  * @param {object[]}        feats
- * @param {number}          [idx=0]           initial signal index
- * @param {'signals'|'tags'} [startTab]       which tab to open first
+ * @param {number}          [idx=0]            initial signal index
+ * @param {'signals'|'tags'} [startTab]        which tab to open first
  */
 export function openSignalPopup(latlng, feats, idx = 0, startTab = 'signals') {
     _initState(latlng, feats, idx, startTab);
@@ -78,7 +79,7 @@ export function openSignalPopup(latlng, feats, idx = 0, startTab = 'signals') {
 /**
  * Reset module state for a new popup.
  * Pre-sets _statuses so the Signals panel has the correct initial OSM state:
- *   supported   → 'checking'   (Overpass will update)
+ *   supported   → 'checking'    (Overpass will update)
  *   unsupported → 'unsupported' (locate button shown immediately)
  */
 function _initState(latlng, feats, idx, startTab) {
@@ -116,7 +117,7 @@ function _openPopup() {
     _switchTab(_activeTab);
 
     _popup = L.popup({
-        maxWidth: 520,
+
         autoPan: true,
         closeButton: false,
         className: 'pu-leaflet',
@@ -195,11 +196,17 @@ function _applyOsmStatus(idRow, { status, nodeId }, feat) {
 
 /* ===== In-place DOM updates ===== */
 
-const _DATA_FIELDS = ['code_ligne', 'libelle_ligne', 'mode_ct', 'code_voie', 'nom_voie', 'sens', 'position', 'pk'];
+// Fields resolved directly from p — cantonment fields are handled separately below.
+const _DATA_FIELDS = ['code_ligne', 'libelle_ligne', 'mode_canton', 'code_voie', 'nom_voie', 'sens', 'position', 'pk'];
 
 /**
  * Update every element in the Signals tab panel for _currentIdx.
  * Does not touch the OSM Tags panel.
+ *
+ * libelle_ligne and mode_canton are not stored in tile data; they are resolved
+ * at display time via the cantonment module (index.json lookup). A shallow
+ * displayProps object merges p with the two resolved values so the DATA_FIELDS
+ * loop can treat all fields uniformly without mutating the original p.
  */
 function _updateSignalsPanel() {
     if (!_popupEl) return;
@@ -224,10 +231,19 @@ function _updateSignalsPanel() {
     // Type badge
     _popupEl.querySelector('.pu-row[data-field="type_if"] .pu-badge').textContent = p.type_if ?? '';
 
+    // Merge cantonment-resolved fields with raw props (no mutation of p).
+    // getCantonMode receives sens so it can determine the downstream canton at
+    // PK boundaries (see cantonment.js for the full direction semantics).
+    const displayProps = {
+        ...p,
+        libelle_ligne: getLineLabel(p.code_ligne) ?? t('popup.nodeNA'),
+        mode_canton: getCantonMode(p.code_ligne, p.pk, p.sens) ?? t('popup.nodeNA'),
+    };
+
     // Data fields
     for (const field of _DATA_FIELDS) {
         const row = _popupEl.querySelector(`.pu-row[data-field="${field}"]`);
-        if (row) row.querySelector('.pu-val').textContent = p[field] ?? '';
+        if (row) row.querySelector('.pu-val').textContent = displayProps[field] ?? '';
     }
 
     // ID RÉSEAU + OSM status
@@ -244,13 +260,8 @@ function _updateSignalsPanel() {
     _updateNodeBadge(s);
 }
 
-/**
- * Update the Signal Node badge for the given signal.
- * Sets _currentNodeIdx and syncs _tagsNodeIdx so the OSM Tags tab always
- * opens on the node that belongs to the currently displayed signal.
- */
 function _updateNodeBadge(s) {
-    const nodeIdx = _featToNodeIdx.get(s);
+    const nodeIdx = _featToNodeIdx?.get(s);
     _currentNodeIdx = nodeIdx ?? -1;
     const nodeCounter = _popupEl.querySelector('.pu-node-counter');
 
