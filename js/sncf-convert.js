@@ -24,13 +24,14 @@
  * @param {string} raw  e.g. "077+305" or "000-195"
  * @returns {number|null}
  */
+
 export function parsePkAsMeters(raw) {
     if (!raw) return null;
     const m = raw.match(/^(\d+)([+-])(\d+)$/);
     if (!m) return null;
-    const metres = parseInt(m[1], 10) * 1000 + parseInt(m[3], 10);
-    return m[2] === '-' ? -metres : metres;
+    return parseFloat(m[2] + m[1] + m[3]);
 }
+
 
 /**
  * Convert a SNCF PK string to the decimal km string used in the OSM tag
@@ -43,13 +44,13 @@ export function parsePkAsMeters(raw) {
  * @param {string} raw  e.g. "077+305"
  * @returns {string}
  */
+
 export function pkToDecimalKm(raw) {
     const m = parsePkAsMeters(raw);
     if (m === null) return raw ?? '';
-    const km  = Math.floor(m / 1000);
-    const dec = String(m % 1000).padStart(3, '0');
-    return `${km}.${dec}`;
+    return (m / 1000).toFixed(3);
 }
+
 
 /**
  * Convert a SNCF sens code to the OSM railway:signal:direction value.

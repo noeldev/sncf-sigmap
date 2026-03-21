@@ -13,7 +13,7 @@
  *   initSidebar()  — wire all sidebar UI; called once from app.js/_boot().
  */
 
-import { getLang, setLang, applyTranslations } from './i18n.js';
+import { getLang, setLang } from './i18n.js';
 import { refreshBasemapLabels } from './map.js';
 import { Dropdown, closeAll as closeAllDropdowns } from './ui/dropdown.js';
 
@@ -135,11 +135,14 @@ async function _refreshJosmStatus() {
 
     body.dataset.josmStatus = 'checking';
 
-    const { josmGetVersion } = await import('./josm.js');
-    const result = await josmGetVersion();
-    body.dataset.josmStatus = result.status;
-
-    if (result.status === 'ok') _updateJosmFields(result);
+    try {
+        const { josmGetVersion } = await import('./josm.js');
+        const result = await josmGetVersion();
+        body.dataset.josmStatus = result.status;
+        if (result.status === 'ok') _updateJosmFields(result);
+    } catch {
+        body.dataset.josmStatus = 'error';
+    }
 }
 
 /** Populate the JOSM detection panel with version/protocol/port values. */
