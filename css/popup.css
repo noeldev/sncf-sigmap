@@ -435,20 +435,20 @@ span.btn-flash-label {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 8px 3px 0 14px;
+    mask-image: linear-gradient(to bottom, black calc(100% - 2px), transparent calc(100% - 2px));
 }
 
 /* Signals body — fixed height */
 .pu-body {
-    height: 240px;
+    height: 245px;
 }
 
-/* Badge zone — flex:1 fills remaining space and centers the badge,
-   mirroring .pu-footer in the tags panel. */
+/* Badge zone — flex:1 fills remaining space  */
 .pu-badge-zone {
     flex: 1;
     display: flex;
-    align-items: center;
-    padding: 0 14px;
+    align-items: flex-start;
+    padding: 3px 14px;
 }
 
 /* Tags body fixed height — leaves the rest for .pu-footer */
