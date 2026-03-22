@@ -7,12 +7,12 @@
 
 Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
-Only tiles visible in the current viewport are fetched — no full dataset download.
+At low zoom, all tiles are fetched once for a spatial overview sample. At high zoom, only tiles covering the current viewport are fetched.
 
 ## Features
 
 - **123,870 signals** across France, split into ~289 gzip-compressed tiles (0.5° × 0.5°)
-- Progressive display: spatial sampling at low zoom, full detail at zoom ≥ 10
+- Progressive display: spatial sampling at low zoom for performance, full detail at zoom 10 and above
 - Hover tooltips and click popups with signal information and OSM tags
 - OSM existence check per signal via Overpass API (live badge in popup)
 - Export tags to clipboard or via JOSM Remote Control
@@ -128,6 +128,56 @@ Install the [French Railway Signalling JOSM Presets](https://noeldev.github.io/F
 
 `js/signal-mapping.js` maps each SNCF `type_if` code to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in grey and cannot be exported.
 
+## Data files
+
+### `data/tiles/manifest.json`
+
+Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
+
+```json
+{
+  "tile_deg": 0.5,
+  "tiles": {
+    "-4:97": 12,
+    "3:94":  847
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `tile_deg` | Spatial tile size in decimal degrees (0.5° × 0.5°). Must match `TILE_DEG` in `config.js`. |
+| `tiles` | Map of tile key → signal count. Key is `"tx:ty"` where `tx = floor(lng / tile_deg)` and `ty = floor(lat / tile_deg)`. Used by `tiles.js` to resolve which tiles exist before fetching them. |
+
+### `data/tiles/index.json`
+
+Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` and `cantonment.js`.
+
+```json
+{
+  "type_if": {
+    "CARRE": 16571,
+    "Z":     7930
+  },
+  "code_ligne": {
+    "570000": { "count": 1820, "label": "Ligne de Paris-Austerlitz à Bordeaux-Saint-Jean" },
+    "100000": { "count": 36,   "label": null }
+  },
+  "cantons": [ "BAL", "BAPR de double voie", "BM", "CT de voie unique", "…" ],
+  "canton_segs": [
+    ["205000", 69350, 72241, 0],
+    ["205000", 72241, 85000, 1]
+  ]
+}
+```
+
+| Field | Consumer | Description |
+|-------|----------|-------------|
+| `type_if` | `filters.js` | Signal type → count (full dataset). Populates the TYPE IF filter dropdown with global counts. |
+| `code_ligne` | `filters.js`, `cantonment.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the cantonment dataset (`null` when absent). Populates the CODE LIGNE filter and the popup *Libellé ligne* field. |
+| `cantons` | `cantonment.js` | Ordered list of abbreviated cantonment mode labels, indexed by position. |
+| `canton_segs` | `cantonment.js` | Compact segment array: `[code_ligne, pkd_m, pkf_m, canton_idx]`. `pkd_m` / `pkf_m` are integer metres from the line origin (e.g. `"069+350"` → `69350`). `canton_idx` is the index into `cantons`. Used to resolve the *Mode canton* field in the popup. |
+
 ## Project structure
 
 ```
@@ -202,5 +252,6 @@ sncf-sigmap/
 | Source | Licence |
 |--------|---------|
 | [Signalisation permanente SNCF](https://data.sncf.com/) | [Licence Ouverte 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence) |
+| [Mode de cantonnement des lignes SNCF](https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/) | [Licence Ouverte 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence) |
 | [OpenStreetMap](https://www.openstreetmap.org/) | [ODbL](https://opendatacommons.org/licenses/odbl/) |
 | [Jawg Maps](https://jawg.io/) | Commercial (free tier, optional) |

@@ -134,9 +134,9 @@ const STRINGS = {
         'cat.unsupported': 'Unsupported types',
 
         // About
-        'about.intro': 'Viewer for <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open data, with OSM integration via JOSM or clipboard.',
+        'about.intro': 'Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href="https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl" target="_blank" rel="noopener">JOSM Remote Control</a>.',
         'about.usage.title': 'How to use',
-        'about.usage.text': 'Zoom in to load signals. At low zoom, results are spatially sampled to keep the map readable; zoom ≥10 shows all signals in the viewport without limit. Active filters always apply regardless of zoom level. Click any marker to view properties and export OSM tags.',
+        'about.usage.text': 'All tiles are loaded once at startup and cached by the browser. At low zoom, a spatial sample is displayed to keep the map readable. At zoom 10 and above, full signal detail is shown for the current viewport, served instantly from cache. Active filters always apply regardless of zoom level. Click any marker to view its properties and export OSM tags.',
         'about.links.title': 'Links',
         'about.credits.title': 'Credits',
         'about.credits': 'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
@@ -271,9 +271,9 @@ const STRINGS = {
         'cat.unsupported': 'Types non supportés',
 
         // About
-        'about.intro': 'Visualisation des données open data <strong>SNCF Signalisation Permanente</strong> avec intégration OSM via JOSM ou presse-papiers.',
+        'about.intro': 'Visualisation cartographique interactive du jeu de données ouvertes <strong>SNCF Signalisation Permanente</strong>, avec intégration OpenStreetMap. Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via <a href="https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl" target="_blank" rel="noopener">JOSM Remote Control</a>.',
         'about.usage.title': 'Utilisation',
-        'about.usage.text': 'Zoomez pour charger les signaux. À faible zoom, les résultats sont spatialement échantillonnés pour garder la carte lisible ; zoom ≥10 affiche tous les signaux dans la vue sans limite. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
+        'about.usage.text': 'Toutes les tuiles sont chargées une fois au démarrage et mises en cache par le navigateur. À faible zoom, un échantillon spatial est affiché pour garder la carte lisible. À partir du zoom 10, le détail complet des signaux est affiché pour la vue courante, servi instantanément depuis le cache. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
         'about.links.title': 'Liens',
         'about.credits.title': 'Crédits',
         'about.credits': 'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',

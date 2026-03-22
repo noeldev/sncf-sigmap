@@ -217,28 +217,30 @@ const _SIGNAL_MAPPING = {
     "TIV PENDIS": {
         group: "speed_limit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-PENDIS",
+        type: "FR:TIV-D",
         properties: {
-            form: "sign"
+            form: "sign",
+            shape: "pentagon",
         }
     },
     "TIV PENEXE": {
         group: "speed_limit",
         cat: "speed_limit",
-        type: "FR:TIV-PENEXE",
+        type: "FR:TIV",
         properties: {
             form: "sign",
+            shape: "pentagon",
             function: "entry"
         }
     },
     "TIV PENREP": {
         group: "speed_limit",
         cat: "speed_limit",
-        type: "FR:TIV-PENREP",
+        type: "FR:TIV",
         properties: {
             form: "sign",
-            function: "exit",
-            speed: "none"
+            shape: "pentagon",
+            function: "exit"
         }
     },
     "REPER VIT": {

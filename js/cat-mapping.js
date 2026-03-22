@@ -13,7 +13,7 @@
 
 
 // Application display categories — colour palette.
-// Keys are referenced by the `group` field in signal-mapping.js _SIGNAL_MAPPING.
+// Keys are referenced by the 'group' field in signal-mapping.js _SIGNAL_MAPPING.
 // Private; external modules use getColorForCategory() / getCategoryEntries().
 const _CATEGORY_INFO = {
     'main':             '#e00000',
