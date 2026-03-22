@@ -47,6 +47,13 @@ const _activeFilters = {};
 
 let _indexValues = {};
 let _counts = {};
+let _globalCounts = {};   // per-value counts from index.json (full dataset, always accurate)
+let _totalSignals = 0;    // total signal count from manifest, used as placeholder for non-indexed fields
+
+/** Store the total signal count so non-indexed dropdowns can show a meaningful placeholder. */
+export function setTotalSignals(n) {
+    _totalSignals = n;
+}
 let _knownValues = {};   // accumulated across tile loads; never reset by resetCounts()
 let _defs = [];   // [{ field: string, search: string, panel: FilterPanel }]
 let _mappedOnly = false;
@@ -68,6 +75,7 @@ _ALL_FILTER_FIELDS.forEach(f => {
     _indexValues[f.key] = [];
     _counts[f.key] = new Map();
     _knownValues[f.key] = new Set();
+    _globalCounts[f.key] = null;   // null means not yet loaded from index.json
 });
 
 /* ===== Public API ===== */
@@ -93,15 +101,29 @@ export async function loadFilterIndex(tilesBase) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         _ALL_FILTER_FIELDS.forEach(f => {
-            if (data[f.key]) _indexValues[f.key] = data[f.key];
+            const entry = data[f.key];
+            if (!entry) return;
+            if (Array.isArray(entry)) {
+                // Legacy format: plain value array, no counts.
+                _indexValues[f.key] = entry;
+            } else if (typeof entry === 'object') {
+                // New format: either { value: count, … } (type_if)
+                // or { value: { count, label? }, … } (code_ligne — merged LigneInfo).
+                // Always extract the numeric count so countMap.get() returns a number.
+                _indexValues[f.key] = Object.keys(entry);
+                _globalCounts[f.key] = new Map(
+                    Object.entries(entry).map(([k, v]) => [k, typeof v === 'object' && v !== null ? v.count : v])
+                );
+            }
         });
         _defs.forEach((_, i) => _refreshDropdown(i));
+        return data;
     } catch (err) {
         console.warn('[Filters] index.json:', err.message);
         const container = document.getElementById('filters-container');
         if (container) {
             const warn = _tpl.noMatch.content.cloneNode(true).querySelector('.fg-empty');
-            warn.removeAttribute('data-i18n'); // prevent i18n from overwriting the error text
+            warn.removeAttribute('data-i18n');
             warn.style.color = 'var(--warn)';
             warn.textContent = t('filter.indexError');
             container.prepend(warn);
@@ -323,7 +345,11 @@ function _refreshDropdown(idx) {
 
     if (isMappedOnly) all = all.filter(v => _mappedTypes.has(v));
 
-    def.panel.setInputPlaceholder(t('dropdown.search', all.length));
+    // Placeholder: for indexed fields show the known value count; for non-indexed
+    // fields show the total signal count from the manifest (more meaningful than
+    // the partial knownValues count which only reflects loaded tiles).
+    const placeholderCount = fromIndex.length > 0 ? all.length : (_totalSignals || all.length);
+    def.panel.setInputPlaceholder(t('dropdown.search', placeholderCount));
 
     const numericSort = def.field === 'code_ligne';
     const sel = _activeFilters[def.field] || new Set();
@@ -337,13 +363,15 @@ function _refreshDropdown(idx) {
     // The minimum query length is derived from the full list size (proportional gate),
     // but the actual render decision uses the filtered count — a rare prefix unlocks
     // the list sooner than a common one.
+    // Global counts from index.json when available; live viewport counts otherwise.
+    const countMap = _globalCounts[def.field] ?? _counts[def.field];
+
     if (filtered.length > MIN_SEARCH_THRESHOLD) {
         const minChars = Math.max(1, Math.ceil(Math.log10(all.length / MIN_SEARCH_THRESHOLD)));
         if (q.length < minChars) {
-            // Show only active selections so the user can always uncheck them.
             const activeItems = [...sel].map(v => ({
                 v,
-                count: _counts[def.field]?.get(v) || 0,
+                count: countMap?.get(v) || 0,
                 active: true,
                 showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
             }));
@@ -355,15 +383,19 @@ function _refreshDropdown(idx) {
     const items = filtered
         .map(v => ({
             v,
-            count: _counts[def.field]?.get(v) || 0,
+            count: countMap?.get(v) || 0,
             active: sel.has(v),
             showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
         }))
-        .sort(numericSort
-            ? (a, b) =>
-                (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) ||
-                a.v.localeCompare(b.v)
-            : (a, b) => a.v.localeCompare(b.v)
+        .sort(
+            // type_if: descending count when global counts available, else alphabetical.
+            // code_ligne: numeric ascending.
+            // others: alphabetical.
+            isTypeIf && _globalCounts[def.field]
+                ? (a, b) => (b.count - a.count) || a.v.localeCompare(b.v)
+                : numericSort
+                    ? (a, b) => (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) || a.v.localeCompare(b.v)
+                    : (a, b) => a.v.localeCompare(b.v)
         );
 
     def.panel.refreshList(items);

@@ -40,14 +40,14 @@
                 <div id="record-count" class="record-count">…</div>
             </div>
 
-            <nav id="sidebar-tabs">
-                <button class="stab active" data-tab="filters" data-i18n="tab.filters">Filters</button>
-                <button class="stab" data-tab="settings" data-i18n="tab.settings">Settings</button>
-                <button class="stab" data-tab="about" data-i18n="tab.about">About</button>
+            <nav id="sidebar-tabs" role="tablist">
+                <button class="stab active" role="tab" aria-selected="true" aria-controls="tab-filters" data-tab="filters" data-i18n="tab.filters">Filters</button>
+                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-settings" data-tab="settings" data-i18n="tab.settings">Settings</button>
+                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about" data-i18n="tab.about">About</button>
             </nav>
 
             <!-- Filters -->
-            <div id="tab-filters" class="tab-panel active">
+            <div id="tab-filters" class="tab-panel active" role="tabpanel">
                 <div class="panel-toolbar">
                     <button class="tbtn" id="btn-add-filter" data-i18n="btn.addFilter">+ Add filter</button>
                     <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="btn.reset">Reset</button>
@@ -72,7 +72,7 @@
             </div>
 
             <!-- Settings -->
-            <div id="tab-settings" class="tab-panel">
+            <div id="tab-settings" class="tab-panel" role="tabpanel">
                 <div class="settings-section">
                     <div class="section-title" data-i18n="settings.basemap">Base Map</div>
                     <div id="basemap-list"></div>
@@ -126,7 +126,7 @@
             </div>
 
             <!-- About -->
-            <div id="tab-about" class="tab-panel">
+            <div id="tab-about" class="tab-panel" role="tabpanel">
                 <div class="about-content">
                     <p class="about-intro" data-i18n-html="about.intro"></p>
                     <div class="about-section">
@@ -137,6 +137,7 @@
                         <div class="section-title" data-i18n="about.links.title">Links</div>
                         <ul class="about-links">
                             <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
+                            <li><a href="https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/" target="_blank" rel="noopener">SNCF — Mode de cantonnement des lignes</a></li>
                             <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
                             <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a></li>
                             <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM editor</a></li>
@@ -171,10 +172,15 @@
                     <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-out"></use></svg>
                 </button>
                 <div class="mc-sep"></div>
+                <button id="btn-reset-view" class="mc-btn"
+                        data-i18n-title="ctrl.resetView" title="Reset view">
+                    <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-home"></use></svg>
+                </button>
                 <button id="btn-geolocate" class="mc-btn"
                         data-i18n-title="ctrl.locate" title="My location">
                     <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-locate"></use></svg>
                 </button>
+                <div class="mc-sep"></div>
                 <button id="btn-fullscreen" class="mc-btn"
                         data-i18n-title="ctrl.fullscreen" title="Fullscreen">
                     <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-fullscreen"></use></svg>
@@ -209,121 +215,188 @@
 
     <!-- HTML Templates -->
     <!-- Signal popup -->
+    <!-- Unified signal popup — two tab panels + bottom tab bar -->
     <template id="tpl-signal-popup">
         <div class="pu-wrap">
 
-            <div class="pu-nav">
-                <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener" class="pu-brand-link">
-                    <img src="assets/png/sncf-logo.png" alt="SNCF Réseau" class="pu-brand-logo">
-                </a>                <div class="pu-nav-group is-hidden">
-                    <button class="pu-nav-btn" data-action="nav-prev"
-                            data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
-                    </button>
-                    <span class="pu-nav-label"></span>
-                    <button class="pu-nav-btn" data-action="nav-next"
-                            data-i18n-title="popup.next" data-i18n-aria="popup.next">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                    </button>
-                </div>
-                <button class="pu-close-btn" data-action="close"
-                        data-i18n-title="popup.close" data-i18n-aria="popup.close">
-                    &#10005;
+            <!-- ===== Panels grid: both panels occupy the same grid area so the
+                 popup dimensions are always set by the larger (Tags) panel. ===== -->
+            <div class="pu-panels-grid">
+
+                <!-- ===== Tab panel: Signals ===== -->
+                <div class="pu-tab-panel" id="pu-panel-signals" role="tabpanel" data-tab="signals">
+
+                    <div class="pu-nav">
+                        <div class="pu-nav-left">
+                            <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener" class="pu-brand-link">
+                                <img src="assets/png/sncf-logo.png" alt="SNCF Réseau" class="pu-brand-logo">
+                            </a>
+                            <span class="pu-nav-title" data-i18n="popup.captionSignal">SIGNAL</span>
+                        </div>
+                        <div class="pu-nav-group">
+                            <button class="pu-nav-btn" data-action="nav-prev"
+                                    data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                            </button>
+                            <span class="pu-nav-label"></span>
+                            <button class="pu-nav-btn" data-action="nav-next"
+                                    data-i18n-title="popup.next" data-i18n-aria="popup.next">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                            </button>
+                        </div>
+                        <div class="pu-nav-right">
+                            <button class="pu-close-btn" data-action="close"
+                                    data-i18n-title="popup.close" data-i18n-aria="popup.close">
+                                &#10005;
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pu-body">
+                        <div class="pu-row" data-field="type_if">
+                            <span class="pu-label">TYPE IF</span>
+                            <span class="pu-val"><span class="pu-badge"></span></span>
+                        </div>
+                        <div class="pu-row" data-field="code_ligne">
+                            <span class="pu-label">CODE LIGNE</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="libelle_ligne">
+                            <span class="pu-label">LIBELLE LIGNE</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="mode_canton">
+                            <span class="pu-label">MODE CANTON</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="code_voie">
+                            <span class="pu-label">CODE VOIE</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="nom_voie">
+                            <span class="pu-label">NOM VOIE</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="sens">
+                            <span class="pu-label">SENS</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="position">
+                            <span class="pu-label">POSITION</span>
+                            <span class="pu-val"></span>
+                        </div>
+                        <div class="pu-row" data-field="pk">
+                            <span class="pu-label">PK</span>
+                            <span class="pu-val"></span>
+                        </div>
+
+                        <!-- idreseau: osm-checking is the default visible state. -->
+                        <div class="pu-row" data-field="idreseau">
+                            <span class="pu-label">ID RÉSEAU</span>
+                            <span class="pu-val"></span>
+                            <span class="pu-osm-btn osm-checking"
+                                  data-i18n-title="osm.checking" data-i18n-aria="osm.checking"></span>
+                            <a class="pu-osm-btn osm-in-osm is-hidden"
+                               href="#" target="_blank" rel="noopener">
+                                <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img">
+                            </a>
+                            <a class="pu-osm-btn osm-locate is-hidden"
+                               href="#" target="_blank" rel="noopener"
+                               data-i18n-title="osm.locateOnOsm" data-i18n-aria="osm.locateOnOsm">
+                                <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                            </a>
+                            <button class="pu-osm-btn osm-retry is-hidden" data-action="osm-retry"
+                                    data-i18n-title="osm.retry" data-i18n-aria="osm.retry">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+                            </button>
+                        </div>
+
+                        <div class="pu-row" data-field="coords">
+                            <span class="pu-label">COORDS</span>
+                            <span class="pu-val"></span>
+                        </div>
+                    </div>
+
+                    <!-- Signal Node badge — flex:1 zone centers badge in remaining space -->
+                    <div class="pu-badge-zone">
+                        <div class="pu-node-badge">
+                            <span class="pu-node-badge-label" data-i18n="popup.signalNode">Signal Node</span>
+                            <span class="pu-node-counter"></span>
+                        </div>
+                    </div>
+
+                </div><!-- /tab-panel[signals] -->
+                <!-- ===== Tab panel: OSM Tags ===== -->
+                <div class="pu-tab-panel" id="pu-panel-tags" role="tabpanel" data-tab="tags">
+
+                    <div class="pu-nav">
+                        <div class="pu-nav-left">
+                            <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener" class="pu-brand-link">
+                                <img src="assets/svg/osm.svg" alt="OpenStreetMap" class="pu-brand-osm">
+                            </a>
+                            <span class="pu-nav-title" data-i18n="popup.captionNode">NODE</span>
+                        </div>
+                        <div class="pu-nav-group">
+                            <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-prev"
+                                    data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                            </button>
+                            <span class="pu-tags-node-label pu-nav-label"></span>
+                            <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-next"
+                                    data-i18n-title="popup.next" data-i18n-aria="popup.next">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                            </button>
+                        </div>
+                        <div class="pu-nav-right">
+                            <button class="pu-close-btn" data-action="close"
+                                    data-i18n-title="popup.close" data-i18n-aria="popup.close">
+                                &#10005;
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pu-tags-body">
+                        <div class="pu-tags-list"></div>
+                    </div>
+
+                    <div class="pu-footer">
+                        <button class="pu-action-btn" data-action="copy"
+                                data-i18n-title="popup.copy">
+                            <svg class="icon btn-icon-default" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                            <svg class="icon btn-icon-flash" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg>
+                            <span class="btn-label" data-i18n="popup.copy">Copy tags</span>
+                            <span class="btn-flash-label" data-i18n="popup.copied">Copied!</span>
+                        </button>
+                        <button class="pu-action-btn pu-josm-btn" data-action="josm"
+                                data-i18n-title="popup.josm">
+                            <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon-default">
+                            <span class="btn-label" data-i18n="popup.josm">Open in JOSM</span>
+                            <span class="btn-flash-label" data-i18n="popup.josmSent">Sent to JOSM</span>
+                        </button>
+                    </div>
+
+                </div><!-- /tab-panel[tags] -->
+
+            </div><!-- /pu-panels-grid -->
+            <!-- ===== Bottom tab bar (Excel-style) ===== -->
+            <div class="pu-tabs-bar" role="tablist">
+                <button class="pu-tab-btn active" role="tab" aria-selected="true"
+                        aria-controls="pu-panel-signals" data-tab="signals" data-action="tab-signals"
+                        data-i18n="popup.tabSignals">
+                    Signals
                 </button>
-            </div>
-
-            <div class="pu-body">
-                <div class="pu-row" data-field="type_if">
-                    <span class="pu-label">TYPE IF</span>
-                    <span class="pu-val"><span class="pu-badge"></span></span>
-                </div>
-                <div class="pu-row" data-field="code_ligne">
-                    <span class="pu-label">CODE LIGNE</span>
-                    <span class="pu-val"></span>
-                </div>
-                <div class="pu-row" data-field="code_voie">
-                    <span class="pu-label">CODE VOIE</span>
-                    <span class="pu-val"></span>
-                </div>
-                <div class="pu-row" data-field="nom_voie">
-                    <span class="pu-label">NOM VOIE</span>
-                    <span class="pu-val"></span>
-                </div>
-                <div class="pu-row" data-field="sens">
-                    <span class="pu-label">SENS</span>
-                    <span class="pu-val"></span>
-                </div>
-                <div class="pu-row" data-field="position">
-                    <span class="pu-label">POSITION</span>
-                    <span class="pu-val"></span>
-                </div>
-                <div class="pu-row" data-field="pk">
-                    <span class="pu-label">PK</span>
-                    <span class="pu-val"></span>
-                </div>
-
-                <!-- idreseau: osm-checking is the default visible state.
-                     JS hides it and reveals exactly one of the three other states
-                     once the Overpass result arrives:
-                       osm-in-osm   — signal found, links to OSM node page
-                       osm-locate   — not yet in OSM, links to map position
-                       osm-retry    — network error, offers a retry button -->
-                <div class="pu-row" data-field="idreseau">
-                    <span class="pu-label">ID RÉSEAU</span>
-                    <span class="pu-val"></span>
-                    <span class="pu-osm-btn osm-checking"
-                          data-i18n-title="osm.checking" data-i18n-aria="osm.checking"></span>
-                    <a class="pu-osm-btn osm-in-osm is-hidden"
-                       href="#" target="_blank" rel="noopener">
-                        <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img">
-                    </a>
-                    <a class="pu-osm-btn osm-locate is-hidden"
-                       href="#" target="_blank" rel="noopener"
-                       data-i18n-title="osm.locateOnOsm" data-i18n-aria="osm.locateOnOsm">
-                        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
-                    </a>
-                    <button class="pu-osm-btn osm-retry is-hidden" data-action="osm-retry"
-                            data-i18n-title="osm.retry" data-i18n-aria="osm.retry">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"></use></svg>
-                    </button>
-                </div>
-
-                <!-- Coordinates: always present, no action button -->
-                <div class="pu-row" data-field="coords">
-                    <span class="pu-label">COORDS</span>
-                    <span class="pu-val"></span>
-                </div>
-            </div>
-
-            <!-- Signal Node badge: visually distinct pill bridging SNCF data and OSM export -->
-            <div class="pu-node-badge">
-                <span class="pu-node-badge-label" data-i18n="popup.signalNode">Signal Node</span>
-                <span class="pu-node-counter"></span>
-                <button class="pu-node-preview-btn" data-action="node-preview"
-                        data-i18n-title="popup.previewTags" data-i18n-aria="popup.previewTags">
-                    <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-document"></use></svg>
-                </button>
-            </div>
-            <div class="pu-footer">
-                <button class="pu-action-btn" data-action="copy"
-                        data-i18n-title="popup.copy">
-                    <svg class="icon btn-icon-default" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
-                    <svg class="icon btn-icon-flash" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg>
-                    <span class="btn-label" data-i18n="popup.copy">Copy tags</span>
-                    <span class="btn-flash-label" data-i18n="popup.copied">Copied!</span>
-                </button>
-                <button class="pu-action-btn pu-josm-btn" data-action="josm"
-                        data-i18n-title="popup.josm">
-                    <img src="assets/svg/josm.svg" width="14" height="14" alt="" class="btn-icon-default">
-                    <span class="btn-label" data-i18n="popup.josm">Open in JOSM</span>
-                    <span class="btn-flash-label" data-i18n="popup.josmSent">Sent to JOSM</span>
+                <button class="pu-tab-btn" role="tab" aria-selected="false"
+                        aria-controls="pu-panel-tags" data-tab="tags" data-action="tab-tags"
+                        data-i18n="popup.tabTags">
+                    OSM Tags
                 </button>
             </div>
 
         </div>
     </template>
 
-    <!-- One OSM tag key=value row — used in tpl-osm-tags-popup -->
+
+    <!-- One OSM tag key=value row — injected into the OSM Tags panel -->
     <template id="tpl-osm-tag-row">
         <div class="pu-osm-row">
             <span class="pu-osm-key"></span>
@@ -331,47 +404,6 @@
         </div>
     </template>
 
-    <!-- OSM tags preview popup — opened by the Signal Node preview button -->
-    <template id="tpl-osm-tags-popup">
-        <div class="pu-tags-wrap">
-
-            <!-- Nav bar mirrors the signal popup: brand absolute-left, group centered,
-                 close button absolute-right. -->
-            <div class="pu-tags-nav">
-                <span class="pu-tags-header">
-                    <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener"
-                       class="pu-tags-brand-link">
-                        <img src="assets/svg/osm.svg" width="18" height="18" alt="OpenStreetMap"
-                             class="pu-tags-brand">
-                    </a>
-                    <span class="pu-label" data-i18n="popup.signalNode">SIGNAL NODE</span>
-                </span>
-                <!-- Center: [ < ] [ X / N ] [ > ] — arrows hidden when only one node -->
-                <div class="pu-nav-group">
-                    <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-prev"
-                            data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
-                    </button>
-                    <span class="pu-tags-node-label pu-nav-label"></span>
-                    <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-next"
-                            data-i18n-title="popup.next" data-i18n-aria="popup.next">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                    </button>
-                </div>
-                <button class="pu-close-btn" data-action="tags-close"
-                        data-i18n-title="popup.close" data-i18n-aria="popup.close">
-                    &#10005;
-                </button>
-            </div>
-
-            <div class="pu-tags-body">
-                <p class="pu-tags-section-label" data-i18n="popup.osmTags"></p>
-                <!-- Tag rows injected by JS using tpl-osm-tag-row -->
-                <div class="pu-osm-list pu-tags-list"></div>
-            </div>
-
-        </div>
-    </template>
 
     <template id="tpl-signal-tooltip">
         <div class="tt-wrap">
@@ -503,6 +535,19 @@
             <rect y="9" width="20" height="2" rx="1" />
             <rect y="15.5" width="20" height="2" rx="1" />
         </symbol>
+        <!-- Plus / zoom in -->
+        <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+        </symbol>
+        <!-- Minus / zoom out -->
+        <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+        </symbol>
+        <!-- Home / reset view -->
+        <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 11L12 5L20 11V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
+        </symbol>
         <!-- Crosshair / geolocate -->
         <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3" />
@@ -512,14 +557,17 @@
         <symbol id="icon-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
         </symbol>
-        <!-- Plus / zoom in -->
-        <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+        <!-- Chevron left (popup nav) -->
+        <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6" />
         </symbol>
-        <!-- Minus / zoom out -->
-        <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="5" y1="12" x2="19" y2="12" />
+        <!-- Chevron right (popup nav) -->
+        <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+        </symbol>
+        <!-- Filled triangle — collapsible panel arrow and dropdown chevron -->
+        <symbol id="icon-panel-arrow" viewBox="0 0 8 8" fill="currentColor">
+            <polygon points="0,0 8,0 4,8" />
         </symbol>
         <!-- Copy to clipboard -->
         <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -535,31 +583,6 @@
             <path d="M23 4v6h-6" />
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-        </symbol>
-        <!-- Chevron left (popup nav) -->
-        <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-        </symbol>
-        <!-- Chevron right (popup nav) -->
-        <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-        </symbol>
-        <!-- Filled triangle — collapsible panel arrow and dropdown chevron -->
-        <symbol id="icon-panel-arrow" viewBox="0 0 8 8" fill="currentColor">
-            <polygon points="0,0 8,0 4,8" />
-        </symbol>
-        <!-- Diagonal arrow — node sent to JOSM indicator -->
-        <symbol id="icon-node-sent" viewBox="0 0 14 14">
-            <path d="M2.5 11.5L11.5 2.5M11.5 2.5H6.5M11.5 2.5V7.5"
-                  stroke="currentColor" stroke-width="1.5"
-                  stroke-linecap="round" stroke-linejoin="round" fill="none" />
-        </symbol>
-        <!-- Document / file — OSM tags preview button -->
-        <symbol id="icon-document" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="8" y1="13" x2="16" y2="13" />
-            <line x1="8" y1="17" x2="12" y2="17" />
         </symbol>
     </svg>
 

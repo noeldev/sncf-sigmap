@@ -2,187 +2,103 @@
 // Splits signalisation-permanente.geojson into small gzip-compressed
 // spatial tile files, and generates a values index for filter pre-population.
 //
+// USAGE:
+//   TileBuilder [options]
+//
+//   Options:
+//     -s, --source  <dir>   Source directory containing SNCF GeoJSON files
+//                           (default: current directory)
+//     -o, --output  <dir>   Output directory  (default: current directory)
+//     -n, --no-tiles        Skip tile generation; write index.json and
+//                           manifest.json only
+//     -h, --help            Show this help
+//
 // HOW TO RUN IN VISUAL STUDIO 2022:
 //   1. Open tools/TileBuilder/TileBuilder.csproj
 //   2. Project → Properties → Debug → Open debug launch profiles UI
-//   3. Command line arguments:
-//        "C:\path\to\signalisation-permanente.geojson"  "C:\path\to\sncf-sigmap\data\tiles"
+//   3. Command line arguments — examples:
+//        Full build:
+//          -s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"
+//        Index + manifest only:
+//          -n -s "C:\path\to\sncf-data" -o "C:\path\to\tiles"
 //   4. Ctrl+F5
-//
-// OUTPUT:
-//   <output-dir>\manifest.json   — tile index (tile key → signal count)
-//   <output-dir>\index.json      — distinct values for all filter fields
-//   <output-dir>\5_10.json.gz    — one tile file per 0.5°×0.5° cell
 
-using System.IO.Compression;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using System;
+using System.IO;
+using System.Linq;
 
-const double TILE_DEG = 0.5;
+// ---- Parse CLI ----
 
-// ---- Arguments ----
-if (args.Length < 2)
+var opts = CliOptions.Parse(args);
+if (opts is null)
 {
-    Console.Error.WriteLine("Usage: TileBuilder <geojson-path> <output-dir>");
+    CliOptions.PrintUsage();
     Environment.Exit(1);
 }
 
-string geojsonPath = args[0];
-string outputDir   = args[1];
+// ---- Load config ----
 
-Console.WriteLine($"Input  : {geojsonPath}");
-Console.WriteLine($"Output : {outputDir}");
+var config = ConfigLoader.Load();
+var geojson = Path.Combine(opts.SourceDir, config.SignalGeojson);
+var canton = Path.Combine(opts.SourceDir, config.CantonGeojson);
+
+Console.WriteLine($"Source dir     : {opts.SourceDir}");
+Console.WriteLine($"Output dir     : {opts.OutputDir}");
+Console.WriteLine($"Signal GeoJSON : {config.SignalGeojson}");
+Console.WriteLine($"Canton GeoJSON : {config.CantonGeojson}");
+Console.WriteLine($"No-tiles mode  : {opts.NoTiles}");
 Console.WriteLine();
 
-if (!File.Exists(geojsonPath))
+if (!File.Exists(geojson))
 {
-    Console.Error.WriteLine($"[Error] File not found: {geojsonPath}");
+    Console.Error.WriteLine($"[Error] File not found: {geojson}");
     Environment.Exit(1);
 }
+Directory.CreateDirectory(opts.OutputDir);
 
-Directory.CreateDirectory(outputDir);
+// ---- Read + group signals ----
 
-// ---- Parse GeoJSON ----
-Console.WriteLine("Reading GeoJSON…");
-string raw      = File.ReadAllText(geojsonPath, Encoding.UTF8);
-var    root     = JsonNode.Parse(raw)!;
-var    features = root["features"]!.AsArray();
-int    total    = features.Count;
-Console.WriteLine($"  {total:N0} features found.");
+var signalData = SignalReader.Read(geojson);
 
-// ---- Group into tiles + collect distinct filter values ----
-var tiles   = new Dictionary<string, List<Signal>>();
-int skipped = 0;
+// ---- Write tile files + manifest ----
 
-// Sets for deduplication
-var typeIfSet    = new SortedSet<string>(StringComparer.Ordinal);
-var codeLigneSet = new SortedSet<string>(StringComparer.Ordinal);
+var manifest = TileWriter.WriteTiles(opts.OutputDir, signalData.Tiles, opts.NoTiles);
+TileWriter.WriteManifest(opts.OutputDir, manifest);
 
-for (int i = 0; i < total; i++)
-{
-    var feature = features[i]!;
-    var geom    = feature["geometry"];
+// ---- Process cantonment ----
 
-    if (geom == null || geom["type"]?.GetValue<string>() != "Point")
-    {
-        skipped++;
-        continue;
-    }
+var cantonResult = File.Exists(canton)
+    ? CantonProcessor.Process(canton, config.Acronyms)
+    : CantonProcessor.Empty;
 
-    var    coords = geom["coordinates"]!.AsArray();
-    double lng    = coords[0]!.GetValue<double>();
-    double lat    = coords[1]!.GetValue<double>();
+// ---- Debug: cross-check code_ligne between datasets ----
 
-    int    tx  = (int)Math.Floor(lng / TILE_DEG);
-    int    ty  = (int)Math.Floor(lat / TILE_DEG);
-    string key = $"{tx}:{ty}";
+#if DEBUG
+CrossCheck.CodeLigne(signalData.CodeLigneCounts, cantonResult.Lignes);
+#endif
 
-    var props = feature["properties"]!;
+// ---- Write index ----
 
-    string typeIf    = props["type_if"]   ?.GetValue<string>() ?? "";
-    string codeLigne = props["code_ligne"]?.ToString()          ?? "";
-
-    var signal = new Signal
-    {
-        lat       = Math.Round(lat, 7),
-        lng       = Math.Round(lng, 7),
-        type_if   = typeIf,
-        code_ligne= codeLigne,
-        nom_voie  = props["nom_voie"] ?.GetValue<string>() ?? "",
-        sens      = props["sens"]     ?.GetValue<string>() ?? "",
-        position  = props["position"] ?.GetValue<string>() ?? "",
-        pk        = props["pk"]       ?.GetValue<string>() ?? "",
-        idreseau  = props["idreseau"] ?.ToString()         ?? "",
-        code_voie = props["code_voie"]?.GetValue<string>() ?? "",
-    };
-
-    if (!tiles.ContainsKey(key)) tiles[key] = [];
-    tiles[key].Add(signal);
-
-    // Collect distinct values (skip empty)
-    if (typeIf    != "") typeIfSet.Add(typeIf);
-    if (codeLigne != "") codeLigneSet.Add(codeLigne);
-
-    if ((i + 1) % 20000 == 0)
-        Console.WriteLine($"  Indexed {i + 1:N0} / {total:N0}…");
-}
-
-Console.WriteLine($"  {skipped} non-Point features skipped.");
-Console.WriteLine($"  {tiles.Count} tiles to write.");
-Console.WriteLine();
-
-// ---- Write tile files ----
-var jsonOpts = new JsonSerializerOptions { WriteIndented = false };
-var manifest = new Dictionary<string, int>();
-int written  = 0;
-
-foreach (var (key, signals) in tiles)
-{
-    string fileName = Path.Combine(outputDir, $"{key.Replace(':', '_')}.json.gz");
-    byte[] json     = JsonSerializer.SerializeToUtf8Bytes(signals, jsonOpts);
-
-    using var fs = File.Create(fileName);
-    using var gz = new GZipStream(fs, CompressionLevel.Optimal);
-    gz.Write(json, 0, json.Length);
-
-    manifest[key] = signals.Count;
-    written++;
-
-    if (written % 100 == 0)
-        Console.WriteLine($"  {written}/{tiles.Count} tiles written…");
-}
-
-// ---- Write manifest.json ----
-string manifestPath = Path.Combine(outputDir, "manifest.json");
-File.WriteAllText(
-    manifestPath,
-    JsonSerializer.Serialize(new { tile_deg = TILE_DEG, tiles = manifest }, jsonOpts),
-    Encoding.UTF8);
-
-// ---- Write index.json ----
-// Contains all distinct values for TYPE IF and CODE LIGNE.
-// Loaded once at startup to pre-populate the filter panels.
-string indexPath = Path.Combine(outputDir, "index.json");
-var index = new
-{
-    type_if    = typeIfSet.ToArray(),
-    code_ligne = codeLigneSet.ToArray(),
-};
-File.WriteAllText(
-    indexPath,
-    JsonSerializer.Serialize(index, jsonOpts),
-    Encoding.UTF8);
+IndexWriter.Write(opts.OutputDir, signalData, cantonResult);
 
 // ---- Summary ----
-int  totalSignals = 0;
-long totalBytes   = 0;
-foreach (var v in manifest.Values) totalSignals += v;
-foreach (var f in Directory.GetFiles(outputDir, "*.json.gz"))
-    totalBytes += new FileInfo(f).Length;
 
-Console.WriteLine();
+var totalSignals = manifest.Values.Sum();
+var tileBytes = opts.NoTiles
+    ? 0
+    : Directory.GetFiles(opts.OutputDir, "*.json.gz").Sum(f => new FileInfo(f).Length);
+
 Console.WriteLine("Done.");
-Console.WriteLine($"  Tiles written   : {written}");
-Console.WriteLine($"  Total signals   : {totalSignals:N0}");
-Console.WriteLine($"  Total size      : {totalBytes / 1024.0 / 1024.0:F1} MB (gzip-compressed)");
-Console.WriteLine($"  Average tile    : {(written > 0 ? totalBytes / written : 0):N0} bytes");
-Console.WriteLine($"  Distinct TYPE IF: {typeIfSet.Count}");
-Console.WriteLine($"  Distinct LIGNE  : {codeLigneSet.Count}");
-Console.WriteLine($"  Manifest        : {manifestPath}");
-Console.WriteLine($"  Index           : {indexPath}");
+Console.WriteLine($"  Tiles written    : {(opts.NoTiles ? "—" : manifest.Count.ToString())}");
+Console.WriteLine($"  Total signals    : {totalSignals:N0}");
 
-// ---- Signal record ----
-record Signal
+if (!opts.NoTiles)
 {
-    public double lat       { get; init; }
-    public double lng       { get; init; }
-    public string type_if   { get; init; } = "";
-    public string code_ligne{ get; init; } = "";
-    public string nom_voie  { get; init; } = "";
-    public string sens      { get; init; } = "";
-    public string position  { get; init; } = "";
-    public string pk        { get; init; } = "";
-    public string idreseau  { get; init; } = "";
-    public string code_voie { get; init; } = "";
+    Console.WriteLine($"  Total tile size  : {tileBytes / 1024.0 / 1024.0:F1} MB (gzip-compressed)");
 }
+
+Console.WriteLine($"  Distinct TYPE IF : {signalData.TypeIfCounts.Count}");
+Console.WriteLine($"  Distinct LIGNE   : {signalData.CodeLigneCounts.Count}");
+Console.WriteLine($"  Canton segments  : {cantonResult.Segments.Count}");
+Console.WriteLine($"  Manifest         : {Path.Combine(opts.OutputDir, "manifest.json")}");
+Console.WriteLine($"  Index            : {Path.Combine(opts.OutputDir, "index.json")}");

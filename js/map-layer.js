@@ -40,7 +40,6 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
-let _lastTileKeys = new Set();
 
 
 // ===== Dot size scale =====
@@ -92,23 +91,23 @@ export function setManifest(manifest) {
 export function refresh(force = false) {
     if (_loadRunning) { _loadPending = true; return; }
 
+    if (!_manifest) return;
+
     const bounds = map.getBounds();
     const zoom = map.getZoom();
-    const tileUrls = getTileUrlsForBounds(bounds, _manifest);
-    const tileKeys = new Set(tileUrls);
+    const fetchUrls = getTileUrlsForBounds(bounds, _manifest, 1);
 
-    if (!force && _eqSets(tileKeys, _lastTileKeys) && !_loadPending) return;
-    _lastTileKeys = tileKeys;
-    _loadPending = false;
-
-    if (!_manifest || tileUrls.length === 0) {
+    if (fetchUrls.length === 0) {
         _markersLayer.clearLayers();
         updateVisibleCount(0);
         setSampledBadge(false);
         return;
     }
-    _runWorker(bounds, tileUrls, zoom);
+
+    _loadPending = false;
+    _runWorker(bounds, fetchUrls, zoom);
 }
+
 
 
 // ===== Worker lifecycle =====
@@ -134,48 +133,35 @@ function _runWorker(bounds, tileUrls, zoom) {
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
-    const _workerDone = () => {
-        _terminateWorker();
-        _loadRunning = false;
-        hideProgress();
-    };
+    // Track markers by group key for incremental updates.
+    // Key: "lat,lng" — value: Leaflet marker instance.
+    const _markerMap = new Map();
 
     _worker.onmessage = e => {
-        // Discard any message not originating from our own worker
-        // (e.g. browser extension noise such as Malwarebytes injection).
         if (!isOwnWorkerMessage(e)) return;
+        const { status, msg, groups, loaded, total, sampled } = e.data;
 
-        const { status, msg, groups, sampled, total } = e.data;
-        if (status === 'progress') {
-            showProgress(msg);
+        if (status === 'progress') { showProgress(msg); return; }
+        if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
+
+        if (status === 'partial') {
+            // In overview mode, skip incremental rendering — the final 'done'
+            // message will apply spatial sampling and render the stable result.
+            if (isOverview) return;
+            _renderGroupsIncremental(groups, _markerMap);
+            updateVisibleCount(_markerMap.size);
+            showProgress(`Loading ${loaded} / ${total} tile(s)…`);
             return;
         }
-        if (status === 'error') {
-            _workerDone();
-            console.error('[Worker]', e.data.error);
-            return;
-        }
+
         if (status === 'done') {
-            // Rebuild counts before releasing _loadRunning.  Any refresh() call
-            // triggered between _workerDone() and indexSignals() would start a new
-            // worker cycle and call indexSignals() a second time on the same data,
-            // doubling every counter.  Keeping _loadRunning = true for the duration
-            // of the rebuild ensures such calls queue as _loadPending instead.
-            resetCounts();
-            indexSignals(groups.flatMap(g => g.all));
-            _renderGroups(groups);
-            setSampledBadge(sampled, total);
-            _workerDone();
-            if (_loadPending) {
-                _loadPending = false;
-                refresh(true);
-            }
+            _onWorkerDone(groups, sampled, e.data.total);
         }
     };
 
     _worker.onerror = err => {
         console.error('[Worker error]', err.message);
-        _workerDone();
+        _terminateLoad();
     };
 
     _worker.postMessage({
@@ -185,6 +171,31 @@ function _runWorker(bounds, tileUrls, zoom) {
         bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
         maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
     });
+}
+
+/** Release the worker and clear the running flag. */
+function _terminateLoad() {
+    _terminateWorker();
+    _loadRunning = false;
+    hideProgress();
+}
+
+/**
+ * Handle a successful worker 'done' message.
+ * Rebuilds filter counts, renders markers, then runs any pending refresh.
+ * _loadRunning stays true until _terminateLoad() to prevent double-counting
+ * if a refresh() arrives during indexSignals().
+ */
+function _onWorkerDone(groups, sampled, total) {
+    resetCounts();
+    indexSignals(groups.flatMap(g => g.all));
+    _renderGroups(groups);
+    setSampledBadge(sampled, total);
+    _terminateLoad();
+    if (_loadPending) {
+        _loadPending = false;
+        refresh(true);
+    }
 }
 
 
@@ -212,40 +223,57 @@ function _makeDotIcon(color, size, multi) {
 }
 
 /**
- * Render markers from worker groups.
- * - Marker colour and tooltip use group.display (filtered signals only).
- * - Popup receives group.all so the JOSM export contains every co-located
- *   signal regardless of which filters are currently active.
- * - Dot size is driven by _getDotSize() / DOT_SCALE:
- *   1→10 px, 2→12 px, 3→14 px, 4→16 px, 5+→18 px.
+ * Build a fully configured Leaflet marker for one group.
+ * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all      all co-located signals (for JOSM export)
+ * @param {object[]} display  filtered signals (for icon colour and tooltip)
+ * @returns {L.Marker}
+ */
+function _makeMarker(lat, lng, all, display) {
+    const color = getTypeColor(display[0].p.type_if);
+    const count = display.length;
+    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
+    return L.marker([lat, lng], { icon })
+        .bindTooltip(buildTooltip(display), {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'sig-tooltip',
+            sticky: false,
+        })
+        .on('click', e => {
+            const startTab = (e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey)
+                ? 'tags' : 'signals';
+            openSignalPopup([lat, lng], all, 0, startTab);
+        });
+}
+
+/**
+ * Full render — clears the layer and rebuilds all markers from scratch.
+ * Used by overview mode and the final 'done' message in detail mode.
  */
 function _renderGroups(groups) {
     _markersLayer.clearLayers();
-
     for (const { lat, lng, all, display } of groups) {
-        const color = getTypeColor(display[0].p.type_if);
-        const count = display.length;
-        const size = _getDotSize(count);
-        const icon = _makeDotIcon(color, size, count > 1);
-        L.marker([lat, lng], { icon })
-            .bindTooltip(buildTooltip(display), {
-                direction: 'top',
-                offset: [0, -6],
-                className: 'sig-tooltip',
-                sticky: false,
-            })
-            .on('click', () => openSignalPopup([lat, lng], all, 0))
-            .addTo(_markersLayer);
+        _makeMarker(lat, lng, all, display).addTo(_markersLayer);
     }
-
     updateVisibleCount(groups.length);
 }
 
-
-// ===== Utilities =====
-
-function _eqSets(a, b) {
-    if (a.size !== b.size) return false;
-    for (const v of a) if (!b.has(v)) return false;
-    return true;
+/**
+ * Incremental render — adds or replaces markers for the given groups only.
+ * Uses a markerMap keyed by "lat,lng" so existing markers are replaced rather
+ * than duplicated when a group gains more signals from a subsequent tile.
+ * @param {{ lat, lng, all, display }[]} groups
+ * @param {Map<string, L.Marker>}        markerMap
+ */
+function _renderGroupsIncremental(groups, markerMap) {
+    for (const { lat, lng, all, display } of groups) {
+        const key = `${lat},${lng}`;
+        if (markerMap.has(key)) _markersLayer.removeLayer(markerMap.get(key));
+        const marker = _makeMarker(lat, lng, all, display).addTo(_markersLayer);
+        markerMap.set(key, marker);
+    }
 }
+

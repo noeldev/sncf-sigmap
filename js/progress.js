@@ -6,11 +6,19 @@
  * the DOM structure or needing a callback injected by app.js.
  *
  * Call order:
- *   1. initProgress()   — once in app.js/_boot(), caches DOM refs.
+ *   1. initProgress()    — once in app.js/_boot(), caches DOM refs.
  *   2. showProgress(msg) / hideProgress()  — from any module at any time.
+ *
+ * The overlay is only revealed after SHOW_DELAY_MS (250 ms).
+ * Fast operations that complete within this window never show the spinner,
+ * eliminating the distracting flash on tile-cache hits.
  */
 
+const SHOW_DELAY_MS = 250;
+
 const _el = {};
+let _showTimer = null;
+let _pendingMsg = '';
 
 /**
  * Cache the overlay DOM references.
@@ -22,18 +30,34 @@ export function initProgress() {
 }
 
 /**
- * Show the progress overlay with an optional status message.
+ * Schedule the progress overlay to appear after SHOW_DELAY_MS.
+ * Subsequent calls before the delay fires update the message without
+ * resetting the timer — the overlay still appears at the original time.
  * @param {string} [msg='']
  */
 export function showProgress(msg = '') {
-    _el.overlay?.classList.remove('hidden');
+    _pendingMsg = msg;
     if (_el.msg) _el.msg.textContent = msg;
+
+    if (!_showTimer) {
+        _showTimer = setTimeout(() => {
+            _showTimer = null;
+            // Update message in case it changed while waiting.
+            if (_el.msg) _el.msg.textContent = _pendingMsg;
+            _el.overlay?.classList.remove('hidden');
+        }, SHOW_DELAY_MS);
+    }
 }
 
 /**
- * Hide the progress overlay.
+ * Cancel any pending show and hide the overlay immediately.
  */
 export function hideProgress() {
+    if (_showTimer) {
+        clearTimeout(_showTimer);
+        _showTimer = null;
+    }
     _el.overlay?.classList.add('hidden');
     if (_el.msg) _el.msg.textContent = '';
+    _pendingMsg = '';
 }

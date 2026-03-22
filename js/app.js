@@ -13,7 +13,7 @@
  *   map.js           — Leaflet infrastructure (basemaps, basemap selector)
  *   map-controls.js  — map toolbar button wiring (zoom, geolocate, fullscreen)
  *   map-layer.js     — signal marker pipeline (worker, filter, render)
- *   signal-mapping.js — legend builder, OSM tag data
+ *   signal-mapping.js — OSM tag data and category colours
  *   filters.js       — filter state and panel UI
  *   statusbar.js     — status bar DOM updates
  */
@@ -27,20 +27,18 @@ import {
     loadFilterIndex,
     resetFilters,
     initAddFilterButton,
+    setTotalSignals,
 } from './filters.js';
-import { buildLegend } from './signal-mapping.js';
+import { buildLegend } from './cat-mapping.js';
 import { t, applyTranslations, setRecordCount } from './i18n.js';
 import { initLayer, setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
 import { initStatusBar, updateZoomStatus } from './statusbar.js';
+import { initCantonment } from './cantonment.js';
 
 
 let _lastZoom = -1;
-
-// Cached DOM ref for the record-count display — owned here because
-// it is updated by app.js after the manifest loads, not by any sub-module.
-let _elRecordCount = null;
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
 async function _boot() {
@@ -60,15 +58,15 @@ async function _boot() {
         refresh(true);
     });
 
-    _elRecordCount = document.getElementById('record-count');
-
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
-    const [manifest] = await Promise.all([
+    const [manifest, index] = await Promise.all([
         loadManifest(),
         loadFilterIndex(TILES_BASE),
     ]);
+
+    if (index) initCantonment(index);
 
     if (!manifest) {
         hideProgress();
@@ -76,25 +74,38 @@ async function _boot() {
         return;
     }
 
-    const { tileCount, totalSignals } = getManifestStats(manifest);
-    console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-
-    setRecordCount({ totalSignals, tileCount });
-
-    if (_elRecordCount) {
-        _elRecordCount.textContent =
-            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
-            `${tileCount} ${t('status.tiles_lower')}`;
-    }
-
+    _updateRecordCount(manifest);
     hideProgress();
-
-    // Hand the manifest to the layer module before the first refresh.
     setManifest(manifest);
 
     _lastZoom = map.getZoom();
     updateZoomStatus(_lastZoom);
+    _initMapEvents();
 
+    refresh(true);
+    applyTranslations();
+}
+
+/**
+ * Update the record-count display and status bar after the manifest loads.
+ * @param {object} manifest
+ */
+function _updateRecordCount(manifest) {
+    const { tileCount, totalSignals } = getManifestStats(manifest);
+    console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
+    setRecordCount({ totalSignals, tileCount });
+    setTotalSignals(totalSignals);
+    const el = document.getElementById('record-count');
+    if (el) el.textContent =
+        `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
+        `${tileCount.toLocaleString()} ${t('status.tiles_lower')}`;
+}
+
+/**
+ * Wire Leaflet map events to refresh() with zoom-threshold detection.
+ * Debounced so rapid pan/zoom sequences produce a single refresh call.
+ */
+function _initMapEvents() {
     map.on('moveend zoomend', _debounce(() => {
         const z = map.getZoom();
         updateZoomStatus(z);
@@ -102,11 +113,7 @@ async function _boot() {
             (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
         _lastZoom = z;
         refresh(crossedThreshold);
-    }, 280));
-
-    refresh(true);
-
-    applyTranslations();
+    }, 150));
 }
 
 _boot();

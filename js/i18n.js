@@ -51,7 +51,7 @@ const STRINGS = {
         'filter.indexError': 'Filter index unavailable — suggestions may be incomplete.',
 
         // Dropdown (for other filterable fields)
-        'dropdown.search': n => `Search among ${n} values\u2026`,
+        'dropdown.search': n => `Search among ${n.toLocaleString()} values\u2026`,
         'dropdown.noMatch': 'No matching values',
         'dropdown.remove': 'Remove filter',
 
@@ -65,6 +65,7 @@ const STRINGS = {
         'basemap.satellite': 'Satellite',
 
         // Controls
+        'ctrl.resetView': 'Reset view',
         'ctrl.toggle': 'Toggle panel',
         'ctrl.zoomIn': 'Zoom in',
         'ctrl.zoomOut': 'Zoom out',
@@ -88,7 +89,7 @@ const STRINGS = {
         // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
-        'popup.nodeNone': 'No mapping',
+        'popup.nodeNA': 'N/A',
         'popup.signalNode': 'Signal Node',
         'popup.previewTags': 'Preview OSM tags',
         'popup.osmTags': 'OSM Tags',
@@ -100,6 +101,10 @@ const STRINGS = {
         'popup.next': 'Next signal',
         'popup.close': 'Close',
         'popup.copyPrompt': 'Copy OSM tags',
+        'popup.tabSignals': 'Signals',
+        'popup.tabTags': 'OSM Tags',
+        'popup.captionSignal': 'Signal',
+        'popup.captionNode': 'Node',
 
         // OSM existence check
         'osm.locateOnOsm': 'Locate on OpenStreetMap',
@@ -129,9 +134,9 @@ const STRINGS = {
         'cat.unsupported': 'Unsupported types',
 
         // About
-        'about.intro': 'Viewer for <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open data, with OSM integration via JOSM or clipboard.',
+        'about.intro': 'Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href="https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl" target="_blank" rel="noopener">JOSM Remote Control</a>.',
         'about.usage.title': 'How to use',
-        'about.usage.text': 'Zoom in to load signals. At low zoom, results are spatially sampled to keep the map readable; zoom ≥10 shows all signals in the viewport without limit. Active filters always apply regardless of zoom level. Click any marker to view properties and export OSM tags.',
+        'about.usage.text': 'All tiles are loaded once at startup and cached by the browser. At low zoom, a spatial sample is displayed to keep the map readable. At zoom 10 and above, full signal detail is shown for the current viewport, served instantly from cache. Active filters always apply regardless of zoom level. Click any marker to view its properties and export OSM tags.',
         'about.links.title': 'Links',
         'about.credits.title': 'Credits',
         'about.credits': 'Site © 2026 Noël Danjou<br>Data © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Maps © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
@@ -183,7 +188,7 @@ const STRINGS = {
         'filter.indexError': 'Index des filtres indisponible — les suggestions peuvent être incomplètes.',
 
         // Dropdown (pour les autres champs filtrables)
-        'dropdown.search': n => `Rechercher parmi ${n} valeurs\u2026`,
+        'dropdown.search': n => `Rechercher parmi ${n.toLocaleString()} valeurs\u2026`,
         'dropdown.noMatch': 'Aucune valeur',
         'dropdown.remove': 'Supprimer le filtre',
 
@@ -197,6 +202,7 @@ const STRINGS = {
         'basemap.satellite': 'Satellite',
 
         // Controls
+        'ctrl.resetView': 'Vue initiale',
         'ctrl.toggle': 'Afficher/masquer le panneau',
         'ctrl.zoomIn': 'Zoom avant',
         'ctrl.zoomOut': 'Zoom arrière',
@@ -220,8 +226,8 @@ const STRINGS = {
         // Popup
         'popup.navLabel': (idx, total) => `${idx} / ${total}`,
         'popup.nodeLabel': (idx, total) => `${idx}\u2009/\u2009${total}`,
-        'popup.nodeNone': 'Pas de correspondance',
-        'popup.signalNode': 'Nœud de signal',
+        'popup.nodeNA': 'N/A',
+        'popup.signalNode': 'Nœud du signal',
         'popup.previewTags': 'Prévisualiser les tags OSM',
         'popup.osmTags': 'Tags OSM',
         'popup.copy': 'Copier les tags',
@@ -232,6 +238,10 @@ const STRINGS = {
         'popup.next': 'Signal suivant',
         'popup.close': 'Fermer',
         'popup.copyPrompt': 'Copier les tags OSM',
+        'popup.tabSignals': 'Signaux',
+        'popup.tabTags': 'Tags OSM',
+        'popup.captionSignal': 'Signal',
+        'popup.captionNode': 'Nœud',
 
         // OSM existence check
         'osm.locateOnOsm': 'Localiser dans OpenStreetMap',
@@ -261,9 +271,9 @@ const STRINGS = {
         'cat.unsupported': 'Types non supportés',
 
         // About
-        'about.intro': 'Visualisation des données open data <strong>SNCF Signalisation Permanente</strong> avec intégration OSM via JOSM ou presse-papiers.',
+        'about.intro': 'Visualisation cartographique interactive du jeu de données ouvertes <strong>SNCF Signalisation Permanente</strong>, avec intégration OpenStreetMap. Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via <a href="https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl" target="_blank" rel="noopener">JOSM Remote Control</a>.',
         'about.usage.title': 'Utilisation',
-        'about.usage.text': 'Zoomez pour charger les signaux. À faible zoom, les résultats sont spatialement échantillonnés pour garder la carte lisible ; zoom ≥10 affiche tous les signaux dans la vue sans limite. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
+        'about.usage.text': 'Toutes les tuiles sont chargées une fois au démarrage et mises en cache par le navigateur. À faible zoom, un échantillon spatial est affiché pour garder la carte lisible. À partir du zoom 10, le détail complet des signaux est affiché pour la vue courante, servi instantanément depuis le cache. Les filtres actifs s\'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM.',
         'about.links.title': 'Liens',
         'about.credits.title': 'Crédits',
         'about.credits': 'Site © 2026 Noël Danjou<br>Données © 2022 SNCF Réseau — <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener">Licence Ouverte</a><br>Cartes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
@@ -351,7 +361,7 @@ export function applyTranslations() {
         const { totalSignals, tileCount } = _recordCount;
         const el = document.getElementById('record-count');
         if (el) el.textContent =
-            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount} ${t('status.tiles_lower')}`;
+            `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ${tileCount.toLocaleString()} ${t('status.tiles_lower')}`;
     }
     _langListeners.forEach(fn => fn());
 }
