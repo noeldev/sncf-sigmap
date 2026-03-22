@@ -29,7 +29,7 @@ export function parsePkAsMeters(raw) {
     if (!raw) return null;
     const m = raw.match(/^(\d+)([+-])(\d+)$/);
     if (!m) return null;
-    return parseFloat(m[2] + m[1] + m[3]);
+    return parseInt(m[2] + m[1] + m[3]);
 }
 
 
