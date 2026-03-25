@@ -13,19 +13,49 @@
  *   initSidebar()  — wire all sidebar UI; called once from app.js/_boot().
  */
 
-import { getLang, setLang } from './i18n.js';
+import { getLang, setLang, buildLangOptions, onLangChange } from './translation.js';
+import {
+    getAutoTagsTab, setAutoTagsTab,
+    getSkipJosmConfirm, setSkipJosmConfirm,
+    getRememberPosition, setRememberPosition,
+} from './prefs.js';
 import { refreshBasemapLabels } from './map.js';
 import { Dropdown, closeAll as closeAllDropdowns } from './ui/dropdown.js';
 
 
 /**
- * Initialise all sidebar UI components.
+ * Initialize all sidebar UI components.
  * Must be called after the DOM is ready and initMap() has resolved
  * (refreshBasemapLabels() needs the tile layers to exist).
  */
 export function initSidebar() {
     _initLangPicker();
     _initTabs();
+    _initBehaviorToggles();
+    // Rebuild basemap labels on language change — basemap buttons are
+    // generated at runtime and don't carry data-i18n attributes.
+    onLangChange(refreshBasemapLabels);
+}
+
+
+// ===== Behavior toggles =====
+
+function _initBehaviorToggles() {
+    _initToggle('chk-auto-tags-tab', getAutoTagsTab, setAutoTagsTab);
+    _initToggle('chk-skip-josm-confirm', getSkipJosmConfirm, setSkipJosmConfirm);
+    _initToggle('chk-remember-position', getRememberPosition, setRememberPosition);
+}
+
+/**
+ * Bind a checkbox to a preference getter/setter.
+ * Sets the initial checked state from the stored preference and
+ * updates the preference on every change.
+ */
+function _initToggle(id, getter, setter) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = getter();
+    el.addEventListener('change', () => setter(el.checked));
 }
 
 
@@ -36,12 +66,15 @@ function _initLangPicker() {
     const btn = document.getElementById('lang-select-btn');
     if (!dropdown || !btn) return;
 
+    // Populate options from _LANG_INFO — replaces any static HTML placeholders.
+    buildLangOptions(dropdown);
     dropdown.classList.add('is-hidden');
 
-    const _activate = (val) => {
-        setLang(val);
-        _updateLangBtn(dropdown);
-        refreshBasemapLabels();
+    // Re-render the language button whenever the language changes.
+    onLangChange(() => _updateLangButton(dropdown));
+
+    const _activate = async (val) => {
+        await setLang(val);   // calls translateAll → fires onLangChange listeners
         langDd.close();
     };
 
@@ -68,14 +101,14 @@ function _initLangPicker() {
         if (!wasOpen) langDd.open();
     });
 
-    _updateLangBtn(dropdown);
+    _updateLangButton(dropdown);
 }
 
 /**
  * Sync the language button flag + label with the current language,
  * and mark the active option in the dropdown.
  */
-function _updateLangBtn(dropdown) {
+function _updateLangButton(dropdown) {
     const lang = getLang();
     const option = dropdown.querySelector(`[data-val="${lang}"]`);
     const flagEl = document.getElementById('lang-flag');

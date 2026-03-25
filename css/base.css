@@ -214,3 +214,50 @@ svg.icon {
     .pu-nav-btn:hover {
         border-color: var(--accent2);
     }
+
+/* ===== Toggle switch component =====
+ *
+ * Shared by the filter panel "Supported types only" toggle (filters.css)
+ * and the Settings behavior toggles (sidebar.css).
+ *
+ * Usage in HTML (inside a <label>):
+ *   <input type="checkbox" ...>
+ *   <span class="toggle-track"><span class="toggle-thumb"></span></span>
+ *
+ * The input must immediately precede .toggle-track for the :checked + selector
+ * to work. The input itself is visually hidden via .sr-only or the
+ * .settings-toggle-row input rule in sidebar.css.
+ */
+
+.toggle-track {
+    display: inline-flex;
+    align-items: center;
+    width: 32px;
+    height: 18px;
+    background: var(--border2);
+    border-radius: 9px;
+    flex-shrink: 0;
+    transition: background .2s;
+    position: relative;
+    cursor: pointer;
+}
+
+.toggle-thumb {
+    position: absolute;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--text3);
+    border-radius: 50%;
+    transition: transform .2s, background .2s;
+}
+
+/* Activated state — driven by the adjacent hidden checkbox */
+input:checked + .toggle-track {
+    background: var(--accent2);
+}
+
+    input:checked + .toggle-track .toggle-thumb {
+        transform: translateX(14px);
+        background: #fff;
+    }

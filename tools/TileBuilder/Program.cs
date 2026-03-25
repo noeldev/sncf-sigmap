@@ -39,47 +39,45 @@ if (opts is null)
 // ---- Load config ----
 
 var config = ConfigLoader.Load();
-var geojson = Path.Combine(opts.SourceDir, config.SignalGeojson);
-var canton = Path.Combine(opts.SourceDir, config.CantonGeojson);
 
+var signalFile = Path.Combine(opts.SourceDir, config.SignalGeojson);
+var blockFile = Path.Combine(opts.SourceDir, config.BlockGeojson);
 Console.WriteLine($"Source dir     : {opts.SourceDir}");
 Console.WriteLine($"Output dir     : {opts.OutputDir}");
-Console.WriteLine($"Signal GeoJSON : {config.SignalGeojson}");
-Console.WriteLine($"Canton GeoJSON : {config.CantonGeojson}");
 Console.WriteLine($"No-tiles mode  : {opts.NoTiles}");
 Console.WriteLine();
 
-if (!File.Exists(geojson))
+if (!File.Exists(signalFile))
 {
-    Console.Error.WriteLine($"[Error] File not found: {geojson}");
+    Console.Error.WriteLine($"[Error] File not found: {signalFile}");
     Environment.Exit(1);
 }
 Directory.CreateDirectory(opts.OutputDir);
 
 // ---- Read + group signals ----
 
-var signalData = SignalReader.Read(geojson);
+var signalData = SignalReader.Read(signalFile);
 
 // ---- Write tile files + manifest ----
 
 var manifest = TileWriter.WriteTiles(opts.OutputDir, signalData.Tiles, opts.NoTiles);
 TileWriter.WriteManifest(opts.OutputDir, manifest);
 
-// ---- Process cantonment ----
+// ---- Process block system ----
 
-var cantonResult = File.Exists(canton)
-    ? CantonProcessor.Process(canton, config.Acronyms)
-    : CantonProcessor.Empty;
+var blockResult = File.Exists(blockFile)
+    ? BlockProcessor.Process(blockFile, config.Acronyms)
+    : BlockProcessor.Empty;
 
 // ---- Debug: cross-check code_ligne between datasets ----
 
 #if DEBUG
-CrossCheck.CodeLigne(signalData.CodeLigneCounts, cantonResult.Lignes);
+CrossCheck.LineCode(signalData.LineCodeCounts, blockResult.Lines);
 #endif
 
 // ---- Write index ----
 
-IndexWriter.Write(opts.OutputDir, signalData, cantonResult);
+IndexWriter.Write(opts.OutputDir, signalData, blockResult);
 
 // ---- Summary ----
 
@@ -88,7 +86,6 @@ var tileBytes = opts.NoTiles
     ? 0
     : Directory.GetFiles(opts.OutputDir, "*.json.gz").Sum(f => new FileInfo(f).Length);
 
-Console.WriteLine("Done.");
 Console.WriteLine($"  Tiles written    : {(opts.NoTiles ? "—" : manifest.Count.ToString())}");
 Console.WriteLine($"  Total signals    : {totalSignals:N0}");
 
@@ -97,8 +94,9 @@ if (!opts.NoTiles)
     Console.WriteLine($"  Total tile size  : {tileBytes / 1024.0 / 1024.0:F1} MB (gzip-compressed)");
 }
 
-Console.WriteLine($"  Distinct TYPE IF : {signalData.TypeIfCounts.Count}");
-Console.WriteLine($"  Distinct LIGNE   : {signalData.CodeLigneCounts.Count}");
-Console.WriteLine($"  Canton segments  : {cantonResult.Segments.Count}");
+Console.WriteLine($"  Distinct Signals : {signalData.SignalTypeCounts.Count}");
+Console.WriteLine($"  Distinct Lines   : {signalData.LineCodeCounts.Count}");
+Console.WriteLine($"  Block segments   : {blockResult.Segments.Count}");
 Console.WriteLine($"  Manifest         : {Path.Combine(opts.OutputDir, "manifest.json")}");
 Console.WriteLine($"  Index            : {Path.Combine(opts.OutputDir, "index.json")}");
+Console.WriteLine("Done.");

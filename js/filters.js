@@ -20,25 +20,40 @@
  * All filter values are uppercase (SNCF data convention); the search input
  * is uppercased before comparison so no toLowerCase() is needed.
  *
- * numericOnly fields (code_ligne, idreseau):
+ * numericOnly fields (lineCode, networkId):
  *   Non-digit characters are stripped from the query string before it is
  *   stored in def.search and used for filtering.  FilterPanel must expose
  *   setSearch(value) to keep the visible input in sync.
  */
 
 import { getSupportedTypes } from './signal-mapping.js';
-import { t, applyI18n, onLangChange } from './i18n.js';
-import { FilterPanel } from './ui/filter-panel.js';
+import { t, onLangChange } from './translation.js';
+import { FilterPanel } from './filter-panel.js';
 import { updateFilterCount } from './statusbar.js';
 import { MIN_SEARCH_THRESHOLD } from './config.js';
 
+// Maps tile field names (SNCF) to their corresponding index.json keys.
+// Only fields whose index key differs from the tile field name are listed.
+// Maps English app field names to their index.json keys.
+// Only fields whose index key differs from the app field name need an entry.
+// Maps app field names to index.json keys (only where they differ).
+
+// Maps app field names to index.json keys.
+// Includes legacy TileBuilder key names for backward compatibility.
+
 const _ALL_FILTER_FIELDS = [
-    { key: 'type_if', labelKey: 'field.type_if' },
-    { key: 'code_ligne', labelKey: 'field.code_ligne', numericOnly: true },
-    { key: 'nom_voie', labelKey: 'field.nom_voie' },
-    { key: 'sens', labelKey: 'field.sens' },
-    { key: 'position', labelKey: 'field.position' },
-    { key: 'idreseau', labelKey: 'field.idreseau', numericOnly: true },
+    { key: 'signalType', labelKey: 'fields.signalType' },
+    { key: 'lineCode', labelKey: 'fields.lineCode', numericOnly: true },
+    { key: 'trackName', labelKey: 'fields.trackName' },
+    {
+        key: 'direction', labelKey: 'fields.direction',
+        valueOrder: ['forward', 'backward', 'both']
+    },
+    {
+        key: 'placement', labelKey: 'fields.placement',
+        valueOrder: ['right', 'left', 'bridge']
+    },
+    { key: 'networkId', labelKey: 'fields.networkId', numericOnly: true },
 ];
 
 // Exported as const so external importers always hold the same object reference.
@@ -107,8 +122,8 @@ export async function loadFilterIndex(tilesBase) {
                 // Legacy format: plain value array, no counts.
                 _indexValues[f.key] = entry;
             } else if (typeof entry === 'object') {
-                // New format: either { value: count, … } (type_if)
-                // or { value: { count, label? }, … } (code_ligne — merged LigneInfo).
+                // New format: either { value: count, … } (signalType)
+                // or { value: { count, label? }, … } (lineCode — merged line entry).
                 // Always extract the numeric count so countMap.get() returns a number.
                 _indexValues[f.key] = Object.keys(entry);
                 _globalCounts[f.key] = new Map(
@@ -174,43 +189,44 @@ export function initAddFilterButton(btn) {
     _addFilterBtn = btn;
     btn.addEventListener('click', e => {
         e.stopPropagation();
-
         const existing = document.querySelector('.add-filter-menu');
         if (existing) { existing.remove(); return; }
-
-        const used = new Set(_defs.map(d => d.field));
-        const available = _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
-        if (!available.length) return;
-
-        const menu = _tpl.addFilterMenu.content.cloneNode(true).querySelector('.add-filter-menu');
-        const r = btn.getBoundingClientRect();
-        Object.assign(menu.style, {
-            position: 'fixed',
-            top: (r.bottom + 4) + 'px',
-            left: r.left + 'px',
-            zIndex: '9999',
-        });
-
-        available.forEach(f => {
-            const opt = _tpl.addFilterOption.content.cloneNode(true).querySelector('.afm-option');
-            opt.textContent = t(f.labelKey);
-            opt.addEventListener('mousedown', e2 => {
-                e2.preventDefault();
-                // Do NOT stopPropagation: let the event reach the document 'click'
-                // handler that dismisses the menu.  We also call menu.remove()
-                // explicitly so the menu closes even if the click event does not fire
-                // (e.g. after _buildPanels rebuilds the DOM under the cursor).
-                _defs.push({ field: f.key, search: '' });
-                _buildPanels();
-                menu.remove();
-            });
-            menu.appendChild(opt);
-        });
-
-        // In fullscreen the browser creates a new stacking context on the
-        // fullscreen element; append there so the menu is not hidden behind it.
-        (document.fullscreenElement ?? document.body).appendChild(menu);
+        const menu = _buildAddFilterMenu(btn);
+        if (menu) (document.fullscreenElement ?? document.body).appendChild(menu);
     });
+}
+
+/**
+ * Build the add-filter dropdown menu positioned below btn.
+ * Returns null when all fields are already in use.
+ */
+function _buildAddFilterMenu(btn) {
+    const used = new Set(_defs.map(d => d.field));
+    const available = _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
+    if (!available.length) return null;
+
+    const menu = _tpl.addFilterMenu.content.cloneNode(true).querySelector('.add-filter-menu');
+    const r = btn.getBoundingClientRect();
+    Object.assign(menu.style, {
+        position: 'fixed',
+        top: (r.bottom + 4) + 'px',
+        left: r.left + 'px',
+        zIndex: '9999',
+    });
+
+    for (const f of available) {
+        const opt = _tpl.addFilterOption.content.cloneNode(true).querySelector('.afm-option');
+        opt.textContent = t(f.labelKey);
+        opt.addEventListener('mousedown', e => {
+            e.preventDefault();
+            // Do NOT stopPropagation: let the document 'click' handler dismiss the menu.
+            _defs.push({ field: f.key, search: '' });
+            _buildPanels();
+            menu.remove();
+        });
+        menu.appendChild(opt);
+    }
+    return menu;
 }
 
 /* ===== Internal helpers ===== */
@@ -229,7 +245,83 @@ function _updateAddFilterBtn() {
     _addFilterBtn.disabled = !_ALL_FILTER_FIELDS.some(f => !used.has(f.key));
 }
 
+/**
+ * Translate a filter item value to a localized display string.
+ * Returns the raw value when no translation key exists for it.
+ * Used by FilterPanel to display direction and placement values in their locale.
+ * @param {string} field  App field name (e.g. 'direction', 'placement')
+ * @param {string} val    Raw value (e.g. 'forward', 'right')
+ * @returns {string}
+ */
+function _translateFilterValue(field, val) {
+    const key = `values.${field}.${val}`;
+    const translated = t(key);
+    return translated !== key ? translated : val;
+}
+
+
 /* ===== Panel management ===== */
+
+/**
+ * Build the FilterPanel options object for one filter definition.
+ * Extracted from _buildPanels to keep that function readable.
+ */
+function _panelOptions(def, idx, fieldMeta, label, activate) {
+    return {
+        fieldKey: def.field,
+        fieldMeta,
+        label,
+        tplGroup: _tpl.group,
+        tplTag: _tpl.tag,
+        tplItem: _tpl.item,
+        tplNoMatch: _tpl.noMatch,
+        translateValue: _translateFilterValue,
+        searchValue: def.search,
+        mappedOnly: _mappedOnly,
+
+        onActivate: activate,
+
+        onPillRemove: val => {
+            _toggle(def.field, val);
+            // The focused pill button was detached by replaceChildren() inside
+            // _refreshTags → focus moved to <body>.  Restore via microtask.
+            queueMicrotask(() => def.panel?.focusInput());
+        },
+
+        onRemove: () => {
+            def.panel.destroy();
+            delete _activeFilters[def.field];
+            _defs.splice(idx, 1);
+            _buildPanels();
+            _onChange?.();
+        },
+
+        onToggleMappedOnly: checked => {
+            _mappedOnly = checked;
+            delete _activeFilters['signalType'];
+            _defs.forEach(d => { if (d.field === 'signalType') d.search = ''; });
+            _buildPanels();
+            _onChange?.();
+        },
+
+        onSearch: query => {
+            // numericOnly: strip non-digit characters before storing the query.
+            // FilterPanel.setSearch() keeps the visible input in sync when the
+            // sanitized value differs from what was typed.
+            const sanitized = fieldMeta?.numericOnly
+                ? query.replace(/\D/g, '')
+                : query;
+            if (sanitized !== query) def.panel?.setSearch(sanitized);
+            def.search = sanitized;
+            _refreshDropdown(idx);
+            _openDropdown(idx);
+        },
+
+        onEnter: () => _selectFirst(idx),
+        onOpen: () => _openDropdown(idx),
+    };
+}
+
 
 function _buildPanels() {
     const container = document.getElementById('filters-container');
@@ -245,60 +337,7 @@ function _buildPanels() {
 
         const activate = (val) => _toggle(def.field, val);
 
-        def.panel = new FilterPanel({
-            fieldKey: def.field,
-            fieldMeta,
-            label,
-            tplGroup: _tpl.group,
-            tplTag: _tpl.tag,
-            tplItem: _tpl.item,
-            tplNoMatch: _tpl.noMatch,
-            applyI18n,
-            searchValue: def.search,
-            mappedOnly: _mappedOnly,
-
-            onActivate: activate,
-
-            onPillRemove: val => {
-                _toggle(def.field, val);
-                // The focused pill button was detached by replaceChildren() inside
-                // _refreshTags → focus moved to <body>.  Restore via microtask.
-                queueMicrotask(() => def.panel?.focusInput());
-            },
-
-            onRemove: () => {
-                def.panel.destroy();
-                delete _activeFilters[def.field];
-                _defs.splice(idx, 1);
-                _buildPanels();
-                _onChange?.();
-            },
-
-            onToggleMappedOnly: checked => {
-                _mappedOnly = checked;
-                delete _activeFilters['type_if'];
-                _defs.forEach(d => { if (d.field === 'type_if') d.search = ''; });
-                _buildPanels();
-                _onChange?.();
-            },
-
-            onSearch: query => {
-                // numericOnly: strip non-digit characters before storing the query.
-                // FilterPanel.setSearch() keeps the visible input in sync when the
-                // sanitized value differs from what was typed.
-                const sanitized = fieldMeta?.numericOnly
-                    ? query.replace(/\D/g, '')
-                    : query;
-
-                if (sanitized !== query) def.panel?.setSearch(sanitized);
-                def.search = sanitized;
-                _refreshDropdown(idx);
-                _openDropdown(idx);
-            },
-
-            onEnter: () => _selectFirst(idx),
-            onOpen: () => _openDropdown(idx),
-        });
+        def.panel = new FilterPanel(_panelOptions(def, idx, fieldMeta, label, activate));
 
         def.panel.appendTo(container);
         _refreshTags(idx);
@@ -328,78 +367,92 @@ function _refreshDropdown(idx) {
     if (!def?.panel) return;
 
     const fieldMeta = _fieldDef(def.field);
-    const fromIndex = _indexValues[def.field] || [];
-    const fromCounts = [...(_counts[def.field]?.keys() || [])];
-    // For fields covered by index.json (type_if, code_ligne…), the index is the
-    // complete universe of values — merge with live counts for the sort order.
-    // For fields NOT in index.json (sens, position, nom_voie…), use _knownValues
-    // so that values discovered in previous tile loads are never lost when a filter
-    // causes the worker to exclude the groups that would otherwise carry them.
-    let all = fromIndex.length > 0
-        ? [...new Set([...fromIndex, ...fromCounts])]
-        : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
-
+    const all = _candidateValues(def);
+    const isSignalType = def.field === 'signalType';
+    const isMappedOnly = _mappedOnly && isSignalType;
     const q = def.search || '';
-    const isTypeIf = def.field === 'type_if';
-    const isMappedOnly = _mappedOnly && isTypeIf;
 
-    if (isMappedOnly) all = all.filter(v => _mappedTypes.has(v));
-
-    // Placeholder: for indexed fields show the known value count; for non-indexed
-    // fields show the total signal count from the manifest (more meaningful than
-    // the partial knownValues count which only reflects loaded tiles).
+    // Placeholder shows the known-value count (indexed fields) or total
+    // signal count from the manifest (non-indexed fields — more meaningful).
+    const fromIndex = _indexValues[def.field] || [];
     const placeholderCount = fromIndex.length > 0 ? all.length : (_totalSignals || all.length);
     def.panel.setInputPlaceholder(t('dropdown.search', placeholderCount));
 
-    const numericSort = def.field === 'code_ligne';
     const sel = _activeFilters[def.field] || new Set();
-
-    // Build the filtered candidate list first.
+    const countMap = _globalCounts[def.field] ?? _counts[def.field];
     const filtered = q ? all.filter(v => v.includes(q)) : all;
 
-    // Large value lists: when the set of matches still exceeds the threshold,
-    // the list would be too long to render usefully. Keep requiring more input
-    // until the match count drops below MIN_SEARCH_THRESHOLD.
-    // The minimum query length is derived from the full list size (proportional gate),
-    // but the actual render decision uses the filtered count — a rare prefix unlocks
-    // the list sooner than a common one.
-    // Global counts from index.json when available; live viewport counts otherwise.
-    const countMap = _globalCounts[def.field] ?? _counts[def.field];
-
-    if (filtered.length > MIN_SEARCH_THRESHOLD) {
-        const minChars = Math.max(1, Math.ceil(Math.log10(all.length / MIN_SEARCH_THRESHOLD)));
-        if (q.length < minChars) {
-            const activeItems = [...sel].map(v => ({
-                v,
-                count: countMap?.get(v) || 0,
-                active: true,
-                showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
-            }));
-            def.panel.refreshList(activeItems);
-            return;
-        }
-    }
+    if (_belowMinSearch(all, filtered, q, sel, countMap, isSignalType, isMappedOnly, def.panel)) return;
 
     const items = filtered
         .map(v => ({
             v,
             count: countMap?.get(v) || 0,
             active: sel.has(v),
-            showDot: isTypeIf && _mappedTypes.has(v) && !isMappedOnly,
+            showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
         }))
-        .sort(
-            // type_if: descending count when global counts available, else alphabetical.
-            // code_ligne: numeric ascending.
-            // others: alphabetical.
-            isTypeIf && _globalCounts[def.field]
-                ? (a, b) => (b.count - a.count) || a.v.localeCompare(b.v)
-                : numericSort
-                    ? (a, b) => (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) || a.v.localeCompare(b.v)
-                    : (a, b) => a.v.localeCompare(b.v)
-        );
+        .sort(_itemSorter(def, isSignalType, def.field === 'lineCode'));
 
     def.panel.refreshList(items);
 }
+
+/**
+ * Build the merged candidate value list for a filter field.
+ * Indexed fields (signalType, lineCode) use the index as the universe.
+ * Non-indexed fields use _knownValues to preserve values from previous tiles.
+ */
+function _candidateValues(def) {
+    const fromIndex = _indexValues[def.field] || [];
+    const fromCounts = [...(_counts[def.field]?.keys() || [])];
+    const base = fromIndex.length > 0
+        ? [...new Set([...fromIndex, ...fromCounts])]
+        : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
+    if (_mappedOnly && def.field === 'signalType') return base.filter(v => _mappedTypes.has(v));
+    return base;
+}
+
+/**
+ * When the filtered list exceeds MIN_SEARCH_THRESHOLD, show only active items
+ * and return true (caller should skip the full render).
+ * The minimum query length grows proportionally with the total value count.
+ */
+function _belowMinSearch(all, filtered, q, sel, countMap, isSignalType, isMappedOnly, panel) {
+    if (filtered.length <= MIN_SEARCH_THRESHOLD) return false;
+    const minChars = Math.max(1, Math.ceil(Math.log10(all.length / MIN_SEARCH_THRESHOLD)));
+    if (q.length >= minChars) return false;
+    const activeItems = [...sel].map(v => ({
+        v,
+        count: countMap?.get(v) || 0,
+        active: true,
+        showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
+    }));
+    panel.refreshList(activeItems);
+    return true;
+}
+
+/**
+ * Return a comparator for _refreshList item sorting.
+ * Priority: explicit valueOrder > count-descending (signalType) > numeric > alphabetical.
+ */
+function _itemSorter(def, isSignalType, numericSort) {
+    if (def?.valueOrder) {
+        const order = def.valueOrder;
+        return (a, b) => {
+            const ia = order.indexOf(a.v);
+            const ib = order.indexOf(b.v);
+            if (ia >= 0 && ib >= 0) return ia - ib;
+            if (ia >= 0) return -1;
+            if (ib >= 0) return 1;
+            return a.v.localeCompare(b.v);
+        };
+    }
+    if (isSignalType && _globalCounts[def.field])
+        return (a, b) => (b.count - a.count) || a.v.localeCompare(b.v);
+    if (numericSort)
+        return (a, b) => (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) || a.v.localeCompare(b.v);
+    return (a, b) => a.v.localeCompare(b.v);
+}
+
 
 /* ===== State mutations ===== */
 

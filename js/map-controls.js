@@ -15,8 +15,9 @@
  */
 
 import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
+import { t } from './translation.js';
+import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
 import { map } from './map.js';
-import { t } from './i18n.js';
 
 /**
  * Wire all map toolbar buttons.
@@ -28,6 +29,16 @@ export function initMapControls() {
     document.getElementById('btn-reset-view')?.addEventListener('click', _resetView);
     document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
     document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
+    document.getElementById('btn-basemap')?.addEventListener('click', _toggleBasemapPanel);
+    document.getElementById('btn-controls-toggle')?.addEventListener('click', _toggleControls);
+    _applyCollapsed(getControlsCollapsed(), false);
+
+    // Close basemap panel when clicking outside it.
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#basemap-panel') && !e.target.closest('#btn-basemap')) {
+            _closeBasemapPanel();
+        }
+    });
     document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
         document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
         setTimeout(() => map.invalidateSize(), 210);
@@ -52,33 +63,68 @@ function _geolocate() {
     const btn = document.getElementById('btn-geolocate');
     btn?.classList.add('active');
     navigator.geolocation.getCurrentPosition(
-        pos => {
-            const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-            L.circle([lat, lng], {
-                radius: accuracy,
-                color: '#2589c7',
-                fillOpacity: .1,
-                weight: 1
-            }).addTo(map);
-            L.circleMarker([lat, lng], {
-                radius: 7,
-                color: '#fff',
-                fillColor: '#2589c7',
-                fillOpacity: 1,
-                weight: 2,
-            }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
-            map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
-            btn?.classList.remove('active');
-        },
-        err => {
-            btn?.classList.remove('active');
-            alert(t('ctrl.geolocateError', err.message));
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000
-        }
+        pos => _onGeolocateSuccess(pos, btn),
+        err => _onGeolocateError(err, btn),
+        { enableHighAccuracy: true, timeout: 10000 }
     );
+}
+
+function _onGeolocateSuccess(pos, btn) {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    L.circle([lat, lng], {
+        radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1,
+    }).addTo(map);
+    L.circleMarker([lat, lng], {
+        radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
+    }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
+    map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
+    btn?.classList.remove('active');
+}
+
+function _onGeolocateError(err, btn) {
+    btn?.classList.remove('active');
+    alert(t('ctrl.geolocateError', err.message));
+}
+
+function _toggleControls() {
+    const collapsed = !getControlsCollapsed();
+    setControlsCollapsed(collapsed);
+    _applyCollapsed(collapsed, true);
+}
+
+/**
+ * Apply collapsed/expanded state to #map-controls.
+ * @param {boolean} collapsed
+ * @param {boolean} animate   false on initial restore (avoids transition flash)
+ */
+function _applyCollapsed(collapsed, animate) {
+    const bar = document.getElementById('map-controls');
+    const btn = document.getElementById('btn-controls-toggle');
+    if (!bar) return;
+    if (!animate) bar.classList.add('no-transition');
+    bar.classList.toggle('is-collapsed', collapsed);
+    if (!animate) requestAnimationFrame(() => bar.classList.remove('no-transition'));
+    const titleKey = collapsed ? 'ctrl.expand' : 'ctrl.collapse';
+    if (btn) {
+        btn.title = t(titleKey);
+        btn.dataset.i18nTitle = titleKey;
+    }
+}
+
+function _toggleBasemapPanel() {
+    const panel = document.getElementById('basemap-panel');
+    const btn = document.getElementById('btn-basemap');
+    if (!panel) return;
+    const opening = panel.classList.toggle('is-hidden');
+    btn?.classList.toggle('active', !opening);
+}
+
+function _closeBasemapPanel() {
+    const panel = document.getElementById('basemap-panel');
+    if (!panel?.classList.contains('is-hidden')) {
+        panel.classList.add('is-hidden');
+        document.getElementById('btn-basemap')?.classList.remove('active');
+    }
 }
 
 function _toggleFullscreen() {

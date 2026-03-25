@@ -2,7 +2,7 @@
  * app.js — Application entry point and boot sequencer.
  *
  * Responsibilities:
- *   - Sequence the initialisation of every module in the correct order.
+ *   - Sequence the initialization of every module in the correct order.
  *   - Wire Leaflet map events (moveend/zoomend) to map-layer.refresh().
  *   - Update the record-count display after the manifest loads.
  *   - Track the zoom threshold crossing for overview↔detail mode transitions.
@@ -13,13 +13,13 @@
  *   map.js           — Leaflet infrastructure (basemaps, basemap selector)
  *   map-controls.js  — map toolbar button wiring (zoom, geolocate, fullscreen)
  *   map-layer.js     — signal marker pipeline (worker, filter, render)
- *   signal-mapping.js — OSM tag data and category colours
+ *   signal-mapping.js — OSM tag data and category colors
  *   filters.js       — filter state and panel UI
  *   statusbar.js     — status bar DOM updates
  */
 
-import { TILES_BASE, OVERVIEW_MAX_ZOOM } from './config.js';
-import { initMap, map } from './map.js';
+import { TILES_BASE } from './config.js';
+import { initMap, map, initMapEvents } from './map.js';
 import { initMapControls } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
 import {
@@ -30,26 +30,30 @@ import {
     setTotalSignals,
 } from './filters.js';
 import { buildLegend } from './cat-mapping.js';
-import { t, applyTranslations, setRecordCount } from './i18n.js';
+import { loadStrings, t, translateAll, getLang } from './translation.js';
 import { initLayer, setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
-import { initStatusBar, updateZoomStatus } from './statusbar.js';
-import { initCantonment } from './cantonment.js';
+import { initStatusBar, updateZoomStatus, setRecordCount } from './statusbar.js';
+import { initBlockSystem } from './block-system.js';
 
-
-let _lastZoom = -1;
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
 async function _boot() {
+    await loadStrings(getLang());
     await initMap('map');
+    _initUI();
+    await _loadData();
+    translateAll();
+}
 
+/** Initialize all UI components after the map is ready. */
+function _initUI() {
     initProgress();
     initMapControls();
     initStatusBar();
     initLayer();
     initSidebar();
-
     buildLegend();
     initFilters(() => refresh(true));
     initAddFilterButton(document.getElementById('btn-add-filter'));
@@ -57,7 +61,10 @@ async function _boot() {
         resetFilters();
         refresh(true);
     });
+}
 
+/** Fetch manifest and filter index, then start the map pipeline. */
+async function _loadData() {
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
@@ -66,7 +73,7 @@ async function _boot() {
         loadFilterIndex(TILES_BASE),
     ]);
 
-    if (index) initCantonment(index);
+    if (index) initBlockSystem(index);
 
     if (!manifest) {
         hideProgress();
@@ -77,13 +84,17 @@ async function _boot() {
     _updateRecordCount(manifest);
     hideProgress();
     setManifest(manifest);
+    _startMapPipeline();
+}
 
-    _lastZoom = map.getZoom();
-    updateZoomStatus(_lastZoom);
-    _initMapEvents();
-
+/** Wire map events and trigger the first render. */
+function _startMapPipeline() {
+    updateZoomStatus(map.getZoom());
+    initMapEvents(crossedThreshold => {
+        updateZoomStatus(map.getZoom());
+        refresh(crossedThreshold);
+    });
     refresh(true);
-    applyTranslations();
 }
 
 /**
@@ -93,38 +104,8 @@ async function _boot() {
 function _updateRecordCount(manifest) {
     const { tileCount, totalSignals } = getManifestStats(manifest);
     console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-    setRecordCount({ totalSignals, tileCount });
+    setRecordCount({ totalSignals, tileCount });  // also renders #record-count via _renderRecordCount
     setTotalSignals(totalSignals);
-    const el = document.getElementById('record-count');
-    if (el) el.textContent =
-        `${totalSignals.toLocaleString()} ${t('status.signals_lower')} — ` +
-        `${tileCount.toLocaleString()} ${t('status.tiles_lower')}`;
-}
-
-/**
- * Wire Leaflet map events to refresh() with zoom-threshold detection.
- * Debounced so rapid pan/zoom sequences produce a single refresh call.
- */
-function _initMapEvents() {
-    map.on('moveend zoomend', _debounce(() => {
-        const z = map.getZoom();
-        updateZoomStatus(z);
-        const crossedThreshold =
-            (_lastZoom < OVERVIEW_MAX_ZOOM) !== (z < OVERVIEW_MAX_ZOOM);
-        _lastZoom = z;
-        refresh(crossedThreshold);
-    }, 150));
 }
 
 _boot();
-
-
-// ===== Utilities =====
-
-function _debounce(fn, ms) {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn(...args), ms);
-    };
-}

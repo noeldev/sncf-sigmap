@@ -1,0 +1,171 @@
+{
+  "page": {
+    "title": "SNCF Fixed Signalling"
+  },
+  "header": {
+    "subtitle1": "Fixed",
+    "subtitle2": "Signalling",
+    "loading": "Loading…"
+  },
+  "tabs": {
+    "filters": "Filters",
+    "settings": "Settings",
+    "about": "About"
+  },
+  "buttons": {
+    "addFilter": "+ Add filter",
+    "reset": "Reset"
+  },
+  "toggle": {
+    "supported": "Supported types only",
+    "autoTagsTab": "Open OSM Tags tab by default",
+    "skipJosmConfirm": "Skip JOSM export confirmation",
+    "rememberPosition": "Restore last map position on startup"
+  },
+  "legend": {
+    "title": "Legend"
+  },
+  "fields": {
+    "signalType": "Signal type",
+    "lineCode": "Line code",
+    "lineName": "Line name",
+    "blockType": "Block system",
+    "trackCode": "Track code",
+    "trackName": "Track name",
+    "direction": "Direction",
+    "placement": "Placement",
+    "milepost": "Milepost",
+    "networkId": "Network ID"
+  },
+  "values": {
+    "direction": {
+      "forward": "Increasing",
+      "backward": "Decreasing",
+      "both": "Both",
+      "unknown": "N/A"
+    },
+    "placement": {
+      "right": "Right",
+      "left": "Left",
+      "bridge": "Gantry",
+      "unknown": "N/A"
+    }
+  },
+  "filters": {
+    "indexError": "Filter index unavailable — suggestions may be incomplete."
+  },
+  "dropdown": {
+    "search": "Search among {0} values…",
+    "noMatch": "No matching values",
+    "remove": "Remove filter"
+  },
+  "settings": {
+    "basemap": "Base Map",
+    "language": "Language",
+    "behavior": "Behavior"
+  },
+  "basemap": {
+    "jawg": "Jawg Transport",
+    "osm": "OpenStreetMap",
+    "satellite": "Satellite"
+  },
+  "ctrl": {
+    "resetView": "Reset view",
+    "toggle": "Toggle panel",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "locate": "Show My Location",
+    "fullscreen": "Fullscreen",
+    "basemap": "Base map",
+    "collapse": "Collapse toolbar",
+    "expand": "Expand toolbar",
+    "geolocateUnavailable": "Geolocation not available.",
+    "geolocateError": "Location error: {0}"
+  },
+  "status": {
+    "signals": "Signals",
+    "filters": "Filters",
+    "zoom": "Zoom",
+    "sampledTitle": "Overview sample — {0} matching signals. Zoom ≥{1} for full detail.",
+    "recordCount": "{0} signals — {1} tiles"
+  },
+  "progress": {
+    "index": "Loading index…",
+    "tiles": "Loading {0} tile(s)…",
+    "filtering": "Filtering…"
+  },
+  "popup": {
+    "navLabel": "{0} / {1}",
+    "nodeLabel": "{0} / {1}",
+    "nodeNA": "N/A",
+    "signalNode": "Signal Node",
+    "previewTags": "Preview OSM tags",
+    "osmTags": "OSM Tags",
+    "copy": "Copy tags",
+    "josm": "Open in JOSM",
+    "copied": "Copied!",
+    "josmSent": "Sent to JOSM",
+    "prev": "Previous signal",
+    "next": "Next signal",
+    "close": "Close",
+    "copyPrompt": "Copy OSM tags",
+    "tabSignals": "Signals",
+    "tabTags": "OSM Tags",
+    "captionSignal": "Signal",
+    "captionNode": "Node"
+  },
+  "osm": {
+    "locateOnOsm": "Locate on OpenStreetMap",
+    "checking": "Checking in OpenStreetMap…",
+    "inOsm": "Already in OpenStreetMap — Node #{0}",
+    "error": "OSM check failed",
+    "retry": "Retry OSM check",
+    "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
+    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?"
+  },
+  "josm": {
+    "notReachable": "JOSM not reachable",
+    "detect": {
+      "title": "JOSM",
+      "version": "Version",
+      "protocol": "Protocol",
+      "port": "Port",
+      "checking": "…",
+      "notDetected": "Not detected",
+      "notAllowed": "Not allowed yet"
+    }
+  },
+  "cat": {
+    "main": "Main signals",
+    "distant": "Distant signals",
+    "speedLimit": "Speed limits",
+    "route": "Route indicators",
+    "stop": "Stop signs",
+    "shunting": "Shunting",
+    "crossing": "Level crossings",
+    "electricity": "Traction electricity",
+    "trainProtection": "Cab signalling / ETCS",
+    "wrongRoad": "Wrong-road (IPCS)",
+    "station": "Station and facilities",
+    "miscellaneous": "Miscellaneous",
+    "unsupported": "Unsupported types"
+  },
+  "about": {
+    "intro": "Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
+    "usage": {
+      "title": "How to use",
+      "text": "On first visit, all tiles are loaded and cached by the browser. At low zoom, a spatial sample is displayed to keep the map readable. At zoom 10 and above, full signal detail is shown for the current viewport. On subsequent visits, if the last map position is saved, only the tiles for that area are loaded — served instantly from cache. Active filters always apply regardless of zoom level. Click any marker to view its properties and export OSM tags."
+    },
+    "links": {
+      "title": "Links"
+    },
+    "credits": {
+      "title": "Credits",
+      "site": "Site © 2026 Noël Danjou",
+      "data": "Data © 2022 SNCF Réseau",
+      "licence": "Licence Ouverte",
+      "maps": "Maps ©",
+      "osmContributors": "OpenStreetMap contributors"
+    }
+  }
+}

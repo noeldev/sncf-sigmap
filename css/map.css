@@ -5,11 +5,35 @@
 
 /* ===== Map controls ===== */
 
-#map-controls {
+/* ===== Map UI left group =====
+ *
+ * Flex column container that holds #basemap-panel and #map-controls side by side.
+ * align-items:flex-end bottom-aligns both — the panel's bottom edge always
+ * matches the toolbar's bottom edge regardless of height.
+ * pointer-events:none on the container avoids blocking map interaction in the
+ * empty space between the two elements; restored on each direct child.
+ */
+
+.map-ui-left {
     position: absolute;
     top: 10px;
     left: 10px;
     z-index: 500;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 3px;
+    pointer-events: none;
+}
+
+    .map-ui-left > * {
+        pointer-events: auto;
+    }
+
+
+/* .map-ui-left positions both #map-controls and #basemap-panel.
+   #map-controls itself needs no position:absolute — it is a flex child. */
+#map-controls {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -97,6 +121,7 @@
 :root {
     --sb-h: 26px;
 }
+
 #statusbar {
     position: absolute;
     bottom: 0;
@@ -197,7 +222,7 @@
     padding: 1px 0;
 }
 
-/* Type label in tooltip: colour comes from --tt-type-color set by tooltip.js
+/* Type label in tooltip: color comes from --tt-type-color set by tooltip.js
    via getTypeColor(). Falls back to --text if not set. */
 .tt-type {
     font-weight: 700;
@@ -243,3 +268,68 @@
     .leaflet-control-attribution a {
         color: #90d5f0 !important;
     }
+
+
+/* ===== Basemap picker panel =====
+ *
+ * Sits to the right of #map-controls inside .map-ui-left.
+ * align-items:flex-end on the container bottom-aligns the two elements
+ * automatically — no JS measurement needed.
+ */
+
+.basemap-panel {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(0,0,0,.5);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+}
+
+    .basemap-panel.is-hidden {
+        display: none;
+    }
+
+/* Reuse .basemap-btn styles already defined in sidebar.css;
+   no overrides needed — the panel inherits the same dark theme. */
+
+
+/* Settings toggle styles — see sidebar.css + base.css */
+
+
+/* ===== Collapsible map controls toolbar =====
+ *
+ * When #map-controls carries .is-collapsed, every button and separator
+ * is hidden except #btn-sidebar-toggle (top) and #btn-controls-toggle
+ * (bottom). The chevron rotates 180° to indicate the expand action.
+ *
+ * .no-transition suppresses the animation on the initial state restore
+ * so there is no flash on page load.
+ */
+
+#map-controls.is-collapsed .mc-btn:not(#btn-sidebar-toggle):not(#btn-controls-toggle),
+#map-controls.is-collapsed .mc-sep:not(.mc-sep-collapse) {
+    display: none;
+}
+
+/* Keep the separator above the collapse button visible but tighter */
+#map-controls.is-collapsed .mc-sep-collapse {
+    display: block;
+}
+
+.mc-chevron {
+    transform: rotate(180deg); /* default (toolbar open): ∧ points up = click to collapse */
+    transition: transform .2s ease;
+}
+
+#map-controls.is-collapsed .mc-chevron {
+    transform: rotate(0deg); /* collapsed: ∨ points down = click to expand */
+}
+
+#map-controls.no-transition,
+#map-controls.no-transition * {
+    transition: none !important;
+}

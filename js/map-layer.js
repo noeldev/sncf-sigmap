@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *   - Manage the Leaflet marker layer for signal dots.
- *   - Drive the geojson.worker.js pipeline: fetch tiles, filter, sample.
+ *   - Drive the tiles.worker.js pipeline: fetch tiles, normalize, filter, sample.
  *   - Render worker results as Leaflet markers with tooltips and popups.
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
  *
@@ -24,10 +24,10 @@ import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
 import { map } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
-import { openSignalPopup } from './signal-popup.js';
+import { openSignalPopup, resolveStartTab } from './signal-popup.js';
 import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
-import { t } from './i18n.js';
+import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './worker-contract.js';
 import { showProgress, hideProgress } from './progress.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
@@ -40,6 +40,13 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
+
+
+/* ===== Language change handling ===== */
+
+// Leaflet caches tooltip DOM nodes at marker-creation time.
+// Rebuild all markers when the language changes so tooltips use the new locale.
+onLangChange(() => refresh(true));
 
 
 // ===== Dot size scale =====
@@ -128,7 +135,7 @@ function _runWorker(bounds, tileUrls, zoom) {
     _loadRunning = true;
     showProgress(t('progress.tiles', tileUrls.length));
 
-    _worker = new Worker(new URL('geojson.worker.js', import.meta.url), { type: 'module' });
+    _worker = new Worker(new URL('tiles.worker.js', import.meta.url), { type: 'module' });
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
@@ -137,27 +144,7 @@ function _runWorker(bounds, tileUrls, zoom) {
     // Key: "lat,lng" — value: Leaflet marker instance.
     const _markerMap = new Map();
 
-    _worker.onmessage = e => {
-        if (!isOwnWorkerMessage(e)) return;
-        const { status, msg, groups, loaded, total, sampled } = e.data;
-
-        if (status === 'progress') { showProgress(msg); return; }
-        if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
-
-        if (status === 'partial') {
-            // In overview mode, skip incremental rendering — the final 'done'
-            // message will apply spatial sampling and render the stable result.
-            if (isOverview) return;
-            _renderGroupsIncremental(groups, _markerMap);
-            updateVisibleCount(_markerMap.size);
-            showProgress(`Loading ${loaded} / ${total} tile(s)…`);
-            return;
-        }
-
-        if (status === 'done') {
-            _onWorkerDone(groups, sampled, e.data.total);
-        }
-    };
+    _worker.onmessage = e => _handleWorkerMessage(e, isOverview, _markerMap);
 
     _worker.onerror = err => {
         console.error('[Worker error]', err.message);
@@ -170,8 +157,37 @@ function _runWorker(bounds, tileUrls, zoom) {
         activeFilters: getActiveFiltersForWorker(),
         bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
         maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
+        // Pass translated strings so the worker can post localized progress messages.
+        strings: {
+            loadingTiles: t('progress.tiles', '{0}'),
+            filtering: t('progress.filtering'),
+        },
     });
 }
+
+/**
+ * Dispatch a single worker message to the appropriate handler.
+ * Extracted from _runWorker to keep that function focused on setup.
+ */
+function _handleWorkerMessage(e, isOverview, markerMap) {
+    if (!isOwnWorkerMessage(e)) return;
+    const { status, msg, groups, loaded, total, sampled } = e.data;
+
+    if (status === 'progress') { showProgress(msg); return; }
+    if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
+
+    if (status === 'partial') {
+        // Overview mode waits for 'done' (spatial sampling requires the full set).
+        if (isOverview) return;
+        _renderGroupsIncremental(groups, markerMap);
+        updateVisibleCount(markerMap.size);
+        showProgress(t('progress.tiles', `${loaded} / ${total}`));
+        return;
+    }
+
+    if (status === 'done') _onWorkerDone(groups, sampled, e.data.total);
+}
+
 
 /** Release the worker and clear the running flag. */
 function _terminateLoad() {
@@ -232,7 +248,7 @@ function _makeDotIcon(color, size, multi) {
  * @returns {L.Marker}
  */
 function _makeMarker(lat, lng, all, display) {
-    const color = getTypeColor(display[0].p.type_if);
+    const color = getTypeColor(display[0].p.signalType);
     const count = display.length;
     const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
     return L.marker([lat, lng], { icon })
@@ -243,9 +259,9 @@ function _makeMarker(lat, lng, all, display) {
             sticky: false,
         })
         .on('click', e => {
-            const startTab = (e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey)
-                ? 'tags' : 'signals';
-            openSignalPopup([lat, lng], all, 0, startTab);
+            // Modifier key (Shift/Ctrl) always flips the default tab.
+            const flipped = e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey;
+            openSignalPopup([lat, lng], all, 0, resolveStartTab(flipped));
         });
 }
 

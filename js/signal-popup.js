@@ -19,10 +19,11 @@
 
 import { map } from './map.js';
 import { getTypeColor, getOsmNodes, isSupported } from './signal-mapping.js';
-import { t, applyI18n, onLangChange } from './i18n.js';
+import { t, translateElement, onLangChange } from './translation.js';
 import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
 import { josmAddNode } from './josm.js';
-import { getLineLabel, getCantonMode } from './cantonment.js';
+import { getLineLabel, getBlockType } from './block-system.js';
+import { getSkipJosmConfirm, getAutoTagsTab } from './prefs.js';
 
 
 /* ===== Template accessor ===== */
@@ -43,9 +44,27 @@ function _contrastColor(hex) {
 }
 
 
+// ===== Tab identifiers =====
+// Private — external callers use resolveStartTab() to get a tab name.
+const TAB_SIGNALS = 'signals';
+const TAB_TAGS = 'tags';
+
+/**
+ * Return the tab to open when a marker is clicked.
+ * @param {boolean} flipped  true when the user held Shift or Ctrl
+ * @returns {'signals'|'tags'}
+ */
+export function resolveStartTab(flipped) {
+    const defaultTab = getAutoTagsTab() ? TAB_TAGS : TAB_SIGNALS;
+    return flipped
+        ? (defaultTab === TAB_TAGS ? TAB_SIGNALS : TAB_TAGS)
+        : defaultTab;
+}
+
+
 /* ===== Module state ===== */
 
-let _popup = null;   // Leaflet popup instance
+let _popup = null;     // Leaflet popup instance
 let _popupEl = null;   // live .pu-wrap DOM node
 let _feats = null;
 let _latlng = null;
@@ -53,9 +72,22 @@ let _statuses = null;
 let _currentIdx = 0;      // index of the signal shown in the Signals tab
 let _nodes = null;
 let _featToNodeIdx = null;
-let _currentNodeIdx = -1;     // node index of the currently displayed signal
+let _currentNodeIdx = -1;  // node index of the currently displayed signal
 let _tagsNodeIdx = 0;      // node index shown in the OSM Tags tab
-let _activeTab = 'signals';
+let _activeTab = TAB_SIGNALS;
+
+
+/* ===== Language change handling ===== */
+
+// Re-translate all dynamic popup content when the language changes.
+// Both panels must be refreshed: Signals for direction/placement values,
+// Tags for the node counter label.
+// Guard: no-op when no popup is open.
+onLangChange(() => {
+    if (!_popup?.isOpen() || !_popupEl) return;
+    _updateSignalsPanel();
+    _updateTagsPanel();
+});
 
 
 /* ===== Public entry point ===== */
@@ -64,10 +96,10 @@ let _activeTab = 'signals';
  * Open the unified popup for a co-located signal group.
  * @param {[number,number]} latlng
  * @param {object[]}        feats
- * @param {number}          [idx=0]            initial signal index
- * @param {'signals'|'tags'} [startTab]        which tab to open first
+ * @param {number}          [idx=0]     initial signal index
+ * @param {string}          [startTab]  tab to open first — use resolveStartTab()
  */
-export function openSignalPopup(latlng, feats, idx = 0, startTab = 'signals') {
+export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) {
     _initState(latlng, feats, idx, startTab);
     _openPopup();
     _scheduleOsmCheck();
@@ -87,12 +119,12 @@ function _initState(latlng, feats, idx, startTab) {
     _feats = feats;
     _latlng = latlng;
     _currentIdx = idx;
-    _activeTab = startTab ?? 'signals';
+    _activeTab = startTab ?? TAB_SIGNALS;
     _tagsNodeIdx = 0;
     _currentNodeIdx = -1;
 
     _statuses = feats.map(f =>
-        isSupported(f.p.type_if)
+        isSupported(f.p.signalType)
             ? { status: 'checking', nodeId: null }
             : { status: 'unsupported', nodeId: null }
     );
@@ -109,7 +141,7 @@ function _computeNodes() {
 
 function _openPopup() {
     const wrap = _tplPopup().content.cloneNode(true).querySelector('.pu-wrap');
-    applyI18n(wrap);
+    translateElement(wrap);
     _popupEl = wrap;
 
     _updateSignalsPanel();
@@ -146,19 +178,17 @@ function _scheduleOsmCheck(force = false) {
     if (!_statuses.some(s => s.status === 'checking')) return;
     checkSignalGroup(_feats, force).then(results => {
         _statuses = results;
-        if (_popup?.isOpen() && _popupEl) {
-            _applyOsmStatus(
-                _idRow(),
-                _statuses[_currentIdx],
-                _feats[_currentIdx]
-            );
-        }
+        if (!_popup?.isOpen() || !_popupEl) return;
+        const idRow = _idRow();
+        if (!idRow) return;
+        _resetOsmStatus(idRow);
+        _applyOsmStatus(idRow, _statuses[_currentIdx], _feats[_currentIdx]);
     });
 }
 
-/** Shorthand — the ID RÉSEAU row element. */
+/** Shorthand — the networkId row element. */
 function _idRow() {
-    return _popupEl?.querySelector('.pu-row[data-field="idreseau"]');
+    return _popupEl?.querySelector('.pu-row[data-field="networkId"]');
 }
 
 /**
@@ -196,15 +226,15 @@ function _applyOsmStatus(idRow, { status, nodeId }, feat) {
 
 /* ===== In-place DOM updates ===== */
 
-// Fields resolved directly from p — cantonment fields are handled separately below.
-const _DATA_FIELDS = ['code_ligne', 'libelle_ligne', 'mode_canton', 'code_voie', 'nom_voie', 'sens', 'position', 'pk'];
+// Fields resolved directly from p — block system fields are resolved separately below.
+// Field rows are read from the DOM template via [data-field] — no hardcoded list needed.
 
 /**
  * Update every element in the Signals tab panel for _currentIdx.
  * Does not touch the OSM Tags panel.
  *
- * libelle_ligne and mode_canton are not stored in tile data; they are resolved
- * at display time via the cantonment module (index.json lookup). A shallow
+ * lineName and blockType are not in tile data; they are resolved
+ * at display time via the block-system module (index.json lookup). A shallow
  * displayProps object merges p with the two resolved values so the DATA_FIELDS
  * loop can treat all fields uniformly without mutating the original p.
  */
@@ -212,52 +242,76 @@ function _updateSignalsPanel() {
     if (!_popupEl) return;
     const s = _feats[_currentIdx];
     const p = s.p;
-    const total = _feats.length;
 
-    // Color
-    const color = getTypeColor(p.type_if);
+    _updateSignalColor(p);
+    _updateNavHeader(p, _feats.length);
+    _updateDataRows(p);
+    _updateNetworkIdRow(s);
+    _updateCoords(s);
+    _updateNodeBadge(s);
+    // Re-translate labels last — .pu-label elements carry data-i18n;
+    // .pu-val elements do not, so content written above is preserved.
+    translateElement(_popupEl);
+}
+
+/** Set the --signal-color and --signal-contrast CSS variables on the popup. */
+function _updateSignalColor(p) {
+    const color = getTypeColor(p.signalType);
     _popupEl.style.setProperty('--signal-color', color);
     _popupEl.style.setProperty('--signal-contrast', _contrastColor(color));
+}
 
-    // Signal navigation header
-    const navLabel = _popupEl.querySelector('.pu-nav-label');
-    navLabel.textContent = t('popup.navLabel', _currentIdx + 1, total);
-
-    // Hide only the arrow buttons when there is a single signal — the counter
-    // stays visible as a position indicator, mirroring the Tags tab behaviour.
+/** Update the signal nav header: counter label, arrow button visibility, type badge. */
+function _updateNavHeader(p, total) {
+    _popupEl.querySelector('.pu-nav-label').textContent =
+        t('popup.navLabel', _currentIdx + 1, total);
     _popupEl.querySelectorAll('[data-action="nav-prev"], [data-action="nav-next"]')
         .forEach(btn => btn.classList.toggle('is-hidden', total <= 1));
+    _popupEl.querySelector('.pu-row[data-field="signalType"] .pu-badge').textContent =
+        p.signalType ?? '';
+}
 
-    // Type badge
-    _popupEl.querySelector('.pu-row[data-field="type_if"] .pu-badge').textContent = p.type_if ?? '';
+/**
+ * Populate all .pu-row[data-field] values from displayProps.
+ * signalType, networkId, coords are skipped — each has its own dedicated updater.
+ * lineName and blockType are resolved from the block system at display time.
+ */
+function _updateDataRows(p) {
+    const displayProps = _buildDisplayProps(p);
+    _popupEl.querySelectorAll('.pu-row[data-field]').forEach(row => {
+        const field = row.dataset.field;
+        if (field === 'signalType' || field === 'networkId' || field === 'coords') return;
+        const val = displayProps[field];
+        if (val !== undefined) row.querySelector('.pu-val').textContent = val;
+    });
+}
 
-    // Merge cantonment-resolved fields with raw props (no mutation of p).
-    // getCantonMode receives sens so it can determine the downstream canton at
-    // PK boundaries (see cantonment.js for the full direction semantics).
-    const displayProps = {
+/**
+ * Merge raw signal props with block-system-resolved and translated values.
+ * Returns a flat object keyed by data-field names — no mutation of the original p.
+ */
+function _buildDisplayProps(p) {
+    return {
         ...p,
-        libelle_ligne: getLineLabel(p.code_ligne) ?? t('popup.nodeNA'),
-        mode_canton: getCantonMode(p.code_ligne, p.pk, p.sens) ?? t('popup.nodeNA'),
+        lineName: getLineLabel(p.lineCode) ?? t('popup.nodeNA'),
+        blockType: getBlockType(p.lineCode, p.milepost, p.direction) ?? t('popup.nodeNA'),
+        direction: t(`values.direction.${p.direction}`),
+        placement: t(`values.placement.${p.placement}`),
     };
+}
 
-    // Data fields
-    for (const field of _DATA_FIELDS) {
-        const row = _popupEl.querySelector(`.pu-row[data-field="${field}"]`);
-        if (row) row.querySelector('.pu-val').textContent = displayProps[field] ?? '';
-    }
-
-    // ID RÉSEAU + OSM status
+/** Write networkId text and refresh the OSM status indicator for the current signal. */
+function _updateNetworkIdRow(s) {
     const idRow = _idRow();
-    idRow.querySelector('.pu-val').textContent = p.idreseau ?? '';
+    idRow.querySelector('.pu-val').textContent = s.p.networkId ?? '';
     _resetOsmStatus(idRow);
     _applyOsmStatus(idRow, _statuses[_currentIdx], s);
+}
 
-    // Coordinates
+/** Write the lat/lng coordinate pair to the coords row. */
+function _updateCoords(s) {
     _popupEl.querySelector('.pu-row[data-field="coords"] .pu-val').textContent =
-        `${s.lat.toFixed(6)}\u2009\u2009${s.lng.toFixed(6)}`;
-
-    // Signal Node badge
-    _updateNodeBadge(s);
+        `${s.lat.toFixed(6)}  ${s.lng.toFixed(6)}`;
 }
 
 function _updateNodeBadge(s) {
@@ -335,6 +389,22 @@ function _switchTab(tab) {
 
 /* ===== Click handler ===== */
 
+/** Step the current signal index by delta (-1 or +1), wrapping around. */
+function _navigateSignal(delta) {
+    _currentIdx = (_currentIdx + delta + _feats.length) % _feats.length;
+    _computeNodes();
+    _updateSignalsPanel();
+    _updateTagsPanel();
+}
+
+
+/** Step the tags node index by delta (-1 or +1), wrapping around. */
+function _navigateNode(delta) {
+    _tagsNodeIdx = (_tagsNodeIdx + delta + _nodes.length) % _nodes.length;
+    _updateTagsPanel();
+}
+
+
 function _onClick(e) {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -348,17 +418,11 @@ function _onClick(e) {
             break;
 
         case 'nav-prev':
-            _currentIdx = (_currentIdx - 1 + _feats.length) % _feats.length;
-            _computeNodes();
-            _updateSignalsPanel();
-            _updateTagsPanel();
+            _navigateSignal(-1);
             break;
 
         case 'nav-next':
-            _currentIdx = (_currentIdx + 1) % _feats.length;
-            _computeNodes();
-            _updateSignalsPanel();
-            _updateTagsPanel();
+            _navigateSignal(+1);
             break;
 
         case 'node-preview':   // fallthrough — badge click = open Tags tab
@@ -366,21 +430,19 @@ function _onClick(e) {
             // Sync Tags tab to the node of the currently displayed signal.
             if (_currentNodeIdx >= 0) _tagsNodeIdx = _currentNodeIdx;
             _updateTagsPanel();
-            _switchTab('tags');
+            _switchTab(TAB_TAGS);
             break;
 
         case 'tab-signals':
-            _switchTab('signals');
+            _switchTab(TAB_SIGNALS);
             break;
 
         case 'tags-prev':
-            _tagsNodeIdx = (_tagsNodeIdx - 1 + _nodes.length) % _nodes.length;
-            _updateTagsPanel();
+            _navigateNode(-1);
             break;
 
         case 'tags-next':
-            _tagsNodeIdx = (_tagsNodeIdx + 1) % _nodes.length;
-            _updateTagsPanel();
+            _navigateNode(+1);
             break;
 
         case 'copy':
@@ -416,7 +478,7 @@ function _copyTags(node, btn) {
 async function _sendToJOSM(node, btn) {
     if (!node?.tags?.size) return;
 
-    if (_statuses?.some(s => s.status === 'in-osm')) {
+    if (!getSkipJosmConfirm() && _statuses?.some(s => s.status === 'in-osm')) {
         const msg = _feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
         if (!confirm(msg)) return;
     }
@@ -491,20 +553,3 @@ function _initKeyboard(popupEl) {
         }
     });
 }
-
-
-/* ===== Language change ===== */
-
-onLangChange(() => {
-    if (!_popup?.isOpen() || !_popupEl) return;
-
-    // Update Signal Node counter in both tabs.
-    const counter = _popupEl.querySelector('.pu-node-counter');
-    if (counter && _nodes?.length && _currentNodeIdx >= 0) {
-        counter.textContent = t('popup.nodeLabel', _currentNodeIdx + 1, _nodes.length);
-    }
-    const tagsLabel = _popupEl.querySelector('.pu-tags-node-label');
-    if (tagsLabel && _nodes?.length > 0) {
-        tagsLabel.textContent = t('popup.nodeLabel', _tagsNodeIdx + 1, _nodes.length);
-    }
-});

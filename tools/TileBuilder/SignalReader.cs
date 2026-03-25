@@ -21,8 +21,8 @@ static class SignalReader
         Console.WriteLine($"  {total:N0} features found.");
 
         var tiles = new Dictionary<string, List<Signal>>();
-        var typeIfCounts = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        var codeLigneCounts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        var signalTypeCounts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        var lineCodeCounts = new SortedDictionary<string, int>(StringComparer.Ordinal);
         int skipped = 0;
 
         for (var i = 0; i < total; i++)
@@ -41,14 +41,14 @@ static class SignalReader
             var lat = coords[1]!.GetValue<double>();
             var key = TileKey(lat, lng);
             var props = feature["properties"]!;
-            var typeIf = props["type_if"]?.GetValue<string>() ?? "";
-            var codeLigne = props["code_ligne"]?.ToString() ?? "";
+            var signalType = props["type_if"]?.GetValue<string>() ?? "";
+            var lineCode = props["code_ligne"]?.ToString() ?? "";
 
             var signal = new Signal(
                 lat: Math.Round(lat, 7),
                 lng: Math.Round(lng, 7),
-                type_if: typeIf,
-                code_ligne: codeLigne,
+                type_if: signalType,
+                code_ligne: lineCode,
                 nom_voie: props["nom_voie"]?.GetValue<string>() ?? "",
                 sens: props["sens"]?.GetValue<string>() ?? "",
                 position: props["position"]?.GetValue<string>() ?? "",
@@ -65,13 +65,13 @@ static class SignalReader
 
             value.Add(signal);
 
-            if (typeIf != "")
+            if (signalType != "")
             {
-                typeIfCounts[typeIf] = typeIfCounts.GetValueOrDefault(typeIf, 0) + 1;
+                signalTypeCounts[signalType] = signalTypeCounts.GetValueOrDefault(signalType, 0) + 1;
             }
-            if (codeLigne != "")
+            if (lineCode != "")
             {
-                codeLigneCounts[codeLigne] = codeLigneCounts.GetValueOrDefault(codeLigne, 0) + 1;
+                lineCodeCounts[lineCode] = lineCodeCounts.GetValueOrDefault(lineCode, 0) + 1;
             }
             if ((i + 1) % 20000 == 0)
             {
@@ -82,7 +82,7 @@ static class SignalReader
         Console.WriteLine($"  {skipped} non-Point features skipped.");
         Console.WriteLine($"  {tiles.Count} tiles grouped.");
         Console.WriteLine();
-        return new SignalData(tiles, typeIfCounts, codeLigneCounts);
+        return new SignalData(tiles, signalTypeCounts, lineCodeCounts);
     }
 
     private static string TileKey(double lat, double lng)

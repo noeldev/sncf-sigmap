@@ -10,13 +10,15 @@
  *   updateZoomStatus(zoom)    — write zoom level (was in map.js).
  *   updateVisibleCount(n)     — write visible signal count (was in map-layer.js).
  *   setSampledBadge(s, total) — show/hide the overview sample badge (was in map-layer.js).
+ *   setRecordCount(data)      — store and render the total signal / tile count.
  *   updateFilterCount(n)      — write active filter count (was in filters.js).
  */
 
 import { OVERVIEW_MAX_ZOOM } from './config.js';
-import { t } from './i18n.js';
+import { t, onLangChange } from './translation.js';
 
 const _el = {};
+let _recordCount = null;
 
 /**
  * Cache status bar DOM references.
@@ -27,6 +29,9 @@ export function initStatusBar() {
     _el.sampled = document.getElementById('st-sampled');
     _el.filters = document.getElementById('st-filters');
     _el.zoom = document.getElementById('st-zoom');
+    _el.count = document.getElementById('record-count');
+    // Re-render the record count string whenever the language changes.
+    onLangChange(_renderRecordCount);
 }
 
 /**
@@ -46,7 +51,7 @@ export function setSampledBadge(sampled, total) {
     const el = _el.sampled;
     if (!el) return;
     el.classList.toggle('is-hidden', !sampled);
-    if (sampled && total) el.title = t('status.sampled_title', total, OVERVIEW_MAX_ZOOM);
+    if (sampled && total) el.title = t('status.sampledTitle', total, OVERVIEW_MAX_ZOOM);
 }
 
 /**
@@ -55,6 +60,22 @@ export function setSampledBadge(sampled, total) {
  */
 export function updateFilterCount(n) {
     if (_el.filters) _el.filters.textContent = n.toLocaleString();
+}
+
+/**
+ * Store the record counts and render the #record-count element.
+ * Called once by app.js after the manifest loads.
+ * @param {{ totalSignals: number, tileCount: number }} data
+ */
+export function setRecordCount(data) {
+    _recordCount = data;
+    _renderRecordCount();
+}
+
+function _renderRecordCount() {
+    if (!_recordCount || !_el.count) return;
+    _el.count.textContent =
+        t('status.recordCount', _recordCount.totalSignals, _recordCount.tileCount);
 }
 
 /**

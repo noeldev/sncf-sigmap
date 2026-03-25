@@ -1,0 +1,171 @@
+{
+  "page": {
+    "title": "SNCF Signalisation Permanente"
+  },
+  "header": {
+    "subtitle1": "Signalisation",
+    "subtitle2": "Permanente",
+    "loading": "Chargement…"
+  },
+  "tabs": {
+    "filters": "Filtres",
+    "settings": "Paramètres",
+    "about": "À propos"
+  },
+  "buttons": {
+    "addFilter": "+ Ajouter",
+    "reset": "Réinitialiser"
+  },
+  "toggle": {
+    "supported": "Types supportés uniquement",
+    "autoTagsTab": "Ouvrir l'onglet Tags OSM par défaut",
+    "skipJosmConfirm": "Ignorer la confirmation d'export JOSM",
+    "rememberPosition": "Restaurer la dernière position de la carte au démarrage"
+  },
+  "legend": {
+    "title": "Légende"
+  },
+  "fields": {
+    "signalType": "Type IF",
+    "lineCode": "Code ligne",
+    "lineName": "Libellé ligne",
+    "blockType": "Mode canton",
+    "trackCode": "Code voie",
+    "trackName": "Nom voie",
+    "direction": "Sens",
+    "placement": "Position",
+    "milepost": "PK",
+    "networkId": "ID Réseau"
+  },
+  "values": {
+    "direction": {
+      "forward": "Croissant",
+      "backward": "Décroissant",
+      "both": "Bidirectionnel",
+      "unknown": "N/A"
+    },
+    "placement": {
+      "right": "Droite",
+      "left": "Gauche",
+      "bridge": "Portique",
+      "unknown": "N/A"
+    }
+  },
+  "filters": {
+    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes."
+  },
+  "dropdown": {
+    "search": "Rechercher parmi {0} valeurs…",
+    "noMatch": "Aucune valeur",
+    "remove": "Supprimer le filtre"
+  },
+  "settings": {
+    "basemap": "Fond de carte",
+    "language": "Langue",
+    "behavior": "Comportement"
+  },
+  "basemap": {
+    "jawg": "Jawg Transport",
+    "osm": "OpenStreetMap",
+    "satellite": "Satellite"
+  },
+  "ctrl": {
+    "resetView": "Vue initiale",
+    "toggle": "Afficher/masquer le panneau",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "locate": "Afficher mon emplacement",
+    "fullscreen": "Plein écran",
+    "basemap": "Fond de carte",
+    "collapse": "Réduire la barre",
+    "expand": "Développer la barre",
+    "geolocateUnavailable": "Géolocalisation non disponible.",
+    "geolocateError": "Erreur de localisation : {0}"
+  },
+  "status": {
+    "signals": "Signaux",
+    "filters": "Filtres",
+    "zoom": "Zoom",
+    "sampledTitle": "Aperçu — {0} signaux correspondants. Zoom ≥{1} pour le détail complet.",
+    "recordCount": "{0} signaux — {1} tuiles"
+  },
+  "progress": {
+    "index": "Chargement de l'index…",
+    "tiles": "Chargement de {0} tuile(s)…",
+    "filtering": "Filtrage…"
+  },
+  "popup": {
+    "navLabel": "{0} / {1}",
+    "nodeLabel": "{0} / {1}",
+    "nodeNA": "N/A",
+    "signalNode": "Nœud du signal",
+    "previewTags": "Prévisualiser les tags OSM",
+    "osmTags": "Tags OSM",
+    "copy": "Copier les tags",
+    "josm": "Ouvrir dans JOSM",
+    "copied": "Copié !",
+    "josmSent": "Envoyé à JOSM",
+    "prev": "Signal précédent",
+    "next": "Signal suivant",
+    "close": "Fermer",
+    "copyPrompt": "Copier les tags OSM",
+    "tabSignals": "Signaux",
+    "tabTags": "Tags OSM",
+    "captionSignal": "Signal",
+    "captionNode": "Nœud"
+  },
+  "osm": {
+    "locateOnOsm": "Localiser dans OpenStreetMap",
+    "checking": "Vérification dans OpenStreetMap…",
+    "inOsm": "Déjà présent dans OpenStreetMap — Nœud #{0}",
+    "error": "Échec de la vérification OSM",
+    "retry": "Relancer la vérification OSM",
+    "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
+  },
+  "josm": {
+    "notReachable": "JOSM inaccessible",
+    "detect": {
+      "title": "JOSM",
+      "version": "Version",
+      "protocol": "Protocole",
+      "port": "Port",
+      "checking": "…",
+      "notDetected": "Non détecté",
+      "notAllowed": "Non autorisé"
+    }
+  },
+  "cat": {
+    "main": "Signaux principaux",
+    "distant": "Signaux distants",
+    "speedLimit": "Limitations de vitesse",
+    "route": "Indicateurs de direction",
+    "stop": "Pancartes d'arrêt",
+    "shunting": "Manœuvres",
+    "crossing": "Passages à niveau",
+    "electricity": "Traction électrique",
+    "trainProtection": "Signalisation cabine / ETCS",
+    "wrongRoad": "Contre-sens (IPCS)",
+    "station": "Gares et établissements",
+    "miscellaneous": "Divers",
+    "unsupported": "Types non supportés"
+  },
+  "about": {
+    "intro": "Visualisation cartographique interactive du jeu de données ouvertes <strong>SNCF Signalisation Permanente</strong>, avec intégration OpenStreetMap. Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
+    "usage": {
+      "title": "Utilisation",
+      "text": "Lors de la première visite, toutes les tuiles sont chargées et mises en cache par le navigateur. À faible zoom, un échantillon spatial est affiché pour garder la carte lisible. À partir du zoom 10, le détail complet des signaux est affiché pour la vue courante. Lors des visites suivantes, si la dernière position de la carte est mémorisée, seules les tuiles de cette zone sont chargées — servies instantanément depuis le cache. Les filtres actifs s'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM."
+    },
+    "links": {
+      "title": "Liens"
+    },
+    "credits": {
+      "title": "Crédits",
+      "site": "Site © 2026 Noël Danjou",
+      "data": "Données © 2022 SNCF Réseau",
+      "licence": "Licence Ouverte",
+      "maps": "Cartes ©",
+      "osmContributors": "Contributeurs OpenStreetMap"
+    }
+  }
+}

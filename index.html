@@ -33,24 +33,24 @@
                         <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau" class="logo-sncf">
                     </a>
                     <div class="logo-text">
-                        <div class="logo-title" data-i18n="subtitle1">Signalisation</div>
-                        <div class="logo-title" data-i18n="subtitle2">Permanente</div>
+                        <div class="logo-title" data-i18n="header.subtitle1">Signalisation</div>
+                        <div class="logo-title" data-i18n="header.subtitle2">Permanente</div>
                     </div>
                 </div>
                 <div id="record-count" class="record-count">…</div>
             </div>
 
             <nav id="sidebar-tabs" role="tablist">
-                <button class="stab active" role="tab" aria-selected="true" aria-controls="tab-filters" data-tab="filters" data-i18n="tab.filters">Filters</button>
-                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-settings" data-tab="settings" data-i18n="tab.settings">Settings</button>
-                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about" data-i18n="tab.about">About</button>
+                <button class="stab active" role="tab" aria-selected="true" aria-controls="tab-filters" data-tab="filters" data-i18n="tabs.filters">Filters</button>
+                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-settings" data-tab="settings" data-i18n="tabs.settings">Settings</button>
+                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about" data-i18n="tabs.about">About</button>
             </nav>
 
             <!-- Filters -->
             <div id="tab-filters" class="tab-panel active" role="tabpanel">
                 <div class="panel-toolbar">
-                    <button class="tbtn" id="btn-add-filter" data-i18n="btn.addFilter">+ Add filter</button>
-                    <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="btn.reset">Reset</button>
+                    <button class="tbtn" id="btn-add-filter" data-i18n="buttons.addFilter">+ Add filter</button>
+                    <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="buttons.reset">Reset</button>
                 </div>
                 <div id="filters-container"></div>
                 <div class="legend-spacer"></div>
@@ -74,10 +74,6 @@
             <!-- Settings -->
             <div id="tab-settings" class="tab-panel" role="tabpanel">
                 <div class="settings-section">
-                    <div class="section-title" data-i18n="settings.basemap">Base Map</div>
-                    <div id="basemap-list"></div>
-                </div>
-                <div class="settings-section">
                     <div class="section-title" data-i18n="settings.language">Language</div>
                     <div class="lang-select-wrap" id="lang-select-wrap">
                         <button class="lang-select-btn dd-trigger" id="lang-select-btn" aria-haspopup="listbox" aria-expanded="false">
@@ -86,16 +82,27 @@
                             <span class="lang-chevron dd-chevron"><svg width="6" height="6" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg></span>
                         </button>
                         <ul class="lang-dropdown dd-panel" id="lang-dropdown" role="listbox" aria-label="Language">
-                            <li class="lang-option" role="option" data-val="en">
-                                <img src="assets/svg/flag-en.svg" class="flag-img" width="20" height="15" alt="English">
-                                <span>English</span>
-                            </li>
-                            <li class="lang-option" role="option" data-val="fr">
-                                <img src="assets/svg/flag-fr.svg" class="flag-img" width="20" height="15" alt="Français">
-                                <span>Français</span>
-                            </li>
+                            <!-- Populated dynamically by buildLangOptions() in translation.js -->
                         </ul>
                     </div>
+                </div>
+                <div class="settings-section">
+                    <div class="section-title" data-i18n="settings.behavior">Behavior</div>
+                    <label class="settings-toggle-row">
+                        <input type="checkbox" id="chk-auto-tags-tab">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        <span class="settings-toggle-label" data-i18n="toggle.autoTagsTab">Open OSM Tags tab by default</span>
+                    </label>
+                    <label class="settings-toggle-row">
+                        <input type="checkbox" id="chk-skip-josm-confirm">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        <span class="settings-toggle-label" data-i18n="toggle.skipJosmConfirm">Skip JOSM export confirmation</span>
+                    </label>
+                    <label class="settings-toggle-row">
+                        <input type="checkbox" id="chk-remember-position">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        <span class="settings-toggle-label" data-i18n="toggle.rememberPosition">Restore last map position on startup</span>
+                    </label>
                 </div>
                 <div class="legend-spacer"></div>
                 <details id="josm-detect" class="info-panel" open>
@@ -146,7 +153,17 @@
                     </div>
                     <div class="about-section">
                         <div class="section-title" data-i18n="about.credits.title">Credits</div>
-                        <p class="about-credits" data-i18n-html="about.credits"></p>
+                        <p class="about-credits">
+                            <span data-i18n="about.credits.site"></span><br>
+                            <span data-i18n="about.credits.data"></span> —
+                            <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence"
+                               target="_blank" rel="noopener"
+                               data-i18n="about.credits.licence"></a><br>
+                            <span data-i18n="about.credits.maps"></span>
+                            <a href="https://www.openstreetmap.org/copyright"
+                               target="_blank" rel="noopener"
+                               data-i18n="about.credits.osmContributors"></a>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -157,34 +174,53 @@
             <div id="map"></div>
 
             <!-- Map controls: top-right -->
-            <div id="map-controls">
-                <button id="btn-sidebar-toggle" class="mc-btn"
-                        data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
-                    <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-hamburger"></use></svg>
-                </button>
-                <div class="mc-sep"></div>
-                <button id="btn-zoom-in" class="mc-btn"
-                        data-i18n-title="ctrl.zoomIn" title="Zoom in">
-                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-in"></use></svg>
-                </button>
-                <button id="btn-zoom-out" class="mc-btn"
-                        data-i18n-title="ctrl.zoomOut" title="Zoom out">
-                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-out"></use></svg>
-                </button>
-                <div class="mc-sep"></div>
-                <button id="btn-reset-view" class="mc-btn"
-                        data-i18n-title="ctrl.resetView" title="Reset view">
-                    <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-home"></use></svg>
-                </button>
-                <button id="btn-geolocate" class="mc-btn"
-                        data-i18n-title="ctrl.locate" title="My location">
-                    <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-locate"></use></svg>
-                </button>
-                <div class="mc-sep"></div>
-                <button id="btn-fullscreen" class="mc-btn"
-                        data-i18n-title="ctrl.fullscreen" title="Fullscreen">
-                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-fullscreen"></use></svg>
-                </button>
+            <!-- Map controls + basemap panel — flex column, bottom-aligned -->
+            <div class="map-ui-left">
+
+                <div id="map-controls">
+                    <button id="btn-sidebar-toggle" class="mc-btn"
+                            data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
+                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-hamburger"></use></svg>
+                    </button>
+                    <div class="mc-sep"></div>
+                    <button id="btn-zoom-in" class="mc-btn"
+                            data-i18n-title="ctrl.zoomIn" title="Zoom in">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-in"></use></svg>
+                    </button>
+                    <button id="btn-zoom-out" class="mc-btn"
+                            data-i18n-title="ctrl.zoomOut" title="Zoom out">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-zoom-out"></use></svg>
+                    </button>
+                    <div class="mc-sep"></div>
+                    <button id="btn-reset-view" class="mc-btn"
+                            data-i18n-title="ctrl.resetView" title="Reset view">
+                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-home"></use></svg>
+                    </button>
+                    <button id="btn-geolocate" class="mc-btn"
+                            data-i18n-title="ctrl.locate" title="My location">
+                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                    </button>
+                    <div class="mc-sep"></div>
+                    <button id="btn-fullscreen" class="mc-btn"
+                            data-i18n-title="ctrl.fullscreen" title="Fullscreen">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-fullscreen"></use></svg>
+                    </button>
+                    <div class="mc-sep"></div>
+                    <button id="btn-basemap" class="mc-btn"
+                            data-i18n-title="ctrl.basemap" title="Base map">
+                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-layers"></use></svg>
+                    </button>
+                    <div class="mc-sep mc-sep-collapse"></div>
+                    <button id="btn-controls-toggle" class="mc-btn mc-collapse-btn"
+                            data-i18n-title="ctrl.collapse" title="Collapse toolbar">
+                        <svg class="icon mc-chevron" width="13" height="13" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                </div>
+
+                <!-- Basemap picker panel — shown/hidden by map-controls.js -->
+                <div id="basemap-panel" class="basemap-panel is-hidden" aria-label="Base map">
+                    <div id="basemap-list"></div>
+                </div>
             </div>
 
             <div id="progress-overlay" class="hidden">
@@ -253,46 +289,46 @@
                     </div>
 
                     <div class="pu-body">
-                        <div class="pu-row" data-field="type_if">
-                            <span class="pu-label">TYPE IF</span>
+                        <div class="pu-row" data-field="signalType">
+                            <span class="pu-label" data-i18n="fields.signalType">TYPE IF</span>
                             <span class="pu-val"><span class="pu-badge"></span></span>
                         </div>
-                        <div class="pu-row" data-field="code_ligne">
-                            <span class="pu-label">CODE LIGNE</span>
+                        <div class="pu-row" data-field="lineCode">
+                            <span class="pu-label" data-i18n="fields.lineCode">CODE LIGNE</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="libelle_ligne">
-                            <span class="pu-label">LIBELLE LIGNE</span>
+                        <div class="pu-row" data-field="lineName">
+                            <span class="pu-label" data-i18n="fields.lineName">LIBELLE LIGNE</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="mode_canton">
-                            <span class="pu-label">MODE CANTON</span>
+                        <div class="pu-row" data-field="blockType">
+                            <span class="pu-label" data-i18n="fields.blockType">MODE CANTON</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="code_voie">
-                            <span class="pu-label">CODE VOIE</span>
+                        <div class="pu-row" data-field="trackCode">
+                            <span class="pu-label" data-i18n="fields.trackCode">CODE VOIE</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="nom_voie">
-                            <span class="pu-label">NOM VOIE</span>
+                        <div class="pu-row" data-field="trackName">
+                            <span class="pu-label" data-i18n="fields.trackName">NOM VOIE</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="sens">
-                            <span class="pu-label">SENS</span>
+                        <div class="pu-row" data-field="direction">
+                            <span class="pu-label" data-i18n="fields.direction">SENS</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="position">
-                            <span class="pu-label">POSITION</span>
+                        <div class="pu-row" data-field="placement">
+                            <span class="pu-label" data-i18n="fields.placement">POSITION</span>
                             <span class="pu-val"></span>
                         </div>
-                        <div class="pu-row" data-field="pk">
-                            <span class="pu-label">PK</span>
+                        <div class="pu-row" data-field="milepost">
+                            <span class="pu-label" data-i18n="fields.milepost">PK</span>
                             <span class="pu-val"></span>
                         </div>
 
                         <!-- idreseau: osm-checking is the default visible state. -->
-                        <div class="pu-row" data-field="idreseau">
-                            <span class="pu-label">ID RÉSEAU</span>
+                        <div class="pu-row" data-field="networkId">
+                            <span class="pu-label" data-i18n="fields.networkId">ID RÉSEAU</span>
                             <span class="pu-val"></span>
                             <span class="pu-osm-btn osm-checking"
                                   data-i18n-title="osm.checking" data-i18n-aria="osm.checking"></span>
@@ -428,24 +464,24 @@
          All labels are in HTML; JS fills .tt-val by querying [data-field].
          Fields are cloned individually so only those with values are appended. -->
     <template id="tpl-tt-common-fields">
-        <div class="tt-row" data-field="code_voie">
-            <span class="tt-key">Code voie</span>
+        <div class="tt-row" data-field="trackCode">
+            <span class="tt-key" data-i18n="fields.trackCode">Track code</span>
             <span class="tt-val"></span>
         </div>
-        <div class="tt-row" data-field="nom_voie">
-            <span class="tt-key">Nom voie</span>
+        <div class="tt-row" data-field="trackName">
+            <span class="tt-key" data-i18n="fields.trackName">Track name</span>
             <span class="tt-val"></span>
         </div>
-        <div class="tt-row" data-field="sens">
-            <span class="tt-key">Sens</span>
+        <div class="tt-row" data-field="direction">
+            <span class="tt-key" data-i18n="fields.direction">Direction</span>
             <span class="tt-val"></span>
         </div>
-        <div class="tt-row" data-field="position">
-            <span class="tt-key">Position</span>
+        <div class="tt-row" data-field="placement">
+            <span class="tt-key" data-i18n="fields.placement">Placement</span>
             <span class="tt-val"></span>
         </div>
-        <div class="tt-row" data-field="pk">
-            <span class="tt-key">PK</span>
+        <div class="tt-row" data-field="milepost">
+            <span class="tt-key" data-i18n="fields.milepost">Milepost</span>
             <span class="tt-val"></span>
         </div>
     </template>
@@ -514,6 +550,14 @@
     </template>
 
     <!-- Settings: one basemap selector button -->
+    <!-- Language option row — cloned by buildLangOptions() in translation.js -->
+    <template id="tpl-lang-option">
+        <li class="lang-option" role="option">
+            <img class="flag-img" width="20" height="15">
+            <span></span>
+        </li>
+    </template>
+
     <template id="tpl-basemap-btn">
         <button class="basemap-btn">
             <img class="basemap-thumb" width="36" height="36" alt=""
@@ -525,10 +569,20 @@
     <!--
       SVG symbol library.
       All icons reference currentColor so they inherit the parent element's CSS color.
-      Icons that carry their own colour (josm.svg, osm.svg, flag-*.svg) are loaded
+      Icons that carry their own color (josm.svg, osm.svg, flag-*.svg) are loaded
       as <img> elements and are not included here.
     -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <!-- Chevron down (controls collapse) -->
+        <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+        </symbol>
+        <!-- Layers / basemap -->
+        <symbol id="icon-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+            <polyline points="2 17 12 22 22 17" />
+            <polyline points="2 12 12 17 22 12" />
+        </symbol>
         <!-- Three horizontal bars -->
         <symbol id="icon-hamburger" viewBox="0 0 20 20" fill="currentColor">
             <rect y="2.5" width="20" height="2" rx="1" />

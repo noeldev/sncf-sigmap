@@ -8,8 +8,8 @@ record BuildConfig(
     [property: JsonPropertyName("signal_geojson")]
     string SignalGeojson,
 
-    [property: JsonPropertyName("canton_geojson")]
-    string CantonGeojson,
+    [property: JsonPropertyName("block_geojson")]
+    string BlockGeojson,
 
     [property: JsonPropertyName("acronyms")]
     AcronymEntry[] Acronyms)
@@ -17,6 +17,6 @@ record BuildConfig(
     /// <summary>Default instance used when no config file is found.</summary>
     public static readonly BuildConfig Default = new(
         SignalGeojson: Constants.DefaultSignalGeojson,
-        CantonGeojson: Constants.DefaultCantonGeojson,
+        BlockGeojson: Constants.DefaultBlockGeojson,
         Acronyms: []);
 }

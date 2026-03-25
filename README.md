@@ -7,19 +7,22 @@
 
 Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
-At low zoom, all tiles are fetched once for a spatial overview sample. At high zoom, only tiles covering the current viewport are fetched.
+On first visit, all tiles are fetched and cached by the browser. On subsequent visits, if a last position was saved, only the tiles for that area are loaded from cache. At low zoom a spatial sample is displayed for performance; at high zoom the full detail is shown.
 
 ## Features
 
 - **123,870 signals** across France, split into ~289 gzip-compressed tiles (0.5° × 0.5°)
-- Progressive display: spatial sampling at low zoom for performance, full detail at zoom 10 and above
+- Progressive display: spatial overview sample at low zoom, full detail at zoom 10 and above
+- On first visit all tiles are cached; subsequent visits restore the last map position and load only the tiles for that area from cache
 - Hover tooltips and click popups with signal information and OSM tags
 - OSM existence check per signal via Overpass API (live badge in popup)
 - Export tags to clipboard or via JOSM Remote Control
 - View signal location on OpenStreetMap
 - Filters by signal type, line code, track name, direction, position
 - `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
-- Three basemaps: Jawg Transport, OpenStreetMap, Satellite
+- Three basemaps: Jawg Transport, OpenStreetMap, Satellite — switchable from a floating panel on the map toolbar
+- Collapsible map toolbar
+- Persistent user preferences: default popup tab, JOSM confirmation, last map position
 - Bilingual interface (EN / FR)
 
 ## Architecture
@@ -33,7 +36,7 @@ sncf-data/
         │
 data/tiles/
   manifest.json   ← tile index (~20 KB)
-  index.json      ← filter values, line labels, cantonment modes (~300 KB)
+  index.json      ← signal types, line names, block types, block segments (~300 KB)
   -4_97.json.gz   ← one tile per 0.5° cell, 5–30 KB each
         │
         ▼  git commit + push  →  Netlify auto-deploys
@@ -62,7 +65,7 @@ Set the debug profile arguments (*Project → Properties → Debug → Open debu
 
 Press **Ctrl+F5**. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
 
-The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the canton mode abbreviation table. Edit it to add new acronyms without recompiling.
+The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the block type abbreviation table. Edit it to add new acronyms without recompiling.
 
 To rebuild only `index.json` and `manifest.json` without regenerating tile files, add `-n` (`--no-tiles`) to the arguments.
 
@@ -81,7 +84,7 @@ Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.g
 
 ## Signal popup
 
-Click a signal marker to open a two-tab popup. Hold **Shift** or **Ctrl** while clicking to open directly on the OSM Tags tab.
+Click a signal marker to open a two-tab popup. Hold **Shift** or **Ctrl** while clicking to flip the default tab: if *Signals* is the default, the popup opens on *OSM Tags*, and vice versa.
 
 ### Signals tab
 
@@ -91,8 +94,8 @@ The **OSM existence check** queries the [Overpass API](https://overpass-api.de/)
 
 | Icon | Meaning |
 |------|---------|
-| OSM logo (colour) | Signal found in OSM — click to view the node |
-| Locate icon | Not yet mapped — click to open [openstreetmap.org](https://www.openstreetmap.org/) centred on the signal |
+| OSM logo (color) | Signal found in OSM — click to view the node |
+| Locate icon | Not yet mapped — click to open [openstreetmap.org](https://www.openstreetmap.org/) centered on the signal |
 | … | Check in progress |
 | ↻ | Check failed — click to retry |
 
@@ -126,7 +129,7 @@ Install the [French Railway Signalling JOSM Presets](https://noeldev.github.io/F
 
 ## Signal type mapping
 
-`js/signal-mapping.js` maps each SNCF `type_if` code to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in grey and cannot be exported.
+`js/signal-mapping.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
 
 ## Data files
 
@@ -151,20 +154,26 @@ Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 
 ### `data/tiles/index.json`
 
-Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` and `cantonment.js`.
+Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` and `block-system.js`.
 
 ```json
 {
-  "type_if": {
+  "signalType": {
     "CARRE": 16571,
     "Z":     7930
   },
-  "code_ligne": {
+  "lineCode": {
     "570000": { "count": 1820, "label": "Ligne de Paris-Austerlitz à Bordeaux-Saint-Jean" },
     "100000": { "count": 36,   "label": null }
   },
-  "cantons": [ "BAL", "BAPR de double voie", "BM", "CT de voie unique", "…" ],
-  "canton_segs": [
+  "blockType": [ 
+    "BAL", 
+    "BAPR de double voie", 
+    "BM", 
+    "CT de voie unique", 
+    "…" 
+  ],
+  "blockSegments": [
     ["205000", 69350, 72241, 0],
     ["205000", 72241, 85000, 1]
   ]
@@ -173,10 +182,10 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `filt
 
 | Field | Consumer | Description |
 |-------|----------|-------------|
-| `type_if` | `filters.js` | Signal type → count (full dataset). Populates the TYPE IF filter dropdown with global counts. |
-| `code_ligne` | `filters.js`, `cantonment.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the cantonment dataset (`null` when absent). Populates the CODE LIGNE filter and the popup *Libellé ligne* field. |
-| `cantons` | `cantonment.js` | Ordered list of abbreviated cantonment mode labels, indexed by position. |
-| `canton_segs` | `cantonment.js` | Compact segment array: `[code_ligne, pkd_m, pkf_m, canton_idx]`. `pkd_m` / `pkf_m` are integer metres from the line origin (e.g. `"069+350"` → `69350`). `canton_idx` is the index into `cantons`. Used to resolve the *Mode canton* field in the popup. |
+| `signalType` | `filters.js` | Signal type → count (full dataset). Populates the Signal type filter dropdown with global counts. |
+| `lineCode` | `filters.js`, `block-system.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the block system dataset (`null` when absent). Populates the Line code filter and the popup *Line name* field. |
+| `blockType` | `block-system.js` | Ordered list of abbreviated block signaling type labels, indexed by position. |
+| `blockSegments` | `block-system.js` | Compact segment array: `[line_code, start_m, end_m, block_idx]`. `start_m` / `end_m` are integer meters from the line origin (e.g. `"069+350"` → `69350`). `block_idx` indexes into `blockType`. Used to resolve the *Block system* field in the popup. |
 
 ## Project structure
 
@@ -194,56 +203,60 @@ sncf-sigmap/
 │   ├── popup.css                 ← signal popup and OSM tags preview popup
 │   └── sidebar.css               ← sidebar layout, tabs, settings, legend
 ├── data/tiles/                   ← generated by TileBuilder, committed to GitHub
-│   ├── manifest.json
 │   ├── index.json
+│   ├── manifest.json
 │   └── *.json.gz
 ├── js/
 │   ├── app.js                    ← boot sequencer, map event wiring
-│   ├── cantonment.js             ← line label and cantonment mode lookup from index.json
-│   ├── cat-mapping.js            ← application signal categories, colours, and legend
+│   ├── block-system.js           ← line label and block signaling type lookup from index.json
+│   ├── cat-mapping.js            ← application signal categories, colors, and legend
 │   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
 │   ├── config.local.js           ← JAWG_API_KEY — git-ignored, never committed
 │   ├── config.local.example.js   ← template, safe to commit
+│   ├── filter-panel.js           ← per-filter DOM panel (label, pills, combo, list)
 │   ├── filters.js                ← filter state, value index, dropdown orchestration
-│   ├── geojson.worker.js         ← tile fetch + spatial/attribute filtering (Web Worker)
-│   ├── i18n.js                   ← Bilingual translations (EN / FR)
 │   ├── josm.js                   ← JOSM Remote Control connection management
-│   ├── map.js                    ← Leaflet initialisation, basemap tile layers
-│   ├── map-controls.js           ← zoom, geolocate, fullscreen, sidebar toggle
+│   ├── map.js                    ← Leaflet initialisation, basemap tile layers, position persistence, map events
+│   ├── map-controls.js           ← zoom, geolocate, fullscreen, sidebar toggle, basemap picker, collapsible toolbar
 │   ├── map-layer.js              ← signal marker pipeline (worker → render)
 │   ├── overpass.js               ← Overpass API existence check (batch)
+│   ├── prefs.js                  ← persistent user preferences (localStorage)
 │   ├── progress.js               ← progress overlay
 │   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel
-│   ├── signal-mapping.js         ← SNCF type_if → OSM tag builder
+│   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
 │   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
-│   ├── sncf-convert.js           ← shared SNCF field conversion utilities (PK, direction…)
+│   ├── sncf-convert.js           ← SNCF raw data normalization (single boundary: SNCF → app field names and OSM values)
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
+│   ├── tiles.worker.js           ← tile fetch, normalization, spatial/attribute filtering (Web Worker)
 │   ├── tooltip.js                ← hover tooltip builder
+│   ├── translation.js            ← i18n loader — fetches strings.{locale}.json, t() with {n} substitution
 │   ├── worker-contract.js        ← worker message types and postMessage helpers
 │   └── ui/
-│       ├── combobox.js           ← search input behaviour for filter dropdowns
+│       ├── combobox.js           ← search input behavior for filter dropdowns
 │       ├── dropdown.js           ← generic accessible dropdown / listbox controller
-│       ├── filter-panel.js       ← per-filter DOM panel (label, pills, combo, list)
 │       └── pill-list.js          ← selected-value pill container
+├── strings/
+│   ├── strings.en-us.json        ← English UI strings
+│   └── strings.fr-fr.json        ← French UI strings
 └── tools/
     └── TileBuilder/              ← C# tile generator
-        ├── AcronymEntry.cs         ← canton label abbreviation entry record
+        ├── AcronymEntry.cs         ← block label abbreviation entry record
         ├── BuildConfig.cs          ← deserialized tilebuilder.config.json
-        ├── CantonProcessor.cs      ← reads cantonnement GeoJSON, builds index tables
-        ├── CantonResult.cs         ← output record of CantonProcessor
+        ├── BlockProcessor.cs       ← reads block system GeoJSON, builds index tables
+        ├── BlockResult.cs          ← output record of BlockProcessor
         ├── CliOptions.cs           ← CLI argument parsing
         ├── ConfigLoader.cs         ← loads tilebuilder.config.json
         ├── Constants.cs            ← shared constants (TileDeg, default filenames)
         ├── CrossCheck.cs           ← DEBUG-only cross-check between datasets
         ├── IndexWriter.cs          ← writes index.json
-        ├── LigneInfo.cs            ← merged line entry (signal count + label)
+        ├── LineInfo.cs             ← merged line entry (signal count + label)
         ├── Program.cs              ← entry point and orchestration
         ├── Signal.cs               ← signal point record (tile serialisation)
         ├── SignalData.cs           ← output record of SignalReader
         ├── SignalReader.cs         ← reads signal GeoJSON, groups into tiles
         ├── TileWriter.cs           ← writes .json.gz tiles and manifest.json
-        ├── tilebuilder.config.json ← SNCF filenames + canton acronym table
+        ├── tilebuilder.config.json ← SNCF filenames + block acronym table
         └── TileBuilder.csproj
 ```
 

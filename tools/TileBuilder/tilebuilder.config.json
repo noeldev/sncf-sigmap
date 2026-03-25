@@ -2,11 +2,9 @@
   // SNCF open data file names (relative to --source directory).
   // These are the standard names published on data.sncf.com.
   "signal_geojson": "signalisation-permanente.geojson",
-  "canton_geojson": "mode-de-cantonnement-des-lignes.geojson",
+  "block_geojson": "mode-de-cantonnement-des-lignes.geojson",
 
-  // Canton mode label abbreviation table.
-  // Each entry replaces the expanded form with the acronym wherever it appears
-  // in a label, including inside compound labels (e.g. "ETCS 2/TVM 300").
+  // Block type label abbreviation table.
   // Order matters: more specific entries must come before shorter ones that
   // share the same prefix (e.g. CAPI before CT).
   "acronyms": [

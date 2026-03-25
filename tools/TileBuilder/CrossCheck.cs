@@ -19,21 +19,21 @@ static class CrossCheck
     /// Lines in cantonment but not in signals: suggests the signal dataset
     /// covers a different perimeter than the cantonment dataset.
     /// </summary>
-    public static void CodeLigne(
+    public static void LineCode(
         SortedDictionary<string, int> signalCodes,
-        Dictionary<string, string>    cantonCodes)
+        Dictionary<string, string> blockTypes)
     {
         var signalSet = new HashSet<string>(signalCodes.Keys,  StringComparer.Ordinal);
-        var cantonSet = new HashSet<string>(cantonCodes.Keys, StringComparer.Ordinal);
+        var blockTypeSet = new HashSet<string>(blockTypes.Keys, StringComparer.Ordinal);
 
-        var onlyInSignals  = new SortedSet<string>(signalSet.Except(cantonSet),  StringComparer.Ordinal);
-        var onlyInCanton   = new SortedSet<string>(cantonSet.Except(signalSet),  StringComparer.Ordinal);
+        var onlyInSignals  = new SortedSet<string>(signalSet.Except(blockTypeSet),  StringComparer.Ordinal);
+        var onlyInBlocks   = new SortedSet<string>(blockTypeSet.Except(signalSet),  StringComparer.Ordinal);
         var inBoth         = signalSet.Count - onlyInSignals.Count;
 
         Console.WriteLine("[DEBUG] code_ligne cross-check:");
-        Console.WriteLine($"  Signal dataset   : {signalSet.Count} distinct lines");
-        Console.WriteLine($"  Cantonment dataset: {cantonSet.Count} distinct lines");
-        Console.WriteLine($"  In both          : {inBoth}");
+        Console.WriteLine($"  Signal dataset : {signalSet.Count} distinct lines");
+        Console.WriteLine($"  Block dataset  : {blockTypeSet.Count} distinct lines");
+        Console.WriteLine($"  In both        : {inBoth}");
 
         if (onlyInSignals.Count > 0)
         {
@@ -44,12 +44,12 @@ static class CrossCheck
             }
         }
 
-        if (onlyInCanton.Count > 0)
+        if (onlyInBlocks.Count > 0)
         {
-            Console.WriteLine($"  In cantonment only: {onlyInCanton.Count}");
-            foreach (var code in onlyInCanton)
+            Console.WriteLine($"  In blocks only: {onlyInBlocks.Count}");
+            foreach (var type in onlyInBlocks)
             {
-                Console.WriteLine($"    {code}  {cantonCodes[code]}");
+                Console.WriteLine($"    {type}  {blockTypes[type]}");
             }
         }
 

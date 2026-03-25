@@ -273,6 +273,7 @@
     padding: 7px 12px;
     font-size: 11px;
     font-family: var(--ff-mono);
+    text-transform: uppercase;
     cursor: pointer;
     border-radius: 3px;
     transition: background .1s;

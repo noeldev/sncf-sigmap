@@ -19,7 +19,7 @@ export class PillList {
      *                                      pill is removed via click or Space/Enter.
      */
     constructor({ containerEl, template, onRemove }) {
-        this._el  = containerEl;
+        this._el = containerEl;
         this._tpl = template;
 
         // Delegated mousedown — fires before blur, so the pill is still focusable
@@ -60,7 +60,7 @@ export class PillList {
         }
     }
 
-    show()      { this._el.classList.remove('is-hidden'); }
-    hide()      { this._el.classList.add('is-hidden'); }
+    show() { this._el.classList.remove('is-hidden'); }
+    hide() { this._el.classList.add('is-hidden'); }
     isVisible() { return !this._el.classList.contains('is-hidden'); }
 }

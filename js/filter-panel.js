@@ -5,7 +5,7 @@
  *   • DOM creation from the tpl-filter-group template and element caching.
  *   • One Dropdown, one ComboBox, one PillList instance.
  *   • Delegated mousedown on the item list (shared activation path for mouse).
- *   • removeBtn "click" and toggleChk "change" (type_if only) listeners.
+ *   • removeBtn "click" and toggleChk "change" (signalType only) listeners.
  *
  * FilterPanel does NOT own:
  *   • Application state (_activeFilters, _counts, _confirmedFilters…).
@@ -19,7 +19,7 @@
  *
  *   const panel = new FilterPanel({ fieldKey, fieldMeta, label,
  *                                   tplGroup, tplTag, tplItem, tplNoMatch,
- *                                   applyI18n, isConfirmed, searchValue,
+ *                                   isConfirmed, searchValue,
  *                                   mappedOnly,
  *                                   onActivate, onPillRemove, onRemove,
  *                                   onToggleMappedOnly, onSearch, onEnter, onOpen });
@@ -37,35 +37,36 @@
  *   panel.destroy();                    // unregisters Dropdown on removal
  */
 
-import { Dropdown } from './dropdown.js';
-import { ComboBox } from './combobox.js';
-import { PillList } from './pill-list.js';
+import { translateElement } from './translation.js';
+import { Dropdown } from './ui/dropdown.js';
+import { ComboBox } from './ui/combobox.js';
+import { PillList } from './ui/pill-list.js';
 
 export class FilterPanel {
     /**
      * @param {object}        opts
-     * @param {string}        opts.fieldKey          — Field identifier (e.g. 'type_if').
+     * @param {string}        opts.fieldKey          — Field identifier (e.g. 'signalType').
      * @param {object|null}   opts.fieldMeta         — Entry from ALL_FILTER_FIELDS.
      * @param {string}        opts.label             — Translated field label.
      * @param {HTMLElement}   opts.tplGroup          — <template id="tpl-filter-group">.
      * @param {HTMLElement}   opts.tplTag            — <template id="tpl-filter-tag">.
      * @param {HTMLElement}   opts.tplItem           — <template id="tpl-filter-drop-item">.
      * @param {HTMLElement}   opts.tplNoMatch        — <template id="tpl-filter-no-match">.
-     * @param {Function}      opts.applyI18n         — applyI18n(element) from i18n.js.
      * @param {boolean}       opts.isConfirmed       — Whether field is in _confirmedFilters.
      * @param {string}        opts.searchValue       — Partial query to restore in input.
-     * @param {boolean}       opts.mappedOnly        — Current _mappedOnly flag (type_if).
+     * @param {boolean}       opts.mappedOnly        — Current _mappedOnly flag (signalType).
+     * @param {Function}      [opts.translateValue]  — (field, val) => string — localized display for item values.
      * @param {Function}      opts.onActivate        — (val) => void — item selected.
      * @param {Function}      opts.onPillRemove      — (val) => void — pill × clicked.
      * @param {Function}      opts.onRemove          — ()    => void — panel × clicked.
-     * @param {Function}      [opts.onToggleMappedOnly] — (checked) => void (type_if).
+     * @param {Function}      [opts.onToggleMappedOnly] — (checked) => void (signalType).
      * @param {Function}      opts.onSearch          — (query: string) => void.
      * @param {Function}      opts.onEnter           — ()    => void — Enter in input.
      * @param {Function}      opts.onOpen            — ()    => void — open this panel
      *                                                 (close siblings first).
      */
     constructor({ fieldKey, fieldMeta, label,
-        tplGroup, tplTag, tplItem, tplNoMatch, applyI18n,
+        tplGroup, tplTag, tplItem, tplNoMatch, translateValue,
         isConfirmed, searchValue, mappedOnly,
         onActivate, onPillRemove, onRemove, onToggleMappedOnly,
         onSearch, onEnter, onOpen }) {
@@ -74,11 +75,12 @@ export class FilterPanel {
         this._fieldMeta = fieldMeta;
         this._tplItem = tplItem;
         this._tplNoMatch = tplNoMatch;
-        this._applyI18n = applyI18n;
+        // translateValue(field, val) → localized display string or raw val.
+        this._translateValue = translateValue ?? ((f, v) => v);
 
         // ---- Clone template and cache elements ----
         const panel = tplGroup.content.cloneNode(true).querySelector('.filter-group');
-        applyI18n(panel);   // translate data-i18n attributes (e.g. toggle label)
+        translateElement(panel);   // translate data-i18n attributes (e.g. toggle label)
 
         this._el = {
             panel,
@@ -97,8 +99,8 @@ export class FilterPanel {
 
         this._el.title.textContent = label;
 
-        // ---- type_if toggle ----
-        if (fieldKey === 'type_if') {
+        // ---- signalType supported-only toggle ----
+        if (fieldKey === 'signalType') {
             this._el.toggleRow.classList.remove('is-hidden');
             this._el.toggleChk.checked = mappedOnly;
             this._el.toggleTrack.classList.toggle('checked', mappedOnly);
@@ -155,8 +157,8 @@ export class FilterPanel {
         // ---- Remove panel button ----
         this._el.removeBtn.addEventListener('click', onRemove);
 
-        // ---- type_if toggle change ----
-        if (fieldKey === 'type_if' && onToggleMappedOnly) {
+        // ---- signalType supported-only toggle change ----
+        if (fieldKey === 'signalType' && onToggleMappedOnly) {
             this._el.toggleChk.addEventListener('change', () => {
                 const checked = this._el.toggleChk.checked;
                 this._el.toggleTrack.classList.toggle('checked', checked);
@@ -197,7 +199,7 @@ export class FilterPanel {
         if (!items.length) {
             const placeholder = this._tplNoMatch.content
                 .cloneNode(true).querySelector('.fg-empty');
-            this._applyI18n(placeholder);
+            translateElement(placeholder);
             list.appendChild(placeholder);
             return;
         }
@@ -213,7 +215,7 @@ export class FilterPanel {
             item.dataset.field = this.field;
             item.dataset.val = v;
             item.querySelector('.fgi-check').classList.toggle('checked', active);
-            item.querySelector('.fgi-name').textContent = v;
+            item.querySelector('.fgi-name').textContent = this._translateValue(this.field, v);
             item.querySelector('.fgi-count').textContent = count > 0 ? count.toLocaleString() : '';
             list.appendChild(item);
         }
@@ -229,7 +231,7 @@ export class FilterPanel {
      */
     showHint(text) {
         const hint = this._tplNoMatch.content.cloneNode(true).querySelector('.fg-empty');
-        hint.removeAttribute('data-i18n'); // prevent i18n from overwriting the dynamic hint text
+        hint.removeAttribute('data-i18n'); // prevent translateElement from overwriting the dynamic hint text
         hint.textContent = text;
         this._el.list.replaceChildren(hint);
     }
