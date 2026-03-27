@@ -7,4 +7,5 @@ using System.Collections.Generic;
 record SignalData(
     Dictionary<string, List<Signal>> Tiles,
     SortedDictionary<string, int> SignalTypeCounts,
-    SortedDictionary<string, int> LineCodeCounts);
+    SortedDictionary<string, int> LineCodeCounts,
+    Dictionary<string, List<string>> TileNetworkIds);

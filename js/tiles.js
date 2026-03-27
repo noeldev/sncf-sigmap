@@ -6,6 +6,12 @@ import { TILE_DEG, TILES_BASE } from './config.js';
 
 let _manifest = null;
 
+/**
+ * Load and cache the tile manifest from the server.
+ * Returns the cached manifest on subsequent calls.
+ * Returns null when the network request fails.
+ * @returns {Promise<object|null>}
+ */
 export async function loadManifest() {
   if (_manifest) return _manifest;
   try {
@@ -23,7 +29,7 @@ export async function loadManifest() {
  * Returns tile URLs that intersect the given Leaflet bounds,
  * optionally expanded by a buffer of extra tile rows/columns.
  *
- * The buffer pre-fetches neighbouring tiles so they are in the HTTP cache
+ * The buffer pre-fetches neighboring tiles so they are in the HTTP cache
  * before the viewport reaches them. A buffer of 1 means one extra tile in
  * each direction (N, S, E, W), adding at most ~12 tiles around the viewport
  * at zoom 14 on a typical screen. Those tiles are fetched in the background
@@ -49,13 +55,67 @@ export function getTileUrlsForBounds(bounds, manifest, buffer = 1) {
     for (let ty = tyMin; ty <= tyMax; ty++) {
       const key = `${tx}:${ty}`;
       if (manifest.tiles[key]) {
-        urls.push(TILES_BASE + `${tx}_${ty}.json.gz`);
+          urls.push(TILES_BASE + `${tx}_${ty}.json`);
       }
     }
   }
   return urls;
 }
 
+/**
+ * Fetch a tile URL and return its signal array.
+ * Tiles are requested as .json — both Caddy (precompressed gzip via rewrite)
+ * and Netlify (redirect + Content-Encoding) serve the .json.gz transparently.
+ * Returns an empty array on HTTP error or parse failure.
+ * @param {string} url
+ * @returns {Promise<object[]>}
+ */
+export async function fetchTile(url) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) {
+            if (res.status !== 404) console.warn(`[tiles] ${url} → ${res.status}`);
+            return [];
+        }
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+        if (data?.features && Array.isArray(data.features)) return data.features;
+        return [];
+    } catch (err) {
+        console.warn('[tiles] fetch failed:', url, err.message);
+        return [];
+    }
+}
+
+/**
+ * Fetch a single tile by key and return its raw signal array.
+ * The browser cache makes this instant on repeat calls.
+ * Returns an empty array on error.
+ * @param {string} tileKey  e.g. '3:94'
+ * @returns {Promise<object[]>}
+ */
+export async function fetchTileByKey(tileKey) {
+    const [tx, ty] = tileKey.split(':').map(Number);
+    return fetchTile(TILES_BASE + `${tx}_${ty}.json`);
+}
+
+/**
+ * Find the [lat, lng] of a signal by networkId within a tile's signal array.
+ * Returns null when the signal is not found.
+ * @param {object[]} signals  Raw tile signal array.
+ * @param {string}   networkId
+ * @returns {[number, number] | null}
+ */
+export function findSignalLocation(signals, networkId) {
+    const s = signals.find(sig => String(sig.idreseau) === networkId);
+    return s ? [s.lat, s.lng] : null;
+}
+
+/**
+ * Compute total signal count and tile count from the manifest.
+ * @param {object|null} manifest
+ * @returns {{ tileCount: number, totalSignals: number }}
+ */
 export function getManifestStats(manifest) {
   if (!manifest) return { tileCount: 0, totalSignals: 0 };
   let total = 0;

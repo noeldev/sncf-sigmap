@@ -17,24 +17,25 @@
  *
  * Typical usage in filters.js:
  *
- *   const panel = new FilterPanel({ fieldKey, fieldMeta, label,
- *                                   tplGroup, tplTag, tplItem, tplNoMatch,
- *                                   isConfirmed, searchValue,
- *                                   mappedOnly,
- *                                   onActivate, onPillRemove, onRemove,
- *                                   onToggleMappedOnly, onSearch, onEnter, onOpen });
+ *   const panel = new FilterPanel({
+ *          fieldKey, fieldMeta, label,
+ *          tplGroup, tplTag, tplItem, tplNoMatch,
+ *          isConfirmed, searchValue,
+ *          mappedOnly,
+ *          onActivate, onPillRemove, onRemove,
+ *          onToggleMappedOnly, onSearch, onEnter, onOpen });
  *   panel.appendTo(container);
  *   panel.refreshTags(activeVals);
- *   panel.refreshList(items);           // [{v, count, active, showDot}]
- *   panel.showHint(text);               // minSearch waiting state
+ *   panel.refreshList(items);          // [{v, count, active, showDot}]
+ *   panel.showHint(text);              // minSearch waiting state
  *   panel.setInputPlaceholder(text);
  *   panel.showTags() / panel.hideTags();
  *   panel.openDropdown() / panel.closeDropdown();
  *   panel.focusInput() / panel.focusItem(val);
- *   panel.getFirstItemVal();            // for _selectFirst
- *   panel.clearSearch();                // resets input value to ''
+ *   panel.getFirstItemVal();           // for _selectFirst
+ *   panel.clearSearch();               // resets input value to ''
  *   panel.setSearch(value);            // sets input value (numericOnly sync)
- *   panel.destroy();                    // unregisters Dropdown on removal
+ *   panel.destroy();                   // unregisters Dropdown on removal
  */
 
 import { translateElement } from './translation.js';
@@ -57,8 +58,9 @@ export class FilterPanel {
      * @param {boolean}       opts.mappedOnly        — Current _mappedOnly flag (signalType).
      * @param {Function}      [opts.translateValue]  — (field, val) => string — localized display for item values.
      * @param {Function}      opts.onActivate        — (val) => void — item selected.
-     * @param {Function}      opts.onPillRemove      — (val) => void — pill × clicked.
-     * @param {Function}      opts.onRemove          — ()    => void — panel × clicked.
+     * @param {Function}      opts.onPillRemove       — (val) => void — pill × clicked.
+     * @param {Function}      [opts.onPillLabelClick] — (val) => void — pill label clicked.
+     * @param {Function}      opts.onRemove           — ()    => void — panel × clicked.
      * @param {Function}      [opts.onToggleMappedOnly] — (checked) => void (signalType).
      * @param {Function}      opts.onSearch          — (query: string) => void.
      * @param {Function}      opts.onEnter           — ()    => void — Enter in input.
@@ -68,7 +70,7 @@ export class FilterPanel {
     constructor({ fieldKey, fieldMeta, label,
         tplGroup, tplTag, tplItem, tplNoMatch, translateValue,
         isConfirmed, searchValue, mappedOnly,
-        onActivate, onPillRemove, onRemove, onToggleMappedOnly,
+        onActivate, onPillRemove, onPillLabelClick, onRemove, onToggleMappedOnly,
         onSearch, onEnter, onOpen }) {
 
         this.field = fieldKey;
@@ -115,9 +117,21 @@ export class FilterPanel {
             }
         }
 
+        // ---- readOnly input (direction, placement — fixed small value sets) ----
+        // numericOnly and readOnly are mutually exclusive:
+        // numericOnly means the field is editable but only accepts digits.
+        if (fieldMeta?.readOnly) {
+            this._el.input.readOnly = true;
+            this._el.comboInput.classList.add('fg-combo-readonly');
+        }
+
+        // ---- numericOnly input attributes (better UX on mobile/tablet) ----
+        if (fieldMeta?.numericOnly) {
+            this._el.input.inputMode = 'numeric';
+            this._el.input.pattern = '[0-9]*';
+        }
+
         // ---- Dropdown ----
-        // onActivate is defined before the constructor call in _buildPanels,
-        // so there is no TDZ risk here.
         this.dd = new Dropdown({
             dropdownEl: this._el.dropdown,
             triggerEl: this._el.comboInput,
@@ -133,6 +147,7 @@ export class FilterPanel {
             containerEl: this._el.tags,
             template: tplTag,
             onRemove: onPillRemove,
+            onLabelClick: onPillLabelClick,
         });
 
         // ---- ComboBox ----
@@ -143,6 +158,8 @@ export class FilterPanel {
             onSearch,
             onEnter,
             onOpen,
+            // numericOnly: digits-only editable input (mutually exclusive with readOnly).
+            numericOnly: fieldMeta?.numericOnly ?? false,
         });
 
         // ---- Item activation (delegated mousedown on list) ----
@@ -238,11 +255,18 @@ export class FilterPanel {
 
     /* ----- Pills ----- */
 
-    /** Rebuild the pill list from an iterable of value strings. */
-    refreshTags(values) { this.pills.render(values); }
+    /** Rebuild the pill list, displaying translated labels for coded values. */
+    refreshTags(values) {
+        this.pills.render(values, v => this._translateValue(this.field, v));
+    }
 
-    showTags() { this.pills.show(); }
-    hideTags() { this.pills.hide(); }
+    showTags() {
+        this.pills.show();
+    }
+
+    hideTags() {
+        this.pills.hide();
+    }
 
     /* ----- Input ----- */
 
@@ -254,7 +278,7 @@ export class FilterPanel {
 
     /**
      * Set the input value to an arbitrary string.
-     * Used by filters.js when numericOnly sanitisation produces a value that
+     * Used by filters.js when numericOnly sanitization produces a value that
      * differs from what was typed, so the visible input stays in sync.
      * @param {string} value
      */

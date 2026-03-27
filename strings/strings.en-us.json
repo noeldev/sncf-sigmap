@@ -1,11 +1,12 @@
 {
   "page": {
-    "title": "SNCF Fixed Signalling"
+    "title": "SNCF Fixed Signaling"
   },
   "header": {
     "subtitle1": "Fixed",
-    "subtitle2": "Signalling",
-    "loading": "Loading…"
+    "subtitle2": "Signaling",
+    "loading": "Loading…",
+    "beta": "Beta"
   },
   "tabs": {
     "filters": "Filters",
@@ -57,7 +58,9 @@
   "dropdown": {
     "search": "Search among {0} values…",
     "noMatch": "No matching values",
-    "remove": "Remove filter"
+    "remove": "Remove filter",
+    "searchNetworkId": "Type some digits to search…",
+    "clickToSelect": "Click to select…"
   },
   "settings": {
     "basemap": "Base Map",
@@ -144,14 +147,14 @@
     "shunting": "Shunting",
     "crossing": "Level crossings",
     "electricity": "Traction electricity",
-    "trainProtection": "Cab signalling / ETCS",
+    "trainProtection": "Cab signaling / ETCS",
     "wrongRoad": "Wrong-road (IPCS)",
     "station": "Station and facilities",
     "miscellaneous": "Miscellaneous",
     "unsupported": "Unsupported types"
   },
   "about": {
-    "intro": "Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
+    "intro": "Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
     "usage": {
       "title": "How to use",
       "text": "On first visit, all tiles are loaded and cached by the browser. At low zoom, a spatial sample is displayed to keep the map readable. At zoom 10 and above, full signal detail is shown for the current viewport. On subsequent visits, if the last map position is saved, only the tiles for that area are loaded — served instantly from cache. Active filters always apply regardless of zoom level. Click any marker to view its properties and export OSM tags."

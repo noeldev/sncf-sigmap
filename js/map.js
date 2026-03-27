@@ -127,7 +127,7 @@ export function restoreLastPosition() {
     if (getRememberPosition()) {
         const pos = getLastPosition();
         if (pos?.lat != null && pos?.lng != null && pos?.zoom != null) {
-            map.setView([+pos.lat, +pos.lng], +pos.zoom, { animate: false });
+            map.setView([pos.lat, pos.lng], pos.zoom, { animate: false });
             return;
         }
     }
@@ -208,6 +208,18 @@ function _makeBasemapBtn(key, def, tpl) {
 export function refreshBasemapLabels() {
     _buildBasemapButtons();
 }
+
+/**
+ * Fly to a location with smooth animation.
+ * Zoom is clamped between the current zoom and [14, 17].
+ * Shared by map-controls.js and filters.js.
+ * @param {[number, number]} latlng
+ */
+export function flyToLocation(latlng) {
+    const zoom = Math.min(Math.max(map.getZoom(), 14), 17);
+    map.flyTo(latlng, zoom, { duration: 1.5, easeLinearity: 0.25 });
+}
+
 
 /* ===== Private helpers ===== */
 

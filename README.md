@@ -5,7 +5,7 @@
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9-199900?logo=leaflet&logoColor=white)](https://leafletjs.com/)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
 
-Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
+Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
 On first visit, all tiles are fetched and cached by the browser. On subsequent visits, if a last position was saved, only the tiles for that area are loaded from cache. At low zoom a spatial sample is displayed for performance; at high zoom the full detail is shown.
 
@@ -18,11 +18,13 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - OSM existence check per signal via Overpass API (live badge in popup)
 - Export tags to clipboard or via JOSM Remote Control
 - View signal location on OpenStreetMap
-- Filters by signal type, line code, track name, direction, position
+- Filters by signal type, line code, track name, direction, placement, network ID
+- Network ID filter searches all 123,870 signals; clicking a pill flies the map to that signal
+- Active filters persist across sessions and are restored on next visit
 - `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
 - Three basemaps: Jawg Transport, OpenStreetMap, Satellite — switchable from a floating panel on the map toolbar
 - Collapsible map toolbar
-- Persistent user preferences: default popup tab, JOSM confirmation, last map position
+- Persistent user preferences: default popup tab, JOSM confirmation, last map position, active filters, last basemap
 - Bilingual interface (EN / FR)
 
 ## Architecture
@@ -36,7 +38,7 @@ sncf-data/
         │
 data/tiles/
   manifest.json   ← tile index (~20 KB)
-  index.json      ← signal types, line names, block types, block segments (~300 KB)
+  index.json      ← signal types, line names, block types, block segments, networkId spatial index (~1.2 MB)
   -4_97.json.gz   ← one tile per 0.5° cell, 5–30 KB each
         │
         ▼  git commit + push  →  Netlify auto-deploys
@@ -44,7 +46,34 @@ data/tiles/
 https://sncf-sigmap.netlify.app
 ```
 
-Tiles are committed to GitHub and deployed by Netlify alongside the source code. The `netlify.toml` file sets `Content-Encoding: gzip` headers so the browser decompresses tiles transparently.
+Tiles are committed to GitHub and deployed by Netlify alongside the source code.
+
+Tiles are stored as `.json.gz` files but requested by the app as `.json` URLs:
+- **Netlify**: `netlify.toml` redirects `.json` → `.json.gz` and sets `Content-Encoding: gzip`
+- **Caddy (local)**: a `handle @tiles` block rewrites `.json` requests to `.json.gz` and sets `Content-Encoding: gzip`
+
+See the Caddyfile snippet in [Local development](#local-development) below.
+
+## Local development
+
+The app is served locally via [Caddy](https://caddyserver.com/).
+Tile files are stored as `.json.gz` but requested as `.json` — the `handle @tiles` block rewrites the URL and sets the correct headers so the browser decompresses transparently, identical to Netlify in production.
+
+```
+localhost:8443 {
+	root * {system.wd}
+	@tiles path /data/tiles/*.json
+	handle @tiles {
+		rewrite * {path}.gz
+		header Content-Type     application/json
+		header Content-Encoding gzip
+		header Cache-Control    "public, max-age=86400, must-revalidate"
+		file_server
+	}
+	file_server
+    tls internal
+}
+```
 
 ## First-time setup
 
@@ -176,7 +205,11 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `filt
   "blockSegments": [
     ["205000", 69350, 72241, 0],
     ["205000", 72241, 85000, 1]
-  ]
+  ],
+  "networkId": {
+    "3:94": ["10045678", "10045679"],
+    "-4:97": ["20001234"]
+  }
 }
 ```
 
@@ -186,6 +219,7 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `filt
 | `lineCode` | `filters.js`, `block-system.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the block system dataset (`null` when absent). Populates the Line code filter and the popup *Line name* field. |
 | `blockType` | `block-system.js` | Ordered list of abbreviated block signaling type labels, indexed by position. |
 | `blockSegments` | `block-system.js` | Compact segment array: `[line_code, start_m, end_m, block_idx]`. `start_m` / `end_m` are integer meters from the line origin (e.g. `"069+350"` → `69350`). `block_idx` indexes into `blockType`. Used to resolve the *Block system* field in the popup. |
+| `networkId` | `filters.js` | Tile key → `[networkId, …]` compact spatial index. Used to locate any signal by Network ID across the full dataset. Loaded lazily after the map displays. |
 
 ## Project structure
 

@@ -30,9 +30,10 @@
 
 import { workerPost } from './worker-contract.js';
 import { normalizeSignal } from './sncf-convert.js';
+import { fetchTile } from './tiles.js';
 
 self.onmessage = async function (e) {
-    const { type, urls, activeFilters, bounds, maxSignals, strings } = e.data;
+    const { type, urls, activeFilters, bounds, maxSignals } = e.data;
     if (type !== 'fetch-tiles') {
         workerPost.error(`Unknown message type: ${type}`);
         return;
@@ -43,9 +44,9 @@ self.onmessage = async function (e) {
 
         if (maxSignals) {
             // Overview mode
-            workerPost.progress((strings?.loadingTiles ?? 'Loading {0} tile(s)…').replace('{0}', urls.length));
-            const tiles = await Promise.all(urls.map(_fetchTile));
-            workerPost.progress(strings?.filtering ?? 'Filtering…');
+            workerPost.progress('progress.tiles', urls.length);
+            const tiles = await Promise.all(urls.map(fetchTile));
+            workerPost.progress('progress.filtering');
             const byKey = _groupByLocation(tiles, bounds);
             const groups = _buildGroups(byKey, filterSets);
             const total = groups.length;
@@ -59,9 +60,9 @@ self.onmessage = async function (e) {
             const byKey = new Map();
             const count = urls.length;
             for (let i = 0; i < count; i++) {
-                const tile = await _fetchTile(urls[i]);
+                const tile = await fetchTile(urls[i]);
                 const newGroups = _mergeTile(tile, byKey, bounds, filterSets);
-                workerPost.progress((strings?.loadingTiles ?? 'Loading {0} tile(s)…').replace('{0}', `${i + 1} / ${count}`));
+                workerPost.progress('progress.tiles', `${i + 1} / ${count}`);
                 if (newGroups.length > 0) workerPost.partial(newGroups, i + 1, count);
             }
             const groups = _buildGroups(byKey, filterSets);
@@ -72,7 +73,6 @@ self.onmessage = async function (e) {
         workerPost.error(err.message);
     }
 };
-
 
 /* ===== Private helpers ===== */
 
@@ -152,30 +152,6 @@ function _groupKey(p, s) {
     return (p.trackCode && p.milepost)
         ? `${p.trackCode}|${p.milepost}`
         : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
-}
-
-async function _fetchTile(url) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) {
-            if (r.status !== 404) console.warn(`[Worker] ${url} → ${r.status}`);
-            return [];
-        }
-        const clone = r.clone();
-        try {
-            const d = await r.json();
-            if (Array.isArray(d)) return d;
-            if (d?.features && Array.isArray(d.features)) return d.features;
-        } catch (_) { /* fallthrough to DecompressionStream */ }
-        try {
-            const body = clone.body.pipeThrough(new DecompressionStream('gzip'));
-            return JSON.parse(await new Response(body).text());
-        } catch (_) { /* fallthrough */ }
-        return [];
-    } catch (err) {
-        console.warn('[Worker] fetch failed:', url, err.message);
-        return [];
-    }
 }
 
 /**

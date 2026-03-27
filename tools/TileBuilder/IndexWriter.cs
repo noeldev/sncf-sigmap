@@ -4,7 +4,8 @@ using System.Text;
 using System.Text.Json;
 
 /// <summary>
-/// Writes index.json — filter value counts, merged line data, and block system tables.
+/// Writes index.json — filter value counts, merged line data, block system tables,
+/// and the networkId spatial index.
 ///
 /// Keys use camelCase to match the JavaScript app field names exactly,
 /// so no client-side key mapping is required. Tile files (.json.gz) are
@@ -17,6 +18,8 @@ using System.Text.Json;
 ///   blockType     — [ "BAL", "BAPR", … ]           block type label by index
 ///   blockSegments — [ ["205000", 69350, 72241, 0], … ]
 ///                   field order: line_code, start_m, end_m, block_type_idx
+///   networkId     — { "3:94": ["10045678", …], … }
+///                   tileKey → [networkId, …] compact spatial index
 /// </summary>
 static class IndexWriter
 {
@@ -37,9 +40,10 @@ static class IndexWriter
             JsonSerializer.Serialize(new
             {
                 signalType = signalData.SignalTypeCounts,
-                lineCode = lineCode,
+                lineCode,
                 blockType = blockResult.Types,
                 blockSegments = blockResult.Segments,
+                networkId = signalData.TileNetworkIds,
             }, Constants.JsonOptions),
             Encoding.UTF8);
     }

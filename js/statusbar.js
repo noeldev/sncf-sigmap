@@ -42,17 +42,23 @@ export function updateVisibleCount(n) {
     if (_el.visible) _el.visible.textContent = n.toLocaleString();
 }
 
+let _sampled = false;
 /**
- * Show or hide the overview sample badge (~) with an explanatory tooltip.
- * @param {boolean} sampled  — true when results are spatially sampled.
- * @param {number}  [total]  — total matching signals before sampling.
+ * Show or hide the overview sample badge with an explanatory tooltip.
+ * Must be called before indexSignals() so isSampled() reflects the current cycle.
+ * @param {boolean} sampled  True when results are spatially sampled.
+ * @param {number}  [total]  Total matching signal count before sampling.
  */
 export function setSampledBadge(sampled, total) {
+    _sampled = sampled;
     const el = _el.sampled;
     if (!el) return;
     el.classList.toggle('is-hidden', !sampled);
     if (sampled && total) el.title = t('status.sampledTitle', total, OVERVIEW_MAX_ZOOM);
 }
+
+/** Returns true when the current view is a spatial overview sample. */
+export function isSampled() { return _sampled; }
 
 /**
  * Update the active filter count display.

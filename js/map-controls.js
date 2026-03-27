@@ -17,7 +17,7 @@
 import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
 import { t } from './translation.js';
 import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
-import { map } from './map.js';
+import { map, flyToLocation } from './map.js';
 
 /**
  * Wire all map toolbar buttons.
@@ -69,15 +69,60 @@ function _geolocate() {
     );
 }
 
+// Persistent reference to geolocation layers
+let _geoMarkers = [];
+
+// Handle successful geolocation
 function _onGeolocateSuccess(pos, btn) {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-    L.circle([lat, lng], {
-        radius: accuracy, color: '#2589c7', fillOpacity: .1, weight: 1,
-    }).addTo(map);
-    L.circleMarker([lat, lng], {
-        radius: 7, color: '#fff', fillColor: '#2589c7', fillOpacity: 1, weight: 2,
-    }).addTo(map).bindPopup(`±${Math.round(accuracy)} m`);
-    map.setView([lat, lng], Math.min(Math.max(map.getZoom(), 14), 17), { animate: false });
+
+    // Remove existing markers from previous calls to prevent artifacts
+    _geoMarkers.forEach(m => m.remove());
+    _geoMarkers = [];
+
+    // Initialize accuracy circle without adding it to the map
+    const accuracyCircle = L.circle([lat, lng], {
+        radius: accuracy,
+        color: '#2589c7',
+        fillOpacity: 0.1,
+        weight: 1,
+    });
+
+    // Initialize position marker without adding it to the map
+    const posMarker = L.circleMarker([lat, lng], {
+        radius: 7,
+        color: '#fff',
+        fillColor: '#2589c7',
+        fillOpacity: 1,
+        weight: 2,
+    }).bindPopup(`±${Math.round(accuracy)} m`);
+
+    // Store references for the next cleanup cycle
+    _geoMarkers.push(accuracyCircle, posMarker);
+
+    // Display logic to be triggered at the end of the flight
+    let markersDisplayed = false;
+    const displayMarkers = () => {
+        if (markersDisplayed) return;
+        markersDisplayed = true;
+        map.off('moveend', displayMarkers);
+        accuracyCircle.addTo(map);
+        posMarker.addTo(map);
+    };
+
+    // Interrupt flight and show markers if user interacts
+    const stopFly = () => {
+        map.stop();
+        displayMarkers();
+    };
+
+    // Event listeners for flight lifecycle
+    map.once('mousedown touchstart', stopFly);
+    map.once('moveend', displayMarkers);
+
+    // Start animated transition while markers are detached
+    flyToLocation([lat, lng]);
+
     btn?.classList.remove('active');
 }
 

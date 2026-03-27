@@ -17,6 +17,8 @@
  *   setLastPosition(lat, lng, zoom)
  *   getLastBasemap()         — last selected basemap key | null
  *   setLastBasemap(key)
+ *   saveFilters(filters)     — persist active filter state
+ *   loadFilters()            — restore persisted filter state
  *   onPrefsChange(fn)        — register a listener called after any preference changes
  */
 
@@ -75,6 +77,9 @@ function _setBool(key, v) {
 export function getAutoTagsTab() {
     return _getBool('auto-tags-tab', false);
 }
+
+/** Set whether the OSM Tags tab opens by default.
+ * @param {boolean} v */
 export function setAutoTagsTab(v) {
     _setBool('auto-tags-tab', v);
 }
@@ -84,6 +89,9 @@ export function setAutoTagsTab(v) {
 export function getSkipJosmConfirm() {
     return _getBool('skip-josm-confirm', false);
 }
+
+/** Set whether the JOSM confirmation dialog is suppressed.
+ * @param {boolean} v */
 export function setSkipJosmConfirm(v) {
     _setBool('skip-josm-confirm', v);
 }
@@ -92,6 +100,9 @@ export function setSkipJosmConfirm(v) {
 export function getControlsCollapsed() {
     return _getBool('map-controls-collapsed', false);
 }
+
+/** Set whether the map controls toolbar is collapsed.
+ * @param {boolean} v */
 export function setControlsCollapsed(v) {
     _setBool('map-controls-collapsed', v);
 }
@@ -100,6 +111,9 @@ export function setControlsCollapsed(v) {
 export function getRememberPosition() {
     return _getBool('remember-position', false);
 }
+
+/** Set whether the last map position is restored on startup.
+ * @param {boolean} v */
 export function setRememberPosition(v) {
     _setBool('remember-position', v);
 }
@@ -122,7 +136,6 @@ export function setLastPosition(lat, lng, zoom) {
     _s.setJson('last-position', { lat, lng, zoom });
 }
 
-/** Register a callback invoked whenever any boolean preference changes. */
 /**
  * Return the last selected basemap key, or null if none is stored.
  * @returns {string|null}
@@ -139,6 +152,27 @@ export function setLastBasemap(key) {
     _s.set('last-basemap', key);
 }
 
+/**
+ * Persist the current active filters as a JSON-serializable structure.
+ * Each filter is stored as { field, values: string[] }.
+ * @param {Array<{field: string, values: string[]}>} filters
+ */
+export function saveFilters(filters) {
+    _s.setJson('active-filters', filters);
+}
+
+/**
+ * Return the persisted active filters, or an empty array if none are stored.
+ * @returns {Array<{field: string, values: string[]}>}
+ */
+export function loadFilters() {
+    return _s.getJson('active-filters', []);
+}
+
+/**
+ * Register a callback invoked after any boolean preference changes.
+ * @param {Function} fn
+ */
 export function onPrefsChange(fn) {
     _listeners.push(fn);
 }

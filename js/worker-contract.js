@@ -1,5 +1,5 @@
 /**
- * worker-contract.js — Shared message contract for geojson.worker.js.
+ * worker-contract.js — Shared message contract for tiles.worker.js.
  *
  * Centralises the worker identity token and message helpers so that both
  * the worker and the main thread always agree on the message shape.
@@ -12,7 +12,7 @@
  */
 
 /** @type {string} Unique token stamped on every message sent by our worker. */
-export const WORKER_SOURCE = 'geojson-worker';
+export const WORKER_SOURCE = 'tiles-worker';
 
 /**
  * Returns true when a MessageEvent originates from our own worker.
@@ -26,7 +26,7 @@ export function isOwnWorkerMessage(e) {
 }
 
 /**
- * Typed outgoing-message helpers for use inside geojson.worker.js.
+ * Typed outgoing-message helpers for use inside tiles.worker.js.
  * Each method forwards to self.postMessage() with source pre-filled.
  *
  * Usage (worker side):
@@ -37,10 +37,11 @@ export function isOwnWorkerMessage(e) {
  */
 export const workerPost = {
     /**
-     * @param {string} msg  Human-readable progress label shown in the UI.
+     * @param {string}    key   Translation key (e.g. 'progress.tiles').
+     * @param {...*}      args  Substitution arguments forwarded to t() on the main thread.
      */
-    progress(msg) {
-        self.postMessage({ source: WORKER_SOURCE, status: 'progress', msg });
+    progress(key, ...args) {
+        self.postMessage({ source: WORKER_SOURCE, status: 'progress', key, args });
     },
 
     /**

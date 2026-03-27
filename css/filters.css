@@ -65,6 +65,16 @@
     border-radius: 3px;
 }
 
+.fg-tag-label {
+    cursor: default;
+    text-transform: uppercase;
+}
+
+/* networkId pills are clickable — flyToLocation on label click. */
+.fg-tag--clickable .fg-tag-label {
+    cursor: pointer;
+}
+
 .fg-tag-remove {
     background: none;
     border: none;
@@ -111,6 +121,15 @@
 .fg-combo-arrow {
     padding-right: 8px;
 }
+
+/* readOnly combo (direction, placement) — pointer cursor on wrapper, not text on input */
+.fg-combo-readonly {
+    cursor: pointer;
+}
+
+    .fg-combo-readonly .fg-search {
+        cursor: pointer;
+    }
 
 /* ===== Dropdown list ===== */
 
@@ -180,6 +199,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-transform: uppercase;
 }
 
 /* Blue dot after value name for OSM-mapped types (type_if only) */

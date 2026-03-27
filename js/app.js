@@ -22,13 +22,7 @@ import { TILES_BASE } from './config.js';
 import { initMap, map, initMapEvents } from './map.js';
 import { initMapControls } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
-import {
-    initFilters,
-    loadFilterIndex,
-    resetFilters,
-    initAddFilterButton,
-    setTotalSignals,
-} from './filters.js';
+import { initFilters, loadFilterIndex, resetFilters, initAddFilterButton } from './filters.js';
 import { buildLegend } from './cat-mapping.js';
 import { loadStrings, t, translateAll, getLang } from './translation.js';
 import { initLayer, setManifest, refresh } from './map-layer.js';
@@ -39,6 +33,10 @@ import { initBlockSystem } from './block-system.js';
 
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
+/**
+ * Application entry point.
+ * Sequences all module initialization and wires map events.
+ */
 async function _boot() {
     await loadStrings(getLang());
     await initMap('map');
@@ -68,12 +66,7 @@ async function _loadData() {
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
-    const [manifest, index] = await Promise.all([
-        loadManifest(),
-        loadFilterIndex(TILES_BASE),
-    ]);
-
-    if (index) initBlockSystem(index);
+    const manifest = await loadManifest();
 
     if (!manifest) {
         hideProgress();
@@ -85,9 +78,19 @@ async function _loadData() {
     hideProgress();
     setManifest(manifest);
     _startMapPipeline();
+
+    // Load filter index and network ID index lazily — the user needs several
+    // interactions before reaching the filter panel, giving time to download.
+    _loadFilterIndexLazy();
 }
 
-/** Wire map events and trigger the first render. */
+/** Fetch index.json after the map pipeline has started. */
+async function _loadFilterIndexLazy() {
+    const index = await loadFilterIndex(TILES_BASE);
+    if (index) initBlockSystem(index);
+}
+
+/** Wire map events and trigger the initial render. */
 function _startMapPipeline() {
     updateZoomStatus(map.getZoom());
     initMapEvents(crossedThreshold => {
@@ -105,7 +108,6 @@ function _updateRecordCount(manifest) {
     const { tileCount, totalSignals } = getManifestStats(manifest);
     console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
     setRecordCount({ totalSignals, tileCount });  // also renders #record-count via _renderRecordCount
-    setTotalSignals(totalSignals);
 }
 
 _boot();

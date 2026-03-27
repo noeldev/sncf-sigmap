@@ -5,7 +5,8 @@
   "header": {
     "subtitle1": "Signalisation",
     "subtitle2": "Permanente",
-    "loading": "Chargement…"
+    "loading": "Chargement…",
+    "beta": "Bêta"
   },
   "tabs": {
     "filters": "Filtres",
@@ -57,7 +58,9 @@
   "dropdown": {
     "search": "Rechercher parmi {0} valeurs…",
     "noMatch": "Aucune valeur",
-    "remove": "Supprimer le filtre"
+    "remove": "Supprimer le filtre",
+    "searchNetworkId": "Saisissez quelques chiffres pour rechercher…",
+    "clickToSelect": "Cliquer pour sélectionner…"
   },
   "settings": {
     "basemap": "Fond de carte",

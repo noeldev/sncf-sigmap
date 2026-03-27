@@ -15,12 +15,15 @@ export class PillList {
      * @param {object}   opts
      * @param {Element}  opts.containerEl — Element that holds all pill nodes.
      * @param {Element}  opts.template    — <template> for one pill.
-     * @param {Function} opts.onRemove    — Called with the value string when a
-     *                                      pill is removed via click or Space/Enter.
+     * @param {Function} opts.onRemove      — Called with the value string when a
+     *                                        pill is removed via click or Space/Enter.
+     * @param {Function} [opts.onLabelClick] — Called with the value string when the
+     *                                         pill label is clicked (not the × button).
      */
-    constructor({ containerEl, template, onRemove }) {
+    constructor({ containerEl, template, onRemove, onLabelClick }) {
         this._el = containerEl;
         this._tpl = template;
+        this._onLabelClick = onLabelClick ?? null;
 
         // Delegated mousedown — fires before blur, so the pill is still focusable
         // when the handler runs.  preventDefault() keeps focus on the pill button
@@ -29,8 +32,7 @@ export class PillList {
             const btn = e.target.closest('.fg-tag-remove');
             if (!btn) return;
             e.preventDefault();
-            const val = btn.closest('.fg-tag')
-                ?.querySelector('.fg-tag-label')?.textContent ?? null;
+            const val = btn.closest('.fg-tag')?.dataset.val ?? null;
             if (val !== null) onRemove(val);
         });
 
@@ -39,23 +41,40 @@ export class PillList {
             if ((e.key === ' ' || e.key === 'Enter') &&
                 e.target.classList.contains('fg-tag-remove')) {
                 e.preventDefault();
-                const val = e.target.closest('.fg-tag')
-                    ?.querySelector('.fg-tag-label')?.textContent ?? null;
+                const val = e.target.closest('.fg-tag')?.dataset.val ?? null;
                 if (val !== null) onRemove(val);
             }
         });
+
+        // Delegated click on pill label — optional navigation callback.
+        if (onLabelClick) {
+            containerEl.addEventListener('click', e => {
+                const label = e.target.closest('.fg-tag-label');
+                if (!label) return;
+                const val = label.closest('.fg-tag')?.dataset.val ?? null;
+                if (val !== null) onLabelClick(val);
+            });
+        }
     }
 
     /**
-     * Rebuild the pill list from an iterable of strings.
-     * No event listeners are attached to individual pills.
+     * Rebuild the pill list from an iterable of raw value strings.
      * @param {Iterable<string>} values
+     * @param {function(string): string} [labelFn]  Optional display transform.
      */
-    render(values) {
+    render(values, labelFn = v => v) {
         this._el.replaceChildren();
         for (const v of values) {
             const pill = this._tpl.content.cloneNode(true).querySelector('.fg-tag');
-            pill.querySelector('.fg-tag-label').textContent = v;
+            pill.dataset.val = v;   // raw value used by the remove handlers
+            const label = pill.querySelector('.fg-tag-label');
+            label.textContent = labelFn(v);
+            if (this._onLabelClick) {
+                pill.classList.add('fg-tag--clickable');
+                label.setAttribute('role', 'button');
+                label.setAttribute('tabindex', '0');
+                label.setAttribute('aria-label', labelFn(v));
+            }
             this._el.appendChild(pill);
         }
     }

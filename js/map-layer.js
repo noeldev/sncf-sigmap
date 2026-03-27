@@ -40,6 +40,7 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
+let _lastGroups = [];   // last rendered groups — used by getSignalLatlng()
 
 
 /* ===== Language change handling ===== */
@@ -96,7 +97,10 @@ export function setManifest(manifest) {
  * @param {boolean} [force=false]
  */
 export function refresh(force = false) {
-    if (_loadRunning) { _loadPending = true; return; }
+    if (_loadRunning) {
+        _loadPending = true;
+        return;
+    }
 
     if (!_manifest) return;
 
@@ -115,6 +119,21 @@ export function refresh(force = false) {
     _runWorker(bounds, fetchUrls, zoom);
 }
 
+
+
+/**
+ * Return the [lat, lng] of a signal by networkId from the last rendered groups.
+ * Returns null when the signal is not currently in the viewport.
+ * Used by filters.js to fly to a selected networkId pill without a tile fetch.
+ * @param {string} networkId
+ * @returns {[number, number] | null}
+ */
+export function getSignalLatlng(networkId) {
+    for (const { lat, lng, all } of _lastGroups) {
+        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
+    }
+    return null;
+}
 
 
 // ===== Worker lifecycle =====
@@ -157,11 +176,6 @@ function _runWorker(bounds, tileUrls, zoom) {
         activeFilters: getActiveFiltersForWorker(),
         bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
         maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
-        // Pass translated strings so the worker can post localized progress messages.
-        strings: {
-            loadingTiles: t('progress.tiles', '{0}'),
-            filtering: t('progress.filtering'),
-        },
     });
 }
 
@@ -173,8 +187,16 @@ function _handleWorkerMessage(e, isOverview, markerMap) {
     if (!isOwnWorkerMessage(e)) return;
     const { status, msg, groups, loaded, total, sampled } = e.data;
 
-    if (status === 'progress') { showProgress(msg); return; }
-    if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
+    if (status === 'progress') {
+        showProgress(t(e.data.key, ...e.data.args));
+        return;
+    }
+
+    if (status === 'error') {
+        _terminateLoad();
+        console.error('[Worker]', e.data.error);
+        return;
+    }
 
     if (status === 'partial') {
         // Overview mode waits for 'done' (spatial sampling requires the full set).
@@ -185,7 +207,9 @@ function _handleWorkerMessage(e, isOverview, markerMap) {
         return;
     }
 
-    if (status === 'done') _onWorkerDone(groups, sampled, e.data.total);
+    if (status === 'done') {
+        _onWorkerDone(groups, sampled, e.data.total);
+    }
 }
 
 
@@ -203,10 +227,11 @@ function _terminateLoad() {
  * if a refresh() arrives during indexSignals().
  */
 function _onWorkerDone(groups, sampled, total) {
+    _lastGroups = groups;
     resetCounts();
+    setSampledBadge(sampled, total);    // must precede indexSignals so isSampled() is current
     indexSignals(groups.flatMap(g => g.all));
     _renderGroups(groups);
-    setSampledBadge(sampled, total);
     _terminateLoad();
     if (_loadPending) {
         _loadPending = false;

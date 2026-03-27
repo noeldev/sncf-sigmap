@@ -11,12 +11,6 @@
  * filter, stored as def.panel).  This file contains no direct DOM queries
  * after _buildPanels() returns.
  *
- * UI class responsibilities:
- *   FilterPanel  (ui/filter-panel.js)
- *     ↳ Dropdown  (ui/dropdown.js)  — outside-click, ARIA, list keyboard nav
- *     ↳ ComboBox  (ui/combobox.js)  — input search / keyboard / focus
- *     ↳ PillList  (ui/pill-list.js) — pill container delegation
- *
  * All filter values are uppercase (SNCF data convention); the search input
  * is uppercased before comparison so no toLowerCase() is needed.
  *
@@ -26,20 +20,15 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
+import { MIN_SEARCH_THRESHOLD } from './config.js';
+import { fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getSupportedTypes } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
-import { updateFilterCount } from './statusbar.js';
-import { MIN_SEARCH_THRESHOLD } from './config.js';
-
-// Maps tile field names (SNCF) to their corresponding index.json keys.
-// Only fields whose index key differs from the tile field name are listed.
-// Maps English app field names to their index.json keys.
-// Only fields whose index key differs from the app field name need an entry.
-// Maps app field names to index.json keys (only where they differ).
-
-// Maps app field names to index.json keys.
-// Includes legacy TileBuilder key names for backward compatibility.
+import { updateFilterCount, isSampled } from './statusbar.js';
+import { saveFilters, loadFilters } from './prefs.js';
+import { flyToLocation } from './map.js';
+import { getSignalLatlng } from './map-layer.js';
 
 const _ALL_FILTER_FIELDS = [
     { key: 'signalType', labelKey: 'fields.signalType' },
@@ -47,13 +36,17 @@ const _ALL_FILTER_FIELDS = [
     { key: 'trackName', labelKey: 'fields.trackName' },
     {
         key: 'direction', labelKey: 'fields.direction',
-        valueOrder: ['forward', 'backward', 'both']
+        valueOrder: ['backward', 'forward', 'both'], readOnly: true,
     },
     {
         key: 'placement', labelKey: 'fields.placement',
-        valueOrder: ['right', 'left', 'bridge']
+        valueOrder: ['left', 'right', 'bridge'], readOnly: true,
     },
-    { key: 'networkId', labelKey: 'fields.networkId', numericOnly: true },
+    {
+        key: 'networkId', labelKey: 'fields.networkId', numericOnly: true,
+        globalSearch: true,   // searches the full index.json location table
+        searchThreshold: MIN_SEARCH_THRESHOLD
+    },
 ];
 
 // Exported as const so external importers always hold the same object reference.
@@ -61,16 +54,12 @@ const _ALL_FILTER_FIELDS = [
 const _activeFilters = {};
 
 let _indexValues = {};
-let _counts = {};
-let _globalCounts = {};   // per-value counts from index.json (full dataset, always accurate)
-let _totalSignals = 0;    // total signal count from manifest, used as placeholder for non-indexed fields
+let _networkIdToTile = new Map();  // networkId → tileKey — inverted at load time
 
-/** Store the total signal count so non-indexed dropdowns can show a meaningful placeholder. */
-export function setTotalSignals(n) {
-    _totalSignals = n;
-}
-let _knownValues = {};   // accumulated across tile loads; never reset by resetCounts()
-let _defs = [];   // [{ field: string, search: string, panel: FilterPanel }]
+let _counts = {};
+let _globalCounts = {};     // per-value counts from index.json (full dataset, always accurate)
+let _knownValues = {};      // accumulated across tile loads; never reset by resetCounts()
+let _defs = [];             // [{ field: string, search: string, panel: FilterPanel }]
 let _mappedOnly = false;
 let _mappedTypes = getSupportedTypes();
 let _onChange = null;
@@ -86,51 +75,38 @@ const _tpl = {
     get addFilterOption() { return document.getElementById('tpl-add-filter-option'); },
 };
 
-_ALL_FILTER_FIELDS.forEach(f => {
-    _indexValues[f.key] = [];
-    _counts[f.key] = new Map();
-    _knownValues[f.key] = new Set();
-    _globalCounts[f.key] = null;   // null means not yet loaded from index.json
-});
-
 /* ===== Public API ===== */
 
 export function initFilters(onChange) {
     _onChange = onChange;
+
+    _initFieldState();
     _clearActiveFilters();
     _buildPanels();
+    _initMenuDismissListener();
 
-    // Dismiss the "Add filter" menu when clicking outside it.
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.add-filter-menu') &&
-            !e.target.closest('#btn-add-filter'))
-            document.querySelector('.add-filter-menu')?.remove();
+    onLangChange(() => {
+        _buildPanels();
+        _defs.forEach((_, idx) => _refreshTags(idx));
     });
 
-    onLangChange(() => _buildPanels());
+    _restoreFilters();
 }
 
+/**
+ * Fetch and parse the filter index from index.json.
+ * Populates _indexValues and _globalCounts for all indexed fields.
+ * Also builds the networkId → tileKey map for the globalSearch filter.
+ * @param {string} tilesBase  Base URL of the tiles directory.
+ * @returns {Promise<object|null>}  Raw index data, or null on failure.
+ */
 export async function loadFilterIndex(tilesBase) {
     try {
         const res = await fetch(tilesBase + 'index.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        _ALL_FILTER_FIELDS.forEach(f => {
-            const entry = data[f.key];
-            if (!entry) return;
-            if (Array.isArray(entry)) {
-                // Legacy format: plain value array, no counts.
-                _indexValues[f.key] = entry;
-            } else if (typeof entry === 'object') {
-                // New format: either { value: count, … } (signalType)
-                // or { value: { count, label? }, … } (lineCode — merged line entry).
-                // Always extract the numeric count so countMap.get() returns a number.
-                _indexValues[f.key] = Object.keys(entry);
-                _globalCounts[f.key] = new Map(
-                    Object.entries(entry).map(([k, v]) => [k, typeof v === 'object' && v !== null ? v.count : v])
-                );
-            }
-        });
+        _parseFieldIndex(data);
+        _parseNetworkIdIndex(data);
         _defs.forEach((_, i) => _refreshDropdown(i));
         return data;
     } catch (err) {
@@ -146,6 +122,12 @@ export async function loadFilterIndex(tilesBase) {
     }
 }
 
+/**
+ * Index a set of normalized signals into per-field value counts.
+ * Called by map-layer.js after each worker 'done' message.
+ * Triggers a refresh of all open filter dropdowns.
+ * @param {Array<{p: object}>} signals  Normalized signal objects.
+ */
 export function indexSignals(signals) {
     let changed = false;
     for (const s of signals) {
@@ -161,6 +143,10 @@ export function indexSignals(signals) {
     if (changed) _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
+/**
+ * Clear all per-field live signal counts accumulated by indexSignals().
+ * Called at the start of each worker cycle before new data arrives.
+ */
 export function resetCounts() {
     _ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
     // _knownValues is intentionally NOT cleared here — values discovered in
@@ -168,15 +154,24 @@ export function resetCounts() {
     // causes the worker to exclude groups that would otherwise carry those values.
 }
 
+/**
+ * Remove all active filters and clear persisted filter state.
+ * Called from app.js when the Reset Filters button is clicked.
+ */
 export function resetFilters() {
     _clearActiveFilters();
     _mappedOnly = false;
+    saveFilters([]);
     _defs.forEach(d => { d.search = ''; });
     _ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
     _buildPanels();
     _onChange?.();
 }
 
+/**
+ * Return active filter values in the format expected by tiles.worker.js.
+ * @returns {Record<string, string[]>}  Field name → selected values.
+ */
 export function getActiveFiltersForWorker() {
     const out = {};
     for (const [f, vals] of Object.entries(_activeFilters))
@@ -184,6 +179,11 @@ export function getActiveFiltersForWorker() {
     return out;
 }
 
+/**
+ * Wire the '+ Add filter' button to its dropdown menu.
+ * Adds only fields not already present in the active filter list.
+ * @param {HTMLElement|null} btn
+ */
 export function initAddFilterButton(btn) {
     if (!btn) return;
     _addFilterBtn = btn;
@@ -231,6 +231,58 @@ function _buildAddFilterMenu(btn) {
 
 /* ===== Internal helpers ===== */
 
+/**
+ * Parse filter value counts from index.json into _indexValues and _globalCounts.
+ * Entries are objects: { value: count } or { value: { count, label? } }.
+ */
+/** Wire the outside-click listener that dismisses the 'Add filter' menu. */
+function _initMenuDismissListener() {
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.add-filter-menu') &&
+            !e.target.closest('#btn-add-filter'))
+            document.querySelector('.add-filter-menu')?.remove();
+    });
+}
+
+
+function _parseFieldIndex(data) {
+    _ALL_FILTER_FIELDS.forEach(f => {
+        const entry = data[f.key];
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+        _indexValues[f.key] = Object.keys(entry);
+        _globalCounts[f.key] = new Map(
+            Object.entries(entry).map(([k, v]) =>
+                [k, typeof v === 'object' && v !== null ? v.count : v]
+            )
+        );
+    });
+}
+
+/**
+ * Flatten the tileKey → { networkId → [lat, lng] } index from index.json
+ * into a single Map for O(1) lookup by networkId.
+ */
+function _parseNetworkIdIndex(data) {
+    if (!data.networkId) return;
+    // index.json: tileKey → [networkId, …]. Build a flat networkId → tileKey Map.
+    _networkIdToTile = new Map();
+    for (const [tileKey, ids] of Object.entries(data.networkId)) {
+        for (const id of ids) _networkIdToTile.set(id, tileKey);
+    }
+    console.info(`[Filters] networkId index: ${_networkIdToTile.size.toLocaleString()} entries`);
+}
+
+
+/** Initialise per-field state maps — called once from initFilters(). */
+function _initFieldState() {
+    _ALL_FILTER_FIELDS.forEach(f => {
+        _indexValues[f.key] = [];
+        _counts[f.key] = new Map();
+        _knownValues[f.key] = new Set();
+        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
+    });
+}
+
 function _clearActiveFilters() {
     for (const key in _activeFilters) delete _activeFilters[key];
 }
@@ -243,6 +295,13 @@ function _updateAddFilterBtn() {
     if (!_addFilterBtn) return;
     const used = new Set(_defs.map(d => d.field));
     _addFilterBtn.disabled = !_ALL_FILTER_FIELDS.some(f => !used.has(f.key));
+}
+
+/**
+ * Normalize a string for case-insensitive, accent-insensitive search comparison.
+ */
+function _normalize(str) {
+    return String(str).toUpperCase();
 }
 
 /**
@@ -276,6 +335,9 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         tplItem: _tpl.item,
         tplNoMatch: _tpl.noMatch,
         translateValue: _translateFilterValue,
+        // isConfirmed: true when the field already has selected values (e.g. after restore).
+        // Prevents minSearch fields from hiding the tags container on rebuild.
+        isConfirmed: (_activeFilters[def.field]?.size ?? 0) > 0,
         searchValue: def.search,
         mappedOnly: _mappedOnly,
 
@@ -288,11 +350,26 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
             queueMicrotask(() => def.panel?.focusInput());
         },
 
+        // Clicking a networkId pill label flies the map to that signal's tile.
+        onPillLabelClick: fieldMeta?.globalSearch
+            ? val => _flyToNetworkId(val)
+            : undefined,
+
         onRemove: () => {
-            def.panel.destroy();
-            delete _activeFilters[def.field];
-            _defs.splice(idx, 1);
-            _buildPanels();
+            // First press: clear selected values if any — keep the panel open.
+            // Second press (no values): remove the panel entirely.
+            if (_activeFilters[def.field]?.size > 0) {
+                delete _activeFilters[def.field];
+                _persistFilters();
+                _refreshTags(idx);
+                _refreshDropdown(idx);
+                _updateStatusBar();
+            } else {
+                def.panel.destroy();
+                delete _activeFilters[def.field];
+                _defs.splice(idx, 1);
+                _buildPanels();
+            }
             _onChange?.();
         },
 
@@ -367,33 +444,67 @@ function _refreshDropdown(idx) {
     if (!def?.panel) return;
 
     const fieldMeta = _fieldDef(def.field);
-    const all = _candidateValues(def);
-    const isSignalType = def.field === 'signalType';
-    const isMappedOnly = _mappedOnly && isSignalType;
+    const sel = _activeFilters[def.field] || new Set();
     const q = def.search || '';
 
-    // Placeholder shows the known-value count (indexed fields) or total
-    // signal count from the manifest (non-indexed fields — more meaningful).
-    const fromIndex = _indexValues[def.field] || [];
-    const placeholderCount = fromIndex.length > 0 ? all.length : (_totalSignals || all.length);
-    def.panel.setInputPlaceholder(t('dropdown.search', placeholderCount));
+    if (fieldMeta?.globalSearch) {
+        _refreshGlobalSearchDropdown(def, fieldMeta, sel, q);
+    } else {
+        _refreshStandardDropdown(def, fieldMeta, sel, q);
+    }
+}
 
-    const sel = _activeFilters[def.field] || new Set();
-    const countMap = _globalCounts[def.field] ?? _counts[def.field];
-    const filtered = q ? all.filter(v => v.includes(q)) : all;
+/** Render the networkId dropdown — searches the full _networkIdToTile index. */
+function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
+    def.panel.setInputPlaceholder(t('dropdown.searchNetworkId'));
+    const activeItems = () => [...sel].map(v => ({ v, count: 0, active: true, showDot: false }));
+    if (!q) {
+        def.panel.refreshList([]);
+        return;
+    }
 
-    if (_belowMinSearch(all, filtered, q, sel, countMap, isSignalType, isMappedOnly, def.panel)) return;
+    const threshold = fieldMeta.searchThreshold ?? MIN_SEARCH_THRESHOLD;
+    const matched = [..._networkIdToTile.keys()].filter(id => id.startsWith(q));
+    if (matched.length > threshold) {
+        def.panel.refreshList(activeItems());
+        return;
+    }
 
-    const items = filtered
-        .map(v => ({
-            v,
-            count: countMap?.get(v) || 0,
-            active: sel.has(v),
-            showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
-        }))
-        .sort(_itemSorter(def, isSignalType, def.field === 'lineCode'));
+    def.panel.refreshList(
+        matched.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(v => ({ v, count: 0, active: sel.has(v), showDot: false }))
+    );
+}
 
-    def.panel.refreshList(items);
+/** Render a standard dropdown from local counts and the global index. */
+function _refreshStandardDropdown(def, fieldMeta, sel, q) {
+    const all = _candidateValues(def);
+    const isSignalType = def.field === 'signalType';
+    const numericSort = def.field === 'lineCode';
+    const isMappedOnly = _mappedOnly && isSignalType;
+    // In overview sampling mode use global counts — the spatial sample is not
+    // representative of the full dataset, so live counts would be misleading.
+    const countMap = isSampled()
+        ? (_globalCounts[def.field] ?? _counts[def.field])
+        : (_counts[def.field] ?? _globalCounts[def.field]);
+    const nq = _normalize(q);
+    const filtered = q ? all.filter(v => _normalize(v).startsWith(nq)) : all;
+
+    def.panel.setInputPlaceholder(
+        fieldMeta?.readOnly
+            ? t('dropdown.clickToSelect')
+            : t('dropdown.search', all.length)
+    );
+    def.panel.refreshList(
+        filtered
+            .map(v => ({
+                v,
+                count: countMap?.get(v) || 0,
+                active: sel.has(v),
+                showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
+            }))
+            .sort(_itemSorter(fieldMeta, isSignalType, numericSort))
+    );
 }
 
 /**
@@ -408,35 +519,21 @@ function _candidateValues(def) {
         ? [...new Set([...fromIndex, ...fromCounts])]
         : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
     if (_mappedOnly && def.field === 'signalType') return base.filter(v => _mappedTypes.has(v));
+    // For fields with explicit value ordering, exclude 'unknown' — it is a
+    // normalization sentinel from sncf-convert.js, not a meaningful filter value.
+    if (def.valueOrder) return base.filter(v => v !== 'unknown');
     return base;
 }
 
-/**
- * When the filtered list exceeds MIN_SEARCH_THRESHOLD, show only active items
- * and return true (caller should skip the full render).
- * The minimum query length grows proportionally with the total value count.
- */
-function _belowMinSearch(all, filtered, q, sel, countMap, isSignalType, isMappedOnly, panel) {
-    if (filtered.length <= MIN_SEARCH_THRESHOLD) return false;
-    const minChars = Math.max(1, Math.ceil(Math.log10(all.length / MIN_SEARCH_THRESHOLD)));
-    if (q.length >= minChars) return false;
-    const activeItems = [...sel].map(v => ({
-        v,
-        count: countMap?.get(v) || 0,
-        active: true,
-        showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
-    }));
-    panel.refreshList(activeItems);
-    return true;
-}
+
 
 /**
  * Return a comparator for _refreshList item sorting.
  * Priority: explicit valueOrder > count-descending (signalType) > numeric > alphabetical.
  */
-function _itemSorter(def, isSignalType, numericSort) {
-    if (def?.valueOrder) {
-        const order = def.valueOrder;
+function _itemSorter(fieldMeta, isSignalType, numericSort) {
+    if (fieldMeta?.valueOrder) {
+        const order = fieldMeta.valueOrder;
         return (a, b) => {
             const ia = order.indexOf(a.v);
             const ib = order.indexOf(b.v);
@@ -446,11 +543,61 @@ function _itemSorter(def, isSignalType, numericSort) {
             return a.v.localeCompare(b.v);
         };
     }
-    if (isSignalType && _globalCounts[def.field])
+    if (isSignalType)
         return (a, b) => (b.count - a.count) || a.v.localeCompare(b.v);
     if (numericSort)
-        return (a, b) => (parseFloat(a.v) || 0) - (parseFloat(b.v) || 0) || a.v.localeCompare(b.v);
+        return (a, b) => a.v.localeCompare(b.v, undefined, { numeric: true });
     return (a, b) => a.v.localeCompare(b.v);
+}
+
+
+/**
+ * Restore filter state persisted by a previous session.
+ * Recreates panels and re-activates values without triggering _onChange.
+ */
+function _restoreFilters() {
+    const saved = loadFilters();
+    if (!saved.length) return;
+    for (const { field, values, mappedOnly } of saved) {
+        if (!_ALL_FILTER_FIELDS.some(f => f.key === field)) continue;
+        if (mappedOnly) _mappedOnly = true;
+        if (!_defs.some(d => d.field === field)) _defs.push({ field, search: '' });
+        for (const v of values) {
+            if (!_activeFilters[field]) _activeFilters[field] = new Set();
+            _activeFilters[field].add(v);
+        }
+    }
+    if (_defs.length) { _buildPanels(); _onChange?.(); }
+}
+
+/** Serialize active filter state to localStorage via prefs.js. */
+function _persistFilters() {
+    const state = _defs.map(d => ({
+        field: d.field,
+        values: [...(_activeFilters[d.field] || [])],
+        mappedOnly: d.field === 'signalType' ? _mappedOnly : undefined,
+    }));
+    saveFilters(state);
+}
+
+
+/**
+ * Fast path: signal already in the viewport — fly to its exact coordinates.
+ * Slow path: fetch the tile from the browser cache to get exact coordinates,
+ * then fly. moveend triggers refresh() which reloads only the target tile.
+ */
+async function _flyToNetworkId(networkId) {
+    const rendered = getSignalLatlng(networkId);
+    if (rendered) {
+        flyToLocation(rendered);
+        return;
+    }
+
+    const tileKey = _networkIdToTile.get(networkId);
+    if (!tileKey) return;
+    const signals = await fetchTileByKey(tileKey);
+    const loc = findSignalLocation(signals, networkId);
+    if (loc) flyToLocation(loc);
 }
 
 
@@ -490,6 +637,7 @@ function _toggle(field, val) {
         _refreshDropdown(idx);
         _openDropdown(idx);
     }
+    _persistFilters();
     _updateStatusBar();
     _onChange?.();
 }

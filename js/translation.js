@@ -153,8 +153,20 @@ function _flatten(obj, prefix = '') {
 
 /* ===== Core API ===== */
 
-export function getLang() { return _lang; }
+/**
+ * Return the current locale code, e.g. 'en-US'.
+ * @returns {string}
+ */
+export function getLang() {
+    return _lang;
+}
 
+/**
+ * Switch the active locale, reload strings, and retranslate the full document.
+ * Triggers all onLangChange listeners.
+ * @param {string} locale  BCP 47 locale code, e.g. 'fr-FR'.
+ * @returns {Promise<void>}
+ */
 export async function setLang(locale) {
     await loadStrings(locale);
     translateAll();
@@ -184,7 +196,8 @@ export function t(key, ...args) {
 /**
  * Apply translations to every data-i18n* element within a given root.
  * Works on any DOM subtree — including freshly cloned template content.
- */
+  * @param {Element} root
+*/
 export function translateElement(root) {
     root.querySelectorAll('[data-i18n]').forEach(el => {
         const val = t(el.dataset.i18n);
@@ -209,6 +222,7 @@ export function translateElement(root) {
  * Translate the full live document and broadcast the language change
  * to all onLangChange listeners.
  * Listeners are responsible for re-rendering their own dynamic content.
+ * Called once by setLang() and once by app.js after initial string load.
  */
 export function translateAll() {
     translateElement(document.documentElement);
@@ -216,6 +230,11 @@ export function translateAll() {
     _langListeners.forEach(fn => fn());
 }
 
+/**
+ * Register a callback invoked after every language change.
+ * Called immediately after strings are reloaded and the document is retranslated.
+ * @param {Function} fn
+ */
 const _langListeners = [];
 export function onLangChange(fn) {
     _langListeners.push(fn);
