@@ -157,7 +157,15 @@
     "intro": "Visualisation cartographique interactive du jeu de données ouvertes <strong>SNCF Signalisation Permanente</strong>, avec intégration OpenStreetMap. Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
     "usage": {
       "title": "Utilisation",
-      "text": "Lors de la première visite, toutes les tuiles sont chargées et mises en cache par le navigateur. À faible zoom, un échantillon spatial est affiché pour garder la carte lisible. À partir du zoom 10, le détail complet des signaux est affiché pour la vue courante. Lors des visites suivantes, si la dernière position de la carte est mémorisée, seules les tuiles de cette zone sont chargées — servies instantanément depuis le cache. Les filtres actifs s'appliquent toujours quel que soit le zoom. Cliquez sur un marqueur pour voir ses propriétés et exporter les tags OSM."
+      "scroll": "molette",
+      "scrollDesc": " — zoom avant / arrière",
+      "click": "clic",
+      "clickDesc": " — ouvre la fenêtre du signal (données SNCF + tags OSM)",
+      "shift": "Maj",
+      "shiftDesc": " — ouvre la fenêtre sur l'onglet alternatif (voir onglet Paramètres)",
+      "ctrl": "Ctrl",
+      "ctrlDesc": " — épingle / désépingle un signal ; les signaux épinglés apparaissent dans la section éponyme de l'onglet Filtres pour navigation rapide",
+      "context": "À partir du zoom 10, tous les signaux du viewport sont affichés. En dessous du zoom 10, un échantillon spatial garde la carte lisible — les filtres actifs s'appliquent toujours.\nLes filtres actifs, les signaux épinglés, la position de la carte et les paramètres sont restaurés à la prochaine ouverture."
     },
     "links": {
       "title": "Liens"
@@ -170,5 +178,18 @@
       "maps": "Cartes ©",
       "osmContributors": "Contributeurs OpenStreetMap"
     }
+  },
+  "pinned": {
+    "title": "Signaux épinglés",
+    "empty": "Aucun signal épinglé.",
+    "clear": "Supprimer tous les signaux épinglés",
+    "confirmClear": "Supprimer tous les signaux épinglés ?",
+    "pin": "Épingler ce signal",
+    "unpin": "Désépingler ce signal",
+    "flash": "Épinglé !",
+    "unflash": "Désépinglé"
+  },
+  "filter": {
+    "none": "Aucun filtre actif."
   }
 }

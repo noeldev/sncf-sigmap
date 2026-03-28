@@ -157,7 +157,15 @@
     "intro": "Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
     "usage": {
       "title": "How to use",
-      "text": "On first visit, all tiles are loaded and cached by the browser. At low zoom, a spatial sample is displayed to keep the map readable. At zoom 10 and above, full signal detail is shown for the current viewport. On subsequent visits, if the last map position is saved, only the tiles for that area are loaded — served instantly from cache. Active filters always apply regardless of zoom level. Click any marker to view its properties and export OSM tags."
+      "scroll": "scroll",
+      "scrollDesc": " — zoom in / out",
+      "click": "click",
+      "clickDesc": " — open the signal popup (SNCF data + OSM tags)",
+      "shift": "Shift",
+      "shiftDesc": " — open popup on the alternate default tab (see Settings tab)",
+      "ctrl": "Ctrl",
+      "ctrlDesc": " — pin / unpin the signal; pinned signals appear in the Pinned section of the Filters tab for quick navigation",
+      "context": "At zoom 10 and above all signals in the viewport are displayed. Below zoom 10, a spatial sample keeps the map readable — active filters still apply.\nActive filters, pinned signals, map position, and settings are saved across sessions."
     },
     "links": {
       "title": "Links"
@@ -170,5 +178,18 @@
       "maps": "Maps ©",
       "osmContributors": "OpenStreetMap contributors"
     }
+  },
+  "pinned": {
+    "title": "Pinned Signals",
+    "empty": "No pinned signals.",
+    "clear": "Clear all pinned signals",
+    "confirmClear": "Remove all pinned signals?",
+    "pin": "Pin this signal",
+    "unpin": "Unpin this signal",
+    "flash": "Pinned!",
+    "unflash": "Unpinned"
+  },
+  "filter": {
+    "none": "No active filters."
   }
 }

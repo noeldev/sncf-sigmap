@@ -30,6 +30,7 @@ import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './worker-contract.js';
 import { showProgress, hideProgress } from './progress.js';
+import { isPinned, togglePin, flashPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 
 
@@ -284,9 +285,20 @@ function _makeMarker(lat, lng, all, display) {
             sticky: false,
         })
         .on('click', e => {
-            // Modifier key (Shift/Ctrl) always flips the default tab.
-            const flipped = e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey;
-            openSignalPopup([lat, lng], all, 0, resolveStartTab(flipped));
+            const orig = e.originalEvent;
+            const ctrl = orig?.ctrlKey || orig?.metaKey;
+            const shift = orig?.shiftKey;
+            if (ctrl && !shift) {
+                // Ctrl+click: pin the first signal at this location.
+                const networkId = all[0]?.p?.networkId;
+                if (networkId) {
+                    togglePin(networkId);
+                    flashPinned(isPinned(networkId) ? t('pinned.flash') : t('pinned.unflash'));
+                }
+            } else {
+                // Normal click or Shift+click: open popup (Shift flips default tab).
+                openSignalPopup([lat, lng], all, 0, resolveStartTab(shift));
+            }
         });
 }
 

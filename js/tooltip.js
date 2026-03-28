@@ -8,7 +8,7 @@
  *   tpl-tt-common-fields — pre-labelled field rows (labels defined in HTML)
  *
  * Multi-signal grouping logic:
- *   • trackCode, trackName, milepost are always identical for co-located signals
+ *   • lineCode, trackCode, trackName, milepost are always identical for co-located signals
  *     → always listed at the bottom after the separator.
  *   • If direction and placement are the same for all signals:
  *       TYPE1  ID1
@@ -68,7 +68,7 @@ export function buildTooltip(feats) {
         for (const f of feats) {
             groupsContainer.appendChild(_makeSigRow(f));
         }
-        _appendFields(commonContainer, p0, ['trackCode', 'trackName', 'direction', 'placement', 'milepost']);
+        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'direction', 'placement', 'milepost']);
     } else {
         // Group by (direction, placement) combination.
         const groups = _groupByDirectionPlacement(feats);
@@ -86,7 +86,7 @@ export function buildTooltip(feats) {
             _appendFields(groupsContainer, groupFeats[0].p, ['direction', 'placement']);
         }
         // Only the truly common fields go at the bottom.
-        _appendFields(commonContainer, p0, ['trackCode', 'trackName', 'milepost']);
+        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'milepost']);
     }
 
     // Translate all data-i18n labels (e.g. .tt-key) in one pass

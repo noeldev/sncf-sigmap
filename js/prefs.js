@@ -170,6 +170,22 @@ export function loadFilters() {
 }
 
 /**
+ * Persist the ordered list of pinned Network IDs.
+ * @param {string[]} ids
+ */
+export function savePins(ids) {
+    _s.setJson('pinned-signals', ids);
+}
+
+/**
+ * Return the persisted pinned Network IDs, or an empty array if none.
+ * @returns {string[]}
+ */
+export function loadPins() {
+    return _s.getJson('pinned-signals', []);
+}
+
+/**
  * Register a callback invoked after any boolean preference changes.
  * @param {Function} fn
  */

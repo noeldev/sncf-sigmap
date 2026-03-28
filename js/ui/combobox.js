@@ -40,7 +40,8 @@ export class ComboBox {
         // Single keydown handler: numeric guard (numericOnly) + navigation keys.
         inputEl.addEventListener('keydown', e => {
             // Block non-digit printable characters for numericOnly fields.
-            if (numericOnly && e.key.length === 1 && !/[0-9]/.test(e.key)) {
+            // Allow Ctrl/Cmd shortcuts (copy, paste, select-all, etc.).
+            if (numericOnly && e.key.length === 1 && !/[0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 return;
             }

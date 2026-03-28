@@ -30,6 +30,8 @@ import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
 import { initStatusBar, updateZoomStatus, setRecordCount } from './statusbar.js';
 import { initBlockSystem } from './block-system.js';
+import { initPins } from './pins.js';
+import { getNetworkIdToTile } from './filters.js';
 
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
@@ -88,6 +90,11 @@ async function _loadData() {
 async function _loadFilterIndexLazy() {
     const index = await loadFilterIndex(TILES_BASE);
     if (index) initBlockSystem(index);
+    // Init pins after filter index so networkId → tileKey map is populated.
+    initPins({
+        container: document.getElementById('pinned-container'),
+        networkIdToTile: getNetworkIdToTile(),
+    });
 }
 
 /** Wire map events and trigger the initial render. */

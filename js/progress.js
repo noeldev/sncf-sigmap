@@ -50,6 +50,24 @@ export function showProgress(msg = '') {
 }
 
 /**
+* Show a brief message in the progress overlay without the spinner.
+ * Auto-hides after the given duration (default 1.5 s).
+ * @param {string} msg
+ * @param {number} [durationMs=1500]
+ */
+export function showFlash(msg, durationMs = 1500) {
+    if (_showTimer) { clearTimeout(_showTimer); _showTimer = null; }
+    _el.overlay?.classList.add('no-spinner');
+    _el.overlay?.classList.remove('hidden');
+    if (_el.msg) _el.msg.textContent = msg;
+    setTimeout(() => {
+        _el.overlay?.classList.add('hidden');
+        _el.overlay?.classList.remove('no-spinner');
+        if (_el.msg) _el.msg.textContent = '';
+    }, durationMs);
+}
+
+/**
  * Cancel any pending show and hide the overlay immediately.
  */
 export function hideProgress() {

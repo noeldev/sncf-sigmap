@@ -62,7 +62,11 @@ Tile files are stored as `.json.gz` but requested as `.json` — the `handle @ti
 ```
 localhost:8443 {
 	root * {system.wd}
-	@tiles path /data/tiles/*.json
+
+	@tiles {
+		path /data/tiles/*.json
+		not file {path}
+	}
 	handle @tiles {
 		rewrite * {path}.gz
 		header Content-Type     application/json
@@ -70,6 +74,7 @@ localhost:8443 {
 		header Cache-Control    "public, max-age=86400, must-revalidate"
 		file_server
 	}
+
 	file_server
     tls internal
 }

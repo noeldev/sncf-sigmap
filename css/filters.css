@@ -67,7 +67,6 @@
 
 .fg-tag-label {
     cursor: default;
-    text-transform: uppercase;
 }
 
 /* networkId pills are clickable — flyToLocation on label click. */
@@ -199,7 +198,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-transform: uppercase;
 }
 
 /* Blue dot after value name for OSM-mapped types (type_if only) */
@@ -241,37 +239,9 @@
     user-select: none;
 }
 
-.toggle-track {
-    position: relative;
-    width: 28px;
-    height: 16px;
-    flex-shrink: 0;
-    background: var(--panel3);
-    border: 1px solid var(--border2);
-    border-radius: 8px;
-    transition: background .15s, border-color .15s;
-}
+/* Use .toggle-input on the checkbox — defined in base.css. */
 
-.toggle-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--text3);
-    transition: transform .15s, background .15s;
-}
-
-.toggle-track.checked {
-    background: var(--accent);
-    border-color: var(--accent2);
-}
-
-    .toggle-track.checked .toggle-thumb {
-        transform: translateX(12px);
-        background: #fff;
-    }
+/* Toggle: base styles and :checked activation defined in base.css. */
 
 .toggle-label {
     font-size: 11px;
@@ -303,3 +273,13 @@
     .afm-option:hover {
         background: rgba(255,255,255,.05);
     }
+
+/* ===== Pinned signals section =====
+ * Reuses .fg-header, .fg-remove, .fg-tags, .fg-empty from above.
+ * Only the section wrapper needs its own style. */
+
+.pinned-section {
+    padding: 10px 12px 4px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}

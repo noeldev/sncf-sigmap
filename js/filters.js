@@ -94,7 +94,16 @@ export function initFilters(onChange) {
 }
 
 /**
- * Fetch and parse the filter index from index.json.
+  * Return the networkId → tileKey map built from index.json.
+ * Used by pins.js to fly to pinned signals.
+ * @returns {Map<string, string>}
+ */
+export function getNetworkIdToTile() {
+    return _networkIdToTile;
+}
+
+/**
+* Fetch and parse the filter index from index.json.
  * Populates _indexValues and _globalCounts for all indexed fields.
  * Also builds the networkId → tileKey map for the globalSearch filter.
  * @param {string} tilesBase  Base URL of the tiles directory.
@@ -374,9 +383,12 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         },
 
         onToggleMappedOnly: checked => {
+            // The CSS :checked + .toggle-track rule drives the visual state —
+            // no manual class manipulation needed here.
             _mappedOnly = checked;
             delete _activeFilters['signalType'];
             _defs.forEach(d => { if (d.field === 'signalType') d.search = ''; });
+            _persistFilters();
             _buildPanels();
             _onChange?.();
         },
@@ -407,6 +419,13 @@ function _buildPanels() {
     // Destroy Dropdown instances so they unregister from the outside-click registry.
     _defs.forEach(d => d.panel?.destroy());
     container.replaceChildren();
+
+    if (!_defs.length) {
+        const hint = _tpl.noMatch.content.cloneNode(true).querySelector('.fg-empty');
+        hint.dataset.i18n = 'filter.none';
+        hint.textContent = t('filter.none');
+        container.appendChild(hint);
+    }
 
     _defs.forEach((def, idx) => {
         const fieldMeta = _fieldDef(def.field);
@@ -519,9 +538,6 @@ function _candidateValues(def) {
         ? [...new Set([...fromIndex, ...fromCounts])]
         : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
     if (_mappedOnly && def.field === 'signalType') return base.filter(v => _mappedTypes.has(v));
-    // For fields with explicit value ordering, exclude 'unknown' — it is a
-    // normalization sentinel from sncf-convert.js, not a meaningful filter value.
-    if (def.valueOrder) return base.filter(v => v !== 'unknown');
     return base;
 }
 
@@ -630,9 +646,12 @@ function _toggle(field, val) {
     const idx = _defs.findIndex(d => d.field === field);
     if (idx >= 0) {
         const def = _defs[idx];
-        // On deselect: do NOT clear the query. The typed text stays visible so
-        // the user can see which items are still selected among their search results.
-        // Only clear when the user explicitly clears the input themselves.
+        // On select: clear the search query so the full list reopens after picking.
+        // On deselect: keep the query so the user can see remaining selections.
+        if (!wasActive) {
+            def.search = '';
+            def.panel?.clearSearch();
+        }
         _refreshTags(idx);
         _refreshDropdown(idx);
         _openDropdown(idx);

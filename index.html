@@ -56,6 +56,7 @@
                     <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="buttons.reset">Reset</button>
                 </div>
                 <div id="filters-container"></div>
+                <div id="pinned-container"></div>
                 <div class="legend-spacer"></div>
                 <details id="legend" class="info-panel" open>
                     <summary class="panel-summary">
@@ -92,17 +93,17 @@
                 <div class="settings-section">
                     <div class="section-title" data-i18n="settings.behavior">Behavior</div>
                     <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-auto-tags-tab">
+                        <input type="checkbox" id="chk-auto-tags-tab" class="toggle-input">
                         <span class="toggle-track"><span class="toggle-thumb"></span></span>
                         <span class="settings-toggle-label" data-i18n="toggle.autoTagsTab">Open OSM Tags tab by default</span>
                     </label>
                     <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-skip-josm-confirm">
+                        <input type="checkbox" id="chk-skip-josm-confirm" class="toggle-input">
                         <span class="toggle-track"><span class="toggle-thumb"></span></span>
                         <span class="settings-toggle-label" data-i18n="toggle.skipJosmConfirm">Skip JOSM export confirmation</span>
                     </label>
                     <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-remember-position">
+                        <input type="checkbox" id="chk-remember-position" class="toggle-input">
                         <span class="toggle-track"><span class="toggle-thumb"></span></span>
                         <span class="settings-toggle-label" data-i18n="toggle.rememberPosition">Restore last map position on startup</span>
                     </label>
@@ -141,7 +142,13 @@
                     <p class="about-intro" data-i18n-html="about.intro"></p>
                     <div class="about-section">
                         <div class="section-title" data-i18n="about.usage.title">How to use</div>
-                        <p data-i18n="about.usage.text">Zoom in to load signals…</p>
+                        <ul class="about-shortcuts">
+                            <li><kbd data-i18n="about.usage.scroll"></kbd><span data-i18n="about.usage.scrollDesc"></span></li>
+                            <li><kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.clickDesc"></span></li>
+                            <li><kbd data-i18n="about.usage.shift"></kbd> + <kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.shiftDesc"></span></li>
+                            <li><kbd data-i18n="about.usage.ctrl"></kbd> + <kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.ctrlDesc"></span></li>
+                        </ul>
+                        <p data-i18n="about.usage.context"></p>
                     </div>
                     <div class="about-section">
                         <div class="section-title" data-i18n="about.links.title">Links</div>
@@ -284,6 +291,11 @@
                             </button>
                         </div>
                         <div class="pu-nav-right">
+                            <button class="pu-pin-btn" data-action="pin"
+                                    aria-pressed="false"
+                                    data-i18n-title="pinned.pin" data-i18n-aria="pinned.pin">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-pin"></use></svg>
+                            </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
                                 &#10005;
@@ -387,6 +399,11 @@
                             </button>
                         </div>
                         <div class="pu-nav-right">
+                            <button class="pu-pin-btn" data-action="pin"
+                                    aria-pressed="false"
+                                    data-i18n-title="pinned.pin" data-i18n-aria="pinned.pin">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-pin"></use></svg>
+                            </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
                                 &#10005;
@@ -467,6 +484,10 @@
          All labels are in HTML; JS fills .tt-val by querying [data-field].
          Fields are cloned individually so only those with values are appended. -->
     <template id="tpl-tt-common-fields">
+        <div class="tt-row" data-field="lineCode">
+            <span class="tt-key" data-i18n="fields.lineCode">Line code</span>
+            <span class="tt-val"></span>
+        </div>
         <div class="tt-row" data-field="trackCode">
             <span class="tt-key" data-i18n="fields.trackCode">Track code</span>
             <span class="tt-val"></span>
@@ -511,7 +532,7 @@
             <!-- "Supported only" toggle — shown only for the type_if filter -->
             <div class="supported-only-row is-hidden">
                 <label class="supported-only-label">
-                    <input type="checkbox" class="chk-mapped-only sr-only">
+                    <input type="checkbox" class="chk-mapped-only toggle-input">
                     <span class="toggle-track">
                         <span class="toggle-thumb"></span>
                     </span>
@@ -552,6 +573,20 @@
         <div class="afm-option"></div>
     </template>
 
+    <!-- Pinned signals panel -->
+    <template id="tpl-pinned-section">
+        <div class="pinned-section">
+            <div class="fg-header">
+                <span class="section-title" data-i18n="pinned.title"></span>
+                <button class="fg-remove" data-action="clear-pins"
+                        data-i18n-aria="pinned.clear"
+                        data-i18n-title="pinned.clear">&#10005;</button>
+            </div>
+            <div class="fg-tags pinned-tags"></div>
+            <p class="fg-empty pinned-hint" data-i18n="pinned.empty"></p>
+        </div>
+    </template>
+
     <!-- Settings: one basemap selector button -->
     <!-- Language option row — cloned by buildLangOptions() in translation.js -->
     <template id="tpl-lang-option">
@@ -576,6 +611,11 @@
       as <img> elements and are not included here.
     -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <!-- Pin icon -->
+        <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="17" x2="12" y2="22"/>
+            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>
+        </symbol>
         <!-- Chevron down (controls collapse) -->
         <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9" />

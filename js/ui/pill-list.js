@@ -26,7 +26,7 @@ export class PillList {
         this._onLabelClick = onLabelClick ?? null;
 
         // Delegated mousedown — fires before blur, so the pill is still focusable
-        // when the handler runs.  preventDefault() keeps focus on the pill button
+        // when the handler runs. preventDefault() keeps focus on the pill button
         // rather than moving it to the document before onRemove can redirect it.
         containerEl.addEventListener('mousedown', e => {
             const btn = e.target.closest('.fg-tag-remove');

@@ -24,6 +24,7 @@ import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
 import { josmAddNode } from './josm.js';
 import { getLineLabel, getBlockType } from './block-system.js';
 import { getSkipJosmConfirm, getAutoTagsTab } from './prefs.js';
+import { isPinned, togglePin } from './pins.js';
 
 
 /* ===== Template accessor ===== */
@@ -249,12 +250,27 @@ function _updateSignalsPanel() {
     _updateNetworkIdRow(s);
     _updateCoords(s);
     _updateNodeBadge(s);
+    _updatePinButton();
     // Re-translate labels last — .pu-label elements carry data-i18n;
     // .pu-val elements do not, so content written above is preserved.
     translateElement(_popupEl);
 }
 
 /** Set the --signal-color and --signal-contrast CSS variables on the popup. */
+/** Sync the pin button state with the current signal's pin status. */
+function _updatePinButton() {
+    const networkId = _feats?.[_currentIdx]?.p?.networkId;
+    const pinned = networkId ? isPinned(networkId) : false;
+    const label = t(pinned ? 'pinned.unpin' : 'pinned.pin');
+    // Both tab panels have a pin button — update all of them.
+    _popupEl?.querySelectorAll('[data-action="pin"]').forEach(btn => {
+        btn.classList.toggle('is-pinned', pinned);
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('aria-pressed', String(pinned));
+    });
+}
+
 function _updateSignalColor(p) {
     const color = getTypeColor(p.signalType);
     _popupEl.style.setProperty('--signal-color', color);
@@ -411,6 +427,15 @@ function _onClick(e) {
     e.stopPropagation();
 
     switch (btn.dataset.action) {
+
+        case 'pin': {
+            const networkId = _feats?.[_currentIdx]?.p?.networkId;
+            if (networkId) {
+                togglePin(networkId);
+                _updatePinButton();
+            }
+            break;
+        }
 
         case 'close':
             _popup?.remove();

@@ -96,7 +96,6 @@ export class FilterPanel {
             list: panel.querySelector('.fg-dropdown-inner'),
             toggleRow: panel.querySelector('.supported-only-row'),
             toggleChk: panel.querySelector('.chk-mapped-only'),
-            toggleTrack: panel.querySelector('.toggle-track'),
         };
 
         this._el.title.textContent = label;
@@ -105,7 +104,6 @@ export class FilterPanel {
         if (fieldKey === 'signalType') {
             this._el.toggleRow.classList.remove('is-hidden');
             this._el.toggleChk.checked = mappedOnly;
-            this._el.toggleTrack.classList.toggle('checked', mappedOnly);
         }
 
         // ---- minSearch setup ----
@@ -177,9 +175,7 @@ export class FilterPanel {
         // ---- signalType supported-only toggle change ----
         if (fieldKey === 'signalType' && onToggleMappedOnly) {
             this._el.toggleChk.addEventListener('change', () => {
-                const checked = this._el.toggleChk.checked;
-                this._el.toggleTrack.classList.toggle('checked', checked);
-                onToggleMappedOnly(checked);
+                onToggleMappedOnly(this._el.toggleChk.checked);
             });
         }
     }
