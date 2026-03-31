@@ -83,7 +83,7 @@
     "collapse": "Réduire la barre",
     "expand": "Développer la barre",
     "geolocateUnavailable": "Géolocalisation non disponible.",
-    "geolocateError": "Erreur de localisation : {0}"
+    "geolocateError": "Erreur de localisation : {0}"
   },
   "status": {
     "signals": "Signaux",
@@ -99,14 +99,13 @@
   },
   "popup": {
     "navLabel": "{0} / {1}",
-    "nodeLabel": "{0} / {1}",
     "nodeNA": "N/A",
     "signalNode": "Nœud du signal",
     "previewTags": "Prévisualiser les tags OSM",
     "osmTags": "Tags OSM",
     "copy": "Copier les tags",
     "josm": "Ouvrir dans JOSM",
-    "copied": "Copié !",
+    "copied": "Copié !",
     "josmSent": "Envoyé à JOSM",
     "prev": "Signal précédent",
     "next": "Signal suivant",
@@ -123,8 +122,8 @@
     "inOsm": "Déjà présent dans OpenStreetMap — Nœud #{0}",
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
-    "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
-    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
+    "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
   },
   "josm": {
     "notReachable": "JOSM inaccessible",
@@ -154,18 +153,20 @@
     "unsupported": "Types non supportés"
   },
   "about": {
-    "intro": "Visualisation cartographique interactive du jeu de données ouvertes <strong>SNCF Signalisation Permanente</strong>, avec intégration OpenStreetMap. Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
+    "intro1": "Visualisation cartographique interactive du jeu de données ouvertes **SNCF Signalisation Permanente**, avec intégration [OpenStreetMap](https://www.openstreetmap.org/). Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "intro2": "À partir du zoom 10, tous les signaux du viewport sont affichés. En dessous du zoom 10, un échantillon spatial garde la carte lisible — les filtres actifs s'appliquent toujours. Les filtres actifs, les signaux épinglés, la position de la carte et les paramètres sont restaurés à la prochaine ouverture.",
+    "more": "Suite…",
+    "less": "Réduire…",
     "usage": {
       "title": "Utilisation",
-      "scroll": "molette",
-      "scrollDesc": " — zoom avant / arrière",
-      "click": "clic",
-      "clickDesc": " — ouvre la fenêtre du signal (données SNCF + tags OSM)",
+      "scroll": "Molette",
+      "scrollDesc": "Zoom avant / arrière",
+      "click": "Clic",
+      "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
       "shift": "Maj",
-      "shiftDesc": " — ouvre la fenêtre sur l'onglet alternatif (voir onglet Paramètres)",
       "ctrl": "Ctrl",
-      "ctrlDesc": " — épingle / désépingle un signal ; les signaux épinglés apparaissent dans la section éponyme de l'onglet Filtres pour navigation rapide",
-      "context": "À partir du zoom 10, tous les signaux du viewport sont affichés. En dessous du zoom 10, un échantillon spatial garde la carte lisible — les filtres actifs s'appliquent toujours.\nLes filtres actifs, les signaux épinglés, la position de la carte et les paramètres sont restaurés à la prochaine ouverture."
+      "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
+      "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)"
     },
     "links": {
       "title": "Liens"
@@ -173,10 +174,8 @@
     "credits": {
       "title": "Crédits",
       "site": "Site © 2026 Noël Danjou",
-      "data": "Données © 2022 SNCF Réseau",
-      "licence": "Licence Ouverte",
-      "maps": "Cartes ©",
-      "osmContributors": "Contributeurs OpenStreetMap"
+      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
+      "maps": "Cartes © [contributeurs OpenStreetMap](https://www.openstreetmap.org/copyright)"
     }
   },
   "pinned": {
@@ -190,6 +189,8 @@
     "unflash": "Désépinglé"
   },
   "filter": {
-    "none": "Aucun filtre actif."
+    "none": "Aucun filtre actif.",
+    "clear": "Effacer les valeurs",
+    "close": "Supprimer le filtre"
   }
 }

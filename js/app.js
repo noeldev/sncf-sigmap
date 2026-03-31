@@ -8,14 +8,15 @@
  *   - Track the zoom threshold crossing for overview↔detail mode transitions.
  *
  * All UI, rendering, and data pipeline logic is delegated:
- *   progress.js      — progress overlay
- *   sidebar.js       — language picker, tabs, JOSM detection panel
- *   map.js           — Leaflet infrastructure (basemaps, basemap selector)
- *   map-controls.js  — map toolbar button wiring (zoom, geolocate, fullscreen)
- *   map-layer.js     — signal marker pipeline (worker, filter, render)
- *   signal-mapping.js — OSM tag data and category colors
- *   filters.js       — filter state and panel UI
- *   statusbar.js     — status bar DOM updates
+ *   progress.js        — progress overlay
+ *   sidebar.js           — language picker, tabs, JOSM detection panel
+ *   collapsible-panel.js — cp-panel open/close state and keyboard nav
+ *   map.js             — Leaflet infrastructure (basemaps, basemap selector)
+ *   map-controls.js    — map toolbar button wiring (zoom, geolocate, fullscreen)
+ *   map-layer.js       — signal marker pipeline (worker, filter, render)
+ *   signal-mapping.js  — OSM tag data and category colors
+ *   filters.js         — filter state and panel UI
+ *   statusbar.js       — status bar DOM updates
  */
 
 import { TILES_BASE } from './config.js';
@@ -28,6 +29,7 @@ import { loadStrings, t, translateAll, getLang } from './translation.js';
 import { initLayer, setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
+import { initCollapsiblePanels } from './collapsible-panel.js';
 import { initStatusBar, updateZoomStatus, setRecordCount } from './statusbar.js';
 import { initBlockSystem } from './block-system.js';
 import { initPins } from './pins.js';
@@ -53,6 +55,7 @@ function _initUI() {
     initMapControls();
     initStatusBar();
     initLayer();
+    initCollapsiblePanels();
     initSidebar();
     buildLegend();
     initFilters(() => refresh(true));
@@ -114,7 +117,7 @@ function _startMapPipeline() {
 function _updateRecordCount(manifest) {
     const { tileCount, totalSignals } = getManifestStats(manifest);
     console.info(`[App] ${totalSignals.toLocaleString()} signals across ${tileCount} tiles`);
-    setRecordCount({ totalSignals, tileCount });  // also renders #record-count via _renderRecordCount
+    setRecordCount({ totalSignals, tileCount });
 }
 
 _boot();

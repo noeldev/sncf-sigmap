@@ -9,13 +9,6 @@
     color: var(--text2);
 }
 
-#tab-settings .section-title {
-    margin-bottom: 8px;
-}
-
-#tab-about .section-title {
-    margin-bottom: 6px;
-}
 
 /* ===== Header ===== */
 
@@ -79,6 +72,7 @@
     color: var(--text2);
 }
 
+
 /* ===== Tabs ===== */
 
 #sidebar-tabs {
@@ -109,19 +103,31 @@
         border-bottom-color: var(--accent2);
     }
 
+
+/* ===== Tab panels =====
+ *
+* Each tab is a flex column. Sticky toolbar / section at the top sits outside
+ * the scroll container (.filters-scroll / .settings-scroll / .about-content).
+ * Footer cp-panels (JOSM, Credits) sit outside the scroll container at the
+ * bottom, pinned via flex-shrink:0.
+  */
+
 .tab-panel {
     display: none;
     flex: 1;
-    overflow-y: auto;
     flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
 }
 
     .tab-panel.active {
         display: flex;
     }
 
-/* ===== Filter toolbar ===== */
 
+/* ===== Toolbar — Filters tab ===== */
+
+/* Sticky at the very top of #tab-filters */
 .panel-toolbar {
     display: flex;
     align-items: center;
@@ -129,6 +135,15 @@
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+}
+
+/* Single scrollable column below the toolbar */
+.filters-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Toolbar buttons — extend group-1 base (base.css) */
@@ -160,9 +175,9 @@
         color: var(--text);
     }
 
+
 /* ===== Shared dropdown primitives =====
- * Used by both the filter combo boxes (filters.css) and the language picker
- * below, so they live here as sidebar-level shared components. */
+ * Used by filter combos (filters.css) and the language picker. */
 
 .dd-trigger {
     display: flex;
@@ -185,6 +200,11 @@
     pointer-events: none;
 }
 
+    /* icon-chevron points right by default — rotate 90deg to point down for dropdowns */
+    .dd-chevron svg {
+        transform: rotate(90deg);
+    }
+
 .dd-panel {
     position: absolute;
     top: calc(100% + 2px);
@@ -197,13 +217,23 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.6);
 }
 
-/* ===== Collapsible info panels (Legend + JOSM detect) ===== */
+/* Popup nav "previous" chevron — flip horizontally to point left */
+.icon-prev {
+    transform: rotate(180deg);
+}
 
-.info-panel {
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    overflow: hidden;
+
+
+
+/* ===== Collapsible panel system (cp-panel) ===== */
+
+.cp-panel {
     flex-shrink: 0;
+}
+
+/* cp-body: toggled via [hidden] attribute by collapsible-panel.js */
+.cp-body[hidden] {
+    display: none;
 }
 
 .panel-summary {
@@ -211,8 +241,6 @@
     align-items: center;
     gap: 7px;
     padding: 7px 10px;
-    cursor: pointer;
-    list-style: none;
     font-size: 11px;
     font-weight: 700;
     font-family: var(--ff-mono);
@@ -223,26 +251,43 @@
     user-select: none;
 }
 
-    .panel-summary::-webkit-details-marker {
-        display: none;
+    .panel-summary[role="button"] {
+        cursor: pointer;
+        outline: none;
     }
+
+        .panel-summary[role="button"]:hover {
+            background: var(--panel3);
+        }
+
+        .panel-summary[role="button"]:focus-visible {
+            outline: 2px solid var(--accent2);
+            outline-offset: -2px;
+        }
 
 .panel-arrow {
     color: var(--text3);
     transition: transform .15s;
     flex-shrink: 0;
-    transform: rotate(-90deg);
-}
-
-details.info-panel[open] .panel-arrow {
+    /* icon-chevron points right (>) by default.
+     * Closed: pointing right (>) is the standard collapsed indicator.
+     * Open:   rotated 90deg to point down (v). */
     transform: rotate(0deg);
 }
 
+.cp-panel--open > .panel-summary .panel-arrow {
+    transform: rotate(90deg);
+}
+
+/* Thin separator between adjacent cp-panels */
+.cp-panel + .cp-panel {
+    border-top: 1px solid var(--border);
+}
+
 .panel-body {
-    padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    padding: 10px;
 }
 
 .panel-row {
@@ -253,15 +298,89 @@ details.info-panel[open] .panel-arrow {
     color: var(--text2);
 }
 
-/* ===== Legend panel ===== */
-
-.legend-spacer {
-    flex: 1;
-    min-height: 12px;
+/* Action button inside a panel-summary (e.g. clear-pins) */
+.summary-action-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    padding: 3px 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: color .15s, background .15s;
+    flex-shrink: 0;
 }
+
+    .summary-action-btn:hover {
+        color: var(--warn);
+        background: rgba(210, 153, 34, .08);
+    }
+
+/* External link button inside a panel-summary — same icon size as summary-action-btn
+ * but accent2 hover (blue) to signal outbound navigation rather than a destructive action. */
+.summary-link-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    padding: 3px 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: color .15s, background .15s;
+    flex-shrink: 0;
+}
+
+    .summary-link-btn:hover {
+        color: var(--accent2);
+        background: rgba(37, 137, 199, .08);
+    }
+
+/* Title that fills available space, pushing action buttons to the right */
+.summary-flex-title {
+    flex: 1;
+}
+
+
+/* ===== Tab-specific cp-panel variants =====
+ *
+ * .filters-panel  — panels inside the Filters tab scroll area
+ * .settings-panel — panels inside the Settings tab scroll area
+ * .about-panel    — panels inside the About tab scroll area
+ *
+ * Filters and Settings variants tile flush (no side/bottom borders, no radius,
+ * overflow:visible to avoid clipping dropdowns).
+ * About variants keep the default styles.
+ */
+
+.filters-panel,
+.settings-panel {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.about-panel {
+    flex-shrink: 0;
+}
+
+
+/* ===== Legend panel ===== */
 
 #legend {
     margin: 0 12px 12px;
+}
+
+.legend-panel-body {
+    padding: 10px 14px 14px 20px;
+    line-height: 2;
+    border-bottom: 1px solid var(--border);
 }
 
 .legend-dot {
@@ -270,86 +389,48 @@ details.info-panel[open] .panel-arrow {
     border-radius: 50%;
     flex-shrink: 0;
     border: 1.5px solid rgba(0,0,0,.3);
-    /* Default fallback colour; overridden per category by signal-mapping.js. */
     background: var(--cat-unsupported);
 }
 
-/* ===== JOSM detect panel ===== */
 
-.josm-detect-body {
-    gap: 5px;
+/* ===== Settings tab =====
+ *
+ * Layout (flex column):
+ * Layout (flex column):
+ *   1. Language section (flex-shrink:0 — sticky at top)
+ *   2. Spacer
+ *   3. .settings-scroll (flex:1 — scrollable content)
+ *   4. JOSM footer cp-panel (flex-shrink:0 — sticky at bottom)
+ */
+
+/* Language — plain section, sticky at top */
+.settings-plain-section {
+    padding: 12px 12px 10px;
+    flex-shrink: 0;
 }
 
-.josm-detect-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text2);
+    .settings-plain-section .section-title {
+        margin-bottom: 8px;
+    }
+
+/* Spacer between Language section and Behavior panel */
+.settings-lang-spacer {
+    height: 12px;
+    flex-shrink: 0;
 }
 
-.josm-detect-label {
-    color: var(--text3);
-    font-size: 11px;
+/* Scrollable content: Behavior toggles and any future sections */
+.settings-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
-.josm-detect-val {
-    font-size: 11px;
-}
 
-.josm-val-ok {
-    color: var(--text);
-}
-
-.josm-val-dim {
-    color: var(--text3);
-    font-style: italic;
-}
-
-/* State-driven visibility for JOSM version rows.
-   [data-josm-state] elements are hidden by default.
-   Setting data-josm-status on #josm-detect-body reveals the matching elements. */
-[data-josm-state] {
-    display: none !important;
-}
-
-#josm-detect-body[data-josm-status="checking"] span[data-josm-state="checking"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="ok"] span[data-josm-state="ok"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="forbidden"] span[data-josm-state="forbidden"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="error"] span[data-josm-state="error"] {
-    display: inline !important;
-}
-
-/* Protocol and Port rows are divs — need flex restoration when visible. */
-#josm-detect-body[data-josm-status="ok"] div[data-josm-state="ok"] {
-    display: flex !important;
-}
-
-#josm-detect {
-    margin: 0 0 14px;
-}
-
-/* ===== Settings tab ===== */
-
-#tab-settings {
-    padding: 14px 12px;
-}
-
-.settings-section {
-    margin-bottom: 20px;
-}
-
-/* ===== Language picker ===== */
+/* ===== Language picker =====
+ *
+ * Full-width dropdown to match the filter combo boxes.
+ */
 
 .lang-select-wrap {
     position: relative;
@@ -389,6 +470,7 @@ details.info-panel[open] .panel-arrow {
     cursor: pointer;
     color: var(--text2);
     transition: background .1s;
+    outline-offset: -2px;
 }
 
     .lang-option:hover {
@@ -400,8 +482,8 @@ details.info-panel[open] .panel-arrow {
         color: var(--text);
     }
 
-/* ===== Basemap selector buttons =====
- * Group 3 — unique style, wider, includes a thumbnail image. */
+
+/* ===== Basemap selector ===== */
 
 .basemap-btn {
     display: flex;
@@ -438,31 +520,244 @@ details.info-panel[open] .panel-arrow {
     object-fit: cover;
 }
 
-/* ===== About tab ===== */
 
-#tab-about {
-    padding: 14px;
+/* ===== Settings behavior toggles ===== */
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text2);
+    user-select: none;
+}
+
+.settings-toggle-label {
+    flex: 1;
+    line-height: 1.3;
+}
+
+/* Show a focus ring on the track when the visually-hidden checkbox receives
+ * keyboard focus — the track is the adjacent sibling of the input. */
+.toggle-input:focus-visible + .toggle-track {
+    outline: 2px solid var(--accent2);
+    outline-offset: 2px;
+}
+
+
+/* ===== JOSM footer (Settings tab) =====
+ *
+ * Collapsible cp-panel fixed at the bottom of #tab-settings, outside
+ * .settings-scroll. Mirrors the .about-credits-footer pattern.
+ */
+
+.settings-josm-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    overflow: visible;
+}
+
+    /* footer summary gap to accommodate the JOSM icon */
+    .settings-josm-footer > .panel-summary {
+        gap: 8px;
+    }
+
+/* JOSM icon in the footer panel summary */
+.josm-header-icon {
+    flex-shrink: 0;
+    opacity: .85;
+}
+
+.josm-detect-body {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 14px 12px;
+}
+
+.josm-detect-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+    padding: 4px 0;
+}
+
+    /* Thin separator between JOSM detail rows (same treatment as "How to use" grid) */
+    .josm-detect-row + .josm-detect-row {
+        border-top: 1px solid var(--border);
+    }
+
+.josm-detect-label {
+    color: var(--text3);
+    font-size: 11px;
+}
+
+.josm-detect-val {
+    font-size: 11px;
+}
+
+.josm-val-ok {
+    color: var(--text);
+}
+
+.josm-val-dim {
+    color: var(--text3);
+    font-style: italic;
+}
+
+/* State-driven JOSM row visibility.
+   [data-josm-state] rows are hidden by default.
+   Setting data-josm-status on #josm-detect-body reveals the matching ones. */
+[data-josm-state] {
+    display: none !important;
+}
+
+#josm-detect-body[data-josm-status="checking"] span[data-josm-state="checking"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="ok"] span[data-josm-state="ok"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="forbidden"] span[data-josm-state="forbidden"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="error"] span[data-josm-state="error"] {
+    display: inline !important;
+}
+
+/* Protocol and Port rows are divs — need flex restoration when visible */
+#josm-detect-body[data-josm-status="ok"] div[data-josm-state="ok"] {
+    display: flex !important;
+}
+
+
+/* ===== About tab =====
+ *
+ * Layout (flex column):
+ *   1. .about-content (flex:1 — scrollable; contains intro + cp panels)
+ *   2. .about-credits-footer cp-panel (flex-shrink:0 — sticky at bottom)
+ */
+
+.about-tab-panel {
+    flex-direction: column;
 }
 
 .about-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
     font-size: 11px;
     color: var(--text3);
     line-height: 1.7;
+    display: flex;
+    flex-direction: column;
 }
 
-.about-intro {
-    margin-bottom: 14px;
+.about-intro-wrap {
+    position: relative;
+    padding: 12px 14px 8px;
+    margin-bottom: 10px;
+}
+
+    /* Fade mask at the bottom of the intro area when collapsed.
+       :has() checks whether the checkbox inside the wrapper is checked. */
+    .about-intro-wrap::after {
+        content: '';
+        position: absolute;
+        bottom: 35px; /* above the More/Less label */
+        left: 0;
+        right: 0;
+        height: 50px;
+        background: linear-gradient(to bottom, transparent, var(--panel));
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        opacity: 1;
+    }
+
+    /* Fade disappears when intro2 is expanded */
+    .about-intro-wrap:has(#about-more-toggle:checked)::after {
+        opacity: 0;
+    }
+
+/* Intro line 1: always visible */
+.about-intro1 {
     color: var(--text3);
+    margin-bottom: 8px;
 }
 
-    .about-intro strong {
+    .about-intro1 strong {
         color: var(--text2);
     }
 
-.about-section {
-    margin-bottom: 14px;
+/* Intro line 2: animated fade-in via max-height + opacity transition.
+   display:none is intentionally avoided — CSS cannot transition from it. */
+.about-intro2 {
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+    color: var(--text3);
+    transition: opacity 0.4s ease, max-height 0.4s ease, visibility 0.4s;
 }
 
+.about-intro-wrap:has(#about-more-toggle:checked) .about-intro2 {
+    opacity: 1;
+    visibility: visible;
+    max-height: 300px; /* large enough for any locale */
+}
+
+/* --- More/Less Labels --- */
+.about-more-label {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    margin-top: 5px;
+    font-weight: 600;
+    color: var(--accent2);
+}
+
+.about-more-show,
+.about-more-hide {
+    transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.about-more-hide {
+    position: absolute;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    white-space: nowrap;
+}
+
+/* Toggle label opacity */
+.about-intro-wrap:has(#about-more-toggle:checked) .about-more-show {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.about-intro-wrap:has(#about-more-toggle:checked) .about-more-hide {
+    opacity: 1;
+    visibility: visible;
+}
+
+#about-more-toggle:focus-visible ~ .about-more-label {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+/* Links list */
 .about-links {
     list-style: none;
     display: flex;
@@ -475,39 +770,74 @@ details.info-panel[open] .panel-arrow {
         color: var(--text3);
     }
 
-.about-credits {
+/* Internal tab links — attribute selector keeps class name out of JS */
+a[data-switch-tab] {
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--accent2);
+}
+
+    a[data-switch-tab]:hover {
+        text-decoration: underline;
+    }
+
+/* Shortcut grid (dl/dt/dd) */
+.about-shortcuts-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 12px;
+    row-gap: 0;
+    align-items: start;
+    padding: 0 2px;
+}
+
+    .about-shortcuts-grid dt {
+        white-space: nowrap;
+        padding: 6px 0;
+    }
+
+    .about-shortcuts-grid dd {
+        font-size: 11px;
+        color: var(--text3);
+        line-height: 1.5;
+        padding: 6px 0;
+    }
+
+    /* Thin separator between shortcut rows (all rows except the first) */
+    .about-shortcuts-grid dt:not(:first-of-type) {
+        border-top: 1px solid var(--border);
+    }
+
+        .about-shortcuts-grid dt:not(:first-of-type) + dd {
+            border-top: 1px solid var(--border);
+        }
+
+
+/* ===== Credits footer (About tab) =====
+ *
+ * Collapsible cp-panel fixed at the bottom of #tab-about, outside
+ * .about-content. Mirrors .settings-josm-footer.
+ */
+
+.about-credits-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+}
+
+.credits-body {
+    padding: 8px 14px 12px;
     font-size: 11px;
     color: var(--text3);
     line-height: 1.8;
 }
 
-/* ===== Settings behavior toggles =====
- *
- * .settings-toggle-row uses the shared .toggle-track / .toggle-thumb
- * component defined in base.css (same as "Supported types only" in filters.css).
- * The checkbox is visually hidden so it remains interactive — clicking
- * anywhere on the <label> toggles it.
- */
 
-.settings-toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--text2);
-    user-select: none;
-}
-
-/* .toggle-input on the checkbox handles visual hiding — defined in base.css. */
-
-.settings-toggle-label {
-    flex: 1;
-    line-height: 1.3;
-}
-
-/* ===== About: keyboard shortcuts list ===== */
+/* ===== kbd ===== */
 
 kbd {
     display: inline-block;
@@ -522,26 +852,4 @@ kbd {
     border-radius: 3px;
     color: var(--text);
     white-space: nowrap;
-}
-
-.about-shortcuts {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 10px 0;
-    padding-left: 4px;
-}
-
-    .about-shortcuts li {
-        font-size: 11px;
-        color: var(--text3);
-        line-height: 1.5;
-    }
-
-.about-usage p {
-    font-size: 11px;
-    color: var(--text3);
-    line-height: 1.7;
-    margin-bottom: 6px;
 }

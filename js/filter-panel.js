@@ -5,7 +5,7 @@
  *   • DOM creation from the tpl-filter-group template and element caching.
  *   • One Dropdown, one ComboBox, one PillList instance.
  *   • Delegated mousedown on the item list (shared activation path for mouse).
- *   • removeBtn "click" and toggleChk "change" (signalType only) listeners.
+ *   • clearBtn / removeBtn / toggleChk event wiring.
  *
  * FilterPanel does NOT own:
  *   • Application state (_activeFilters, _counts, _confirmedFilters…).
@@ -15,27 +15,18 @@
  * All application-specific behaviour is injected via callbacks so that
  * FilterPanel remains a pure UI component.
  *
- * Typical usage in filters.js:
- *
- *   const panel = new FilterPanel({
- *          fieldKey, fieldMeta, label,
- *          tplGroup, tplTag, tplItem, tplNoMatch,
- *          isConfirmed, searchValue,
- *          mappedOnly,
- *          onActivate, onPillRemove, onRemove,
- *          onToggleMappedOnly, onSearch, onEnter, onOpen });
- *   panel.appendTo(container);
- *   panel.refreshTags(activeVals);
- *   panel.refreshList(items);          // [{v, count, active, showDot}]
- *   panel.showHint(text);              // minSearch waiting state
- *   panel.setInputPlaceholder(text);
- *   panel.showTags() / panel.hideTags();
- *   panel.openDropdown() / panel.closeDropdown();
- *   panel.focusInput() / panel.focusItem(val);
- *   panel.getFirstItemVal();           // for _selectFirst
- *   panel.clearSearch();               // resets input value to ''
- *   panel.setSearch(value);            // sets input value (numericOnly sync)
- *   panel.destroy();                   // unregisters Dropdown on removal
+ * Public API:
+ *   panel.appendTo(container)
+ *   panel.refreshTags(activeVals)
+ *   panel.refreshList(items)        // [{v, count, active, showDot}]
+ *   panel.showHint(text)            // minSearch waiting state
+ *   panel.setInputPlaceholder(text)
+ *   panel.openDropdown() / panel.closeDropdown() / panel.isOpen()
+ *   panel.focusInput() / panel.focusItem(val)
+ *   panel.getFirstItemVal()
+ *   panel.clearSearch()
+ *   panel.setSearch(value)
+ *   panel.destroy()
  */
 
 import { translateElement } from './translation.js';
@@ -46,47 +37,56 @@ import { PillList } from './ui/pill-list.js';
 export class FilterPanel {
     /**
      * @param {object}        opts
-     * @param {string}        opts.fieldKey          — Field identifier (e.g. 'signalType').
-     * @param {object|null}   opts.fieldMeta         — Entry from ALL_FILTER_FIELDS.
-     * @param {string}        opts.label             — Translated field label.
-     * @param {HTMLElement}   opts.tplGroup          — <template id="tpl-filter-group">.
-     * @param {HTMLElement}   opts.tplTag            — <template id="tpl-filter-tag">.
-     * @param {HTMLElement}   opts.tplItem           — <template id="tpl-filter-drop-item">.
-     * @param {HTMLElement}   opts.tplNoMatch        — <template id="tpl-filter-no-match">.
-     * @param {boolean}       opts.isConfirmed       — Whether field is in _confirmedFilters.
-     * @param {string}        opts.searchValue       — Partial query to restore in input.
-     * @param {boolean}       opts.mappedOnly        — Current _mappedOnly flag (signalType).
-     * @param {Function}      [opts.translateValue]  — (field, val) => string — localized display for item values.
-     * @param {Function}      opts.onActivate        — (val) => void — item selected.
-     * @param {Function}      opts.onPillRemove       — (val) => void — pill × clicked.
-     * @param {Function}      [opts.onPillLabelClick] — (val) => void — pill label clicked.
-     * @param {Function}      opts.onRemove           — ()    => void — panel × clicked.
-     * @param {Function}      [opts.onToggleMappedOnly] — (checked) => void (signalType).
-     * @param {Function}      opts.onSearch          — (query: string) => void.
-     * @param {Function}      opts.onEnter           — ()    => void — Enter in input.
-     * @param {Function}      opts.onOpen            — ()    => void — open this panel
-     *                                                 (close siblings first).
+     * @param {string}        opts.fieldKey
+     * @param {object|null}   opts.fieldMeta
+     * @param {string}        opts.label
+     * @param {HTMLElement}   opts.tplGroup
+     * @param {HTMLElement}   opts.tplTag
+     * @param {HTMLElement}   opts.tplItem
+     * @param {HTMLElement}   opts.tplNoMatch
+     * @param {boolean}       opts.isConfirmed
+     * @param {string}        opts.searchValue
+     * @param {boolean}       opts.mappedOnly
+     * @param {Function}      [opts.translateValue]
+     * @param {Function}      opts.onActivate
+     * @param {Function}      opts.onPillRemove
+     * @param {Function}      [opts.onPillLabelClick]
+     * @param {Function}      [opts.onClear]
+     * @param {Function}      opts.onRemove
+     * @param {Function}      [opts.onToggleMappedOnly]
+     * @param {Function}      opts.onSearch
+     * @param {Function}      opts.onEnter
+     * @param {Function}      opts.onOpen
      */
-    constructor({ fieldKey, fieldMeta, label,
-        tplGroup, tplTag, tplItem, tplNoMatch, translateValue,
-        isConfirmed, searchValue, mappedOnly,
-        onActivate, onPillRemove, onPillLabelClick, onRemove, onToggleMappedOnly,
-        onSearch, onEnter, onOpen }) {
-
-        this.field = fieldKey;
-        this._fieldMeta = fieldMeta;
-        this._tplItem = tplItem;
-        this._tplNoMatch = tplNoMatch;
+    constructor(opts) {
+        this.field = opts.fieldKey;
+        this._fieldMeta = opts.fieldMeta;
+        this._tplItem = opts.tplItem;
+        this._tplNoMatch = opts.tplNoMatch;
         // translateValue(field, val) → localized display string or raw val.
-        this._translateValue = translateValue ?? ((f, v) => v);
+        this._translateValue = opts.translateValue ?? ((f, v) => v);
 
-        // ---- Clone template and cache elements ----
-        const panel = tplGroup.content.cloneNode(true).querySelector('.filter-group');
-        translateElement(panel);   // translate data-i18n attributes (e.g. toggle label)
+        this._buildDOM(opts);
+        this._initSubComponents(opts);
+        this._bindEvents(opts);
+    }
+
+
+    /* ===== Private initialisation ===== */
+
+    /**
+     * Clone the filter-panel template, apply i18n, and cache element references.
+     * Also applies field-specific DOM mutations (signalType toggle, minSearch,
+     * readOnly, numericOnly).
+     */
+    _buildDOM({ tplGroup, fieldKey, fieldMeta, label, isConfirmed, searchValue, mappedOnly }) {
+        const panel = tplGroup.content.cloneNode(true).querySelector('.filter-panel');
+        translateElement(panel);
 
         this._el = {
             panel,
             title: panel.querySelector('.fg-title'),
+            clearBtn: panel.querySelector('.fg-clear'),
             removeBtn: panel.querySelector('.fg-remove'),
             tags: panel.querySelector('.fg-tags'),
             comboInput: panel.querySelector('.fg-combo-input'),
@@ -100,13 +100,13 @@ export class FilterPanel {
 
         this._el.title.textContent = label;
 
-        // ---- signalType supported-only toggle ----
+        // signalType: reveal and set the "Supported types only" toggle.
         if (fieldKey === 'signalType') {
             this._el.toggleRow.classList.remove('is-hidden');
             this._el.toggleChk.checked = mappedOnly;
         }
 
-        // ---- minSearch setup ----
+        // minSearch: hide arrow (free-text, not a dropdown) and optionally tags.
         if (fieldMeta?.minSearch > 0) {
             this._el.comboArrow.classList.add('is-hidden');
             if (!isConfirmed) {
@@ -115,21 +115,24 @@ export class FilterPanel {
             }
         }
 
-        // ---- readOnly input (direction, placement — fixed small value sets) ----
-        // numericOnly and readOnly are mutually exclusive:
-        // numericOnly means the field is editable but only accepts digits.
+        // readOnly (direction, placement — small fixed value sets).
         if (fieldMeta?.readOnly) {
             this._el.input.readOnly = true;
             this._el.comboInput.classList.add('fg-combo-readonly');
         }
 
-        // ---- numericOnly input attributes (better UX on mobile/tablet) ----
+        // numericOnly — better UX on mobile/tablet.
         if (fieldMeta?.numericOnly) {
             this._el.input.inputMode = 'numeric';
             this._el.input.pattern = '[0-9]*';
         }
+    }
 
-        // ---- Dropdown ----
+    /**
+     * Instantiate Dropdown, PillList, and ComboBox sub-components.
+     */
+    _initSubComponents({ fieldMeta, onActivate, onPillRemove, onPillLabelClick,
+        onSearch, onEnter, onOpen, tplTag }) {
         this.dd = new Dropdown({
             dropdownEl: this._el.dropdown,
             triggerEl: this._el.comboInput,
@@ -140,7 +143,6 @@ export class FilterPanel {
             activationFocusMode: fieldMeta?.minSearch > 0 ? 'input' : 'item',
         });
 
-        // ---- PillList ----
         this.pills = new PillList({
             containerEl: this._el.tags,
             template: tplTag,
@@ -148,7 +150,6 @@ export class FilterPanel {
             onLabelClick: onPillLabelClick,
         });
 
-        // ---- ComboBox ----
         this.cb = new ComboBox({
             inputEl: this._el.input,
             comboWrapEl: this._el.comboInput,
@@ -156,12 +157,17 @@ export class FilterPanel {
             onSearch,
             onEnter,
             onOpen,
-            // numericOnly: digits-only editable input (mutually exclusive with readOnly).
+            // numericOnly is mutually exclusive with readOnly.
             numericOnly: fieldMeta?.numericOnly ?? false,
         });
+    }
 
-        // ---- Item activation (delegated mousedown on list) ----
-        // Delegation survives replaceChildren() — refreshList() builds DOM only.
+    /**
+     * Attach all event listeners: item activation (delegated), clear, remove,
+     * and the signalType "Supported only" toggle.
+     */
+    _bindEvents({ fieldKey, onActivate, onClear, onRemove, onToggleMappedOnly }) {
+        // Delegated mousedown on the list — survives replaceChildren() in refreshList().
         this._el.list.addEventListener('mousedown', e => {
             const item = e.target.closest('.fg-drop-item');
             if (!item) return;
@@ -169,10 +175,15 @@ export class FilterPanel {
             onActivate(item.dataset.val);
         });
 
-        // ---- Remove panel button ----
+        // Clear values button (trash) — remove active values, keep panel open.
+        if (this._el.clearBtn) {
+            this._el.clearBtn.addEventListener('click', () => onClear?.());
+        }
+
+        // Remove panel button (×) — destroy the entire filter panel.
         this._el.removeBtn.addEventListener('click', onRemove);
 
-        // ---- signalType supported-only toggle change ----
+        // signalType supported-only toggle.
         if (fieldKey === 'signalType' && onToggleMappedOnly) {
             this._el.toggleChk.addEventListener('change', () => {
                 onToggleMappedOnly(this._el.toggleChk.checked);
@@ -180,29 +191,29 @@ export class FilterPanel {
         }
     }
 
-    /* ----- DOM ----- */
 
-    /** Append the panel to a container element. */
-    appendTo(container) { container.appendChild(this._el.panel); }
+    /* ===== Public API ===== */
+
+    /** Append the panel element to a container. */
+    appendTo(container) {
+        container.appendChild(this._el.panel);
+    }
+
 
     /* ----- List rendering ----- */
 
     /**
      * Rebuild the dropdown item list.
-     *
-     * When items is empty, renders the no-match placeholder.
-     * Call showHint() instead when the minSearch threshold is not yet reached.
+     * Renders the no-match placeholder when items is empty.
      *
      * Focus restoration: if an item had keyboard focus before the rebuild,
-     * queueMicrotask refocuses the rebuilt item after replaceChildren() moves
-     * browser focus to <body>.
+     * queueMicrotask refocuses it after replaceChildren() moves focus to <body>.
      *
      * @param {Array<{v: string, count: number, active: boolean, showDot: boolean}>} items
      */
     refreshList(items) {
         const list = this._el.list;
 
-        // Save focused item val before replaceChildren() detaches it.
         const prevFocusedVal = list.contains(document.activeElement)
             ? document.activeElement.dataset?.val ?? null
             : null;
@@ -233,9 +244,9 @@ export class FilterPanel {
             list.appendChild(item);
         }
 
-        // Restore keyboard focus after replaceChildren() moved it to <body>.
-        if (prevFocusedVal && this.dd.isOpen())
+        if (prevFocusedVal && this.dd.isOpen()) {
             queueMicrotask(() => this.dd.focusItem(prevFocusedVal));
+        }
     }
 
     /**
@@ -244,10 +255,12 @@ export class FilterPanel {
      */
     showHint(text) {
         const hint = this._tplNoMatch.content.cloneNode(true).querySelector('.fg-empty');
-        hint.removeAttribute('data-i18n'); // prevent translateElement from overwriting the dynamic hint text
+        // Prevent translateElement from overwriting this dynamically-set text.
+        hint.removeAttribute('data-i18n');
         hint.textContent = text;
         this._el.list.replaceChildren(hint);
     }
+
 
     /* ----- Pills ----- */
 
@@ -256,13 +269,9 @@ export class FilterPanel {
         this.pills.render(values, v => this._translateValue(this.field, v));
     }
 
-    showTags() {
-        this.pills.show();
-    }
+    showTags() { this.pills.show(); }
+    hideTags() { this.pills.hide(); }
 
-    hideTags() {
-        this.pills.hide();
-    }
 
     /* ----- Input ----- */
 
@@ -280,16 +289,19 @@ export class FilterPanel {
      */
     setSearch(value) { this._el.input.value = value; }
 
+
     /* ----- Dropdown state ----- */
 
     openDropdown() { this.dd.open(); }
     closeDropdown() { this.dd.close(); }
     isOpen() { return this.dd.isOpen(); }
 
+
     /* ----- Focus ----- */
 
     focusInput() { this.dd.focusInput(); }
     focusItem(val) { this.dd.focusItem(val); }
+
 
     /* ----- Utility ----- */
 
@@ -298,11 +310,12 @@ export class FilterPanel {
         return this._el.list.querySelector('.fg-drop-item')?.dataset.val ?? null;
     }
 
+
     /* ----- Lifecycle ----- */
 
     /**
-     * Unregister the Dropdown from the outside-click registry and remove its
-     * keydown handler.  Must be called before removing the panel from the DOM.
+     * Unregister the Dropdown from the outside-click registry and detach its
+     * keydown handler. Must be called before removing the panel from the DOM.
      */
     destroy() { this.dd.destroy(); }
 }

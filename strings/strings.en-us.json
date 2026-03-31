@@ -99,7 +99,6 @@
   },
   "popup": {
     "navLabel": "{0} / {1}",
-    "nodeLabel": "{0} / {1}",
     "nodeNA": "N/A",
     "signalNode": "Signal Node",
     "previewTags": "Preview OSM tags",
@@ -154,18 +153,20 @@
     "unsupported": "Unsupported types"
   },
   "about": {
-    "intro": "Interactive map viewer for the <strong>SNCF Signalisation Permanente</strong> (Fixed Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via <a href=\"https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl\" target=\"_blank\" rel=\"noopener\">JOSM Remote Control</a>.",
+    "intro1": "Interactive map viewer for the **SNCF Signalisation Permanente** (Fixed Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "intro2": "At zoom 10 and above, all signals in the viewport are shown. Below zoom 10, a spatial sample keeps the map readable — active filters still apply. Active filters, pinned signals, map position, and settings are saved across sessions.",
+    "more": "More…",
+    "less": "Less…",
     "usage": {
       "title": "How to use",
-      "scroll": "scroll",
-      "scrollDesc": " — zoom in / out",
-      "click": "click",
-      "clickDesc": " — open the signal popup (SNCF data + OSM tags)",
+      "scroll": "Wheel",
+      "scrollDesc": "Zoom in / out",
+      "click": "Click",
+      "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
       "shift": "Shift",
-      "shiftDesc": " — open popup on the alternate default tab (see Settings tab)",
       "ctrl": "Ctrl",
-      "ctrlDesc": " — pin / unpin the signal; pinned signals appear in the Pinned section of the Filters tab for quick navigation",
-      "context": "At zoom 10 and above all signals in the viewport are displayed. Below zoom 10, a spatial sample keeps the map readable — active filters still apply.\nActive filters, pinned signals, map position, and settings are saved across sessions."
+      "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
+      "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab"
     },
     "links": {
       "title": "Links"
@@ -173,10 +174,8 @@
     "credits": {
       "title": "Credits",
       "site": "Site © 2026 Noël Danjou",
-      "data": "Data © 2022 SNCF Réseau",
-      "licence": "Licence Ouverte",
-      "maps": "Maps ©",
-      "osmContributors": "OpenStreetMap contributors"
+      "data": "Data © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
+      "maps": "Maps © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)"
     }
   },
   "pinned": {
@@ -190,6 +189,8 @@
     "unflash": "Unpinned"
   },
   "filter": {
-    "none": "No active filters."
+    "none": "No active filters.",
+    "clear": "Clear filter values",
+    "close": "Remove filter"
   }
 }

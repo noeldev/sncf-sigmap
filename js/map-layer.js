@@ -329,4 +329,3 @@ function _renderGroupsIncremental(groups, markerMap) {
         markerMap.set(key, marker);
     }
 }
-

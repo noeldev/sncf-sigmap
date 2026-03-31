@@ -52,6 +52,7 @@ export class ComboBox {
                     dropdown.focusFirst();
                     break;
                 case 'Enter':
+                case ' ':
                     e.preventDefault();
                     onEnter?.();
                     break;

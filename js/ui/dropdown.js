@@ -2,23 +2,23 @@
  * ui/dropdown.js — Generic, accessible dropdown / listbox controller.
  *
  * Responsibilities:
- *   • Outside-click closing via a single shared capture-phase listener.
- *   • ARIA bootstrap: role="listbox", aria-expanded, aria-controls,
- *     aria-haspopup, aria-autocomplete on the appropriate element.
- *   • Keyboard navigation delegated on listEl (survives replaceChildren()):
- *       ArrowDown / ArrowUp   — navigate; ArrowUp on first → focusInput
- *       PageDown  / PageUp    — jump 8 items
- *       Enter     / Space     — activate item → onActivate callback
- *       Escape                — close, focusInput
- *       Tab / Shift+Tab       — Shift+Tab on first → focusInput; Tab on last → close
- *   • Focus helpers: focusItem(val), focusInput()
- *   • _programmaticFocus flag — prevents ComboBox.focus handler from
- *     reopening the dropdown after a programmatic focusInput() call.
+ * - Outside-click closing via a single shared capture-phase listener.
+ * - ARIA bootstrap: role="listbox", aria-expanded, aria-controls,
+ *   aria-haspopup, aria-autocomplete on the appropriate element.
+ * - Keyboard navigation delegated on listEl (survives replaceChildren()):
+ *     ArrowDown / ArrowUp   — navigate; ArrowUp on first → focusInput
+ *     PageDown  / PageUp    — jump 8 items
+ *     Enter     / Space     — activate item → onActivate callback
+ *     Escape                — close, focusInput
+ *     Tab / Shift+Tab       — Shift+Tab on first → focusInput; Tab on last → close
+ * - Focus helpers: focusItem(val), focusInput()
+ * - _programmaticFocus flag — prevents ComboBox.focus handler from
+ *   reopening the dropdown after a programmatic focusInput() call.
  *
  * Does NOT handle:
- *   • Input search / typing (→ ComboBox)
- *   • Pill management        (→ PillList)
- *   • Application state      (→ caller)
+ *  - Input search / typing  (→ ComboBox)
+ *  - Pill management        (→ PillList)
+ *  - Application state      (→ caller)
  */
 
 /* ===== Global shared registry ===== */
@@ -213,8 +213,7 @@ export class Dropdown {
 
             case 'ArrowUp':
                 e.preventDefault();
-                if (ci <= 0) this.focusInput();
-                else items[ci - 1]?.focus();
+                (items[ci - 1] ?? items[items.length - 1])?.focus();   // wrap around
                 break;
 
             case 'PageDown':
@@ -245,12 +244,7 @@ export class Dropdown {
             }
 
             case 'Tab':
-                if (e.shiftKey && ci <= 0) {
-                    e.preventDefault();
-                    this.focusInput();
-                } else if (!e.shiftKey && ci === items.length - 1) {
-                    this.close();
-                }
+                this.close();
                 break;
         }
     }

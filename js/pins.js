@@ -13,9 +13,7 @@
 
 import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
-import { flyToLocation } from './map.js';
-import { getSignalLatlng } from './map-layer.js';
-import { fetchTileByKey, findSignalLocation } from './tiles.js';
+import { flyToSignal } from './filters.js';
 import { showFlash } from './progress.js';
 import { PillList } from './ui/pill-list.js';
 
@@ -33,6 +31,9 @@ let _pillList = null;
 
 /** Root section element of the pinned panel. */
 let _sectionEl = null;
+
+/** Clear-all button in the pinned panel summary. */
+let _clearBtn = null;
 
 /** Callback to fire when pins change (e.g. to re-render pin button states). */
 let _onPinsChange = null;
@@ -53,6 +54,11 @@ export function initPins({ container, networkIdToTile, onChange }) {
     _pins            = loadPins();
 
     _buildPanel(container);
+    // Wire the clear button inside the pinned panel header.
+    // Use event delegation on the panel's summary rather than a static id.
+    document.getElementById('pinned-panel')
+        ?.querySelector('[data-action="clear-pins"]')
+        ?.addEventListener('click', e => { e.stopPropagation(); _onClearAll(); });
     onLangChange(() => _renderPanel());
 }
 
@@ -99,8 +105,6 @@ function _buildPanel(container) {
     const section = tpl.content.cloneNode(true).querySelector('.pinned-section');
     translateElement(section);
 
-    section.querySelector('[data-action="clear-pins"]').addEventListener('click', _onClearAll);
-
     container.appendChild(section);
     _sectionEl = section;
 
@@ -108,8 +112,12 @@ function _buildPanel(container) {
         containerEl: section.querySelector('.pinned-tags'),
         template: document.getElementById('tpl-filter-tag'),
         onRemove: networkId => togglePin(networkId),
-        onLabelClick: networkId => _flyToPin(networkId),
+        onLabelClick: networkId => flyToSignal(networkId),
     });
+
+    // Cache the clear button reference — it lives in the static #pinned-panel
+    // summary (index.html), not in the cloned template section.
+    _clearBtn = document.querySelector('#pinned-panel [data-action="clear-pins"]');
 
     _renderPanel();
 }
@@ -119,9 +127,12 @@ function _renderPanel() {
     if (!_pillList) return;
     _pillList.render(_pins);
 
-    // Show hint when list is empty
-    const hint = _sectionEl?.querySelector('.pinned-hint');
-    if (hint) hint.classList.toggle('is-hidden', _pins.length > 0);
+    // Show empty state when list is empty
+    _sectionEl?.querySelector('.empty-state')
+        ?.classList.toggle('is-hidden', _pins.length > 0);
+
+    // Clear button is only useful when there are pins to clear
+    if (_clearBtn) _clearBtn.classList.toggle('is-hidden', _pins.length === 0);
 }
 
 function _onClearAll() {
@@ -131,22 +142,4 @@ function _onClearAll() {
     savePins(_pins);
     _renderPanel();
     _onPinsChange?.();
-}
-
-
-/* ===== Navigation ===== */
-
-async function _flyToPin(networkId) {
-    // Fast path: signal is currently rendered in the viewport.
-    const rendered = getSignalLatlng(networkId);
-    if (rendered) {
-        flyToLocation(rendered);
-        return;
-    }
-    // Slow path: fetch tile from cache to get exact coordinates.
-    const tileKey = _networkIdToTile.get(networkId);
-    if (!tileKey) return;
-    const signals = await fetchTileByKey(tileKey);
-    const loc     = findSignalLocation(signals, networkId);
-    if (loc) flyToLocation(loc);
 }

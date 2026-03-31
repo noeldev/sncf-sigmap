@@ -51,21 +51,56 @@
 
             <!-- Filters -->
             <div id="tab-filters" class="tab-panel active" role="tabpanel">
+
+                <!-- Toolbar: sticky, always accessible -->
                 <div class="panel-toolbar">
                     <button class="tbtn" id="btn-add-filter" data-i18n="buttons.addFilter">+ Add filter</button>
                     <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="buttons.reset">Reset</button>
                 </div>
-                <div id="filters-container"></div>
-                <div id="pinned-container"></div>
-                <div class="legend-spacer"></div>
-                <details id="legend" class="info-panel" open>
-                    <summary class="panel-summary">
-                        <svg class="panel-arrow" width="8" height="8" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
-                        <span data-i18n="legend.title">Legend</span>
-                    </summary>
-                    <div class="panel-body" id="legend-body">
+
+                <!-- Single scroll area: filter panels + Pinned Signals + Legend -->
+                <div class="filters-scroll">
+
+                    <div id="filters-container"></div>
+
+                    <!-- Static empty state: shown when no filters are active.
+                         Sibling of #filters-container so container.replaceChildren()
+                         does not remove it. Toggled by filters.js/_buildPanels(). -->
+                    <div class="empty-state" id="filters-empty-state">
+                        <svg class="empty-state-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>
+                        <span class="empty-state-text" data-i18n="filter.none"></span>
                     </div>
-                </details>
+
+                    <!-- Pinned signals — collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open filters-panel" id="pinned-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="true" aria-controls="pinned-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span class="summary-flex-title" data-i18n="pinned.title"></span>
+                            <button class="summary-action-btn is-hidden" data-action="clear-pins"
+                                    data-i18n-aria="pinned.clear"
+                                    data-i18n-title="pinned.clear">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                            </button>
+                        </div>
+                        <div class="cp-body" id="pinned-panel-body">
+                            <div id="pinned-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- Legend — collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open filters-panel" id="legend-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="true" aria-controls="legend-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="legend.title"></span>
+                        </div>
+                        <div class="cp-body" id="legend-panel-body">
+                            <div class="panel-body legend-panel-body" id="legend-body"></div>
+                        </div>
+                    </div>
+
+                </div><!-- /filters-scroll -->
 
                 <template id="tpl-legend-row">
                     <div class="panel-row">
@@ -77,103 +112,168 @@
 
             <!-- Settings -->
             <div id="tab-settings" class="tab-panel" role="tabpanel">
-                <div class="settings-section">
-                    <div class="section-title" data-i18n="settings.language">Language</div>
+
+                <!-- Language — plain section, sticky at top -->
+                <div class="settings-plain-section">
+                    <div class="section-title" data-i18n="settings.language"></div>
                     <div class="lang-select-wrap" id="lang-select-wrap">
                         <button class="lang-select-btn dd-trigger" id="lang-select-btn" aria-haspopup="listbox" aria-expanded="false">
                             <span class="lang-flag-img" id="lang-flag"></span>
                             <span id="lang-label">English</span>
-                            <span class="lang-chevron dd-chevron"><svg width="6" height="6" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg></span>
+                            <span class="lang-chevron dd-chevron"><svg width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg></span>
                         </button>
                         <ul class="lang-dropdown dd-panel" id="lang-dropdown" role="listbox" aria-label="Language">
-                            <!-- Populated dynamically by buildLangOptions() in translation.js -->
                         </ul>
                     </div>
                 </div>
-                <div class="settings-section">
-                    <div class="section-title" data-i18n="settings.behavior">Behavior</div>
-                    <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-auto-tags-tab" class="toggle-input">
-                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                        <span class="settings-toggle-label" data-i18n="toggle.autoTagsTab">Open OSM Tags tab by default</span>
-                    </label>
-                    <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-skip-josm-confirm" class="toggle-input">
-                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                        <span class="settings-toggle-label" data-i18n="toggle.skipJosmConfirm">Skip JOSM export confirmation</span>
-                    </label>
-                    <label class="settings-toggle-row">
-                        <input type="checkbox" id="chk-remember-position" class="toggle-input">
-                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                        <span class="settings-toggle-label" data-i18n="toggle.rememberPosition">Restore last map position on startup</span>
-                    </label>
-                </div>
-                <div class="legend-spacer"></div>
-                <details id="josm-detect" class="info-panel" open>
-                    <summary class="panel-summary">
-                        <svg class="panel-arrow" width="8" height="8" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
-                        <span data-i18n="josm.detect.title">JOSM</span>
-                    </summary>
-                    <div id="josm-detect-body" class="panel-body josm-detect-body" data-josm-status="checking">
-                        <!-- Version row: one span per state; CSS reveals only the matching one. -->
-                        <div class="josm-detect-row">
-                            <span class="josm-detect-label" data-i18n="josm.detect.version">Version</span>
-                            <span class="josm-detect-val josm-val-dim" data-josm-state="checking" data-i18n="josm.detect.checking">…</span>
-                            <span class="josm-detect-val josm-val-ok" data-josm-state="ok" id="josm-val-version"></span>
-                            <span class="josm-detect-val josm-val-dim" data-josm-state="forbidden" data-i18n="josm.detect.notAllowed">Not allowed yet</span>
-                            <span class="josm-detect-val josm-val-dim" data-josm-state="error" data-i18n="josm.detect.notDetected">Not detected</span>
+
+                <div class="settings-lang-spacer"></div>
+
+                <!-- Scrollable content: behavior toggles (and future basemap section) -->
+                <div class="settings-scroll">
+
+                    <!-- Behavior — collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open settings-panel" id="settings-behavior-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="true" aria-controls="settings-behavior-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="settings.behavior"></span>
                         </div>
-                        <!-- Protocol and Port rows: only revealed when status = ok -->
-                        <div class="josm-detect-row" data-josm-state="ok">
-                            <span class="josm-detect-label" data-i18n="josm.detect.protocol">Protocol</span>
-                            <span class="josm-detect-val josm-val-ok" id="josm-val-protocol"></span>
-                        </div>
-                        <div class="josm-detect-row" data-josm-state="ok">
-                            <span class="josm-detect-label" data-i18n="josm.detect.port">Port</span>
-                            <span class="josm-detect-val josm-val-ok" id="josm-val-port"></span>
+                        <div class="cp-body" id="settings-behavior-panel-body">
+                            <div class="panel-body">
+                                <label class="settings-toggle-row">
+                                    <input type="checkbox" id="chk-auto-tags-tab" class="toggle-input">
+                                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                    <span class="settings-toggle-label" data-i18n="toggle.autoTagsTab">Open OSM Tags tab by default</span>
+                                </label>
+                                <label class="settings-toggle-row">
+                                    <input type="checkbox" id="chk-skip-josm-confirm" class="toggle-input">
+                                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                    <span class="settings-toggle-label" data-i18n="toggle.skipJosmConfirm">Skip JOSM export confirmation</span>
+                                </label>
+                                <label class="settings-toggle-row">
+                                    <input type="checkbox" id="chk-remember-position" class="toggle-input">
+                                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                    <span class="settings-toggle-label" data-i18n="toggle.rememberPosition">Restore last map position on startup</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
-                </details>
+
+                </div><!-- /settings-scroll -->
+                <!-- JOSM — collapsible footer cp-panel, fixed below .settings-scroll -->
+                <div class="cp-panel cp-panel--open settings-josm-footer" id="settings-josm-panel">
+                    <div class="panel-summary" role="button" tabindex="0"
+                         aria-expanded="true" aria-controls="settings-josm-panel-body">
+                        <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                        <img src="assets/svg/josm.svg" width="16" height="16" alt="" aria-hidden="true" class="josm-header-icon">
+                        <span class="summary-flex-title" data-i18n="josm.detect.title">JOSM</span>
+                        <a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener noreferrer"
+                           class="summary-link-btn"
+                           data-i18n-aria="josm.detect.website" data-i18n-title="josm.detect.website">
+                            <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                        </a>
+                    </div>
+                    <div class="cp-body" id="settings-josm-panel-body">
+                        <div id="josm-detect-body" class="josm-detect-body" data-josm-status="checking">
+                            <!-- Version row: one span per state; CSS reveals only the matching one. -->
+                            <div class="josm-detect-row">
+                                <span class="josm-detect-label" data-i18n="josm.detect.version">Version</span>
+                                <span class="josm-detect-val josm-val-dim" data-josm-state="checking" data-i18n="josm.detect.checking">…</span>
+                                <span class="josm-detect-val josm-val-ok" data-josm-state="ok" id="josm-val-version"></span>
+                                <span class="josm-detect-val josm-val-dim" data-josm-state="forbidden" data-i18n="josm.detect.notAllowed">Not allowed yet</span>
+                                <span class="josm-detect-val josm-val-dim" data-josm-state="error" data-i18n="josm.detect.notDetected">Not detected</span>
+                            </div>
+                            <!-- Protocol and Port rows: only revealed when status = ok -->
+                            <div class="josm-detect-row" data-josm-state="ok">
+                                <span class="josm-detect-label" data-i18n="josm.detect.protocol">Protocol</span>
+                                <span class="josm-detect-val josm-val-ok" id="josm-val-protocol"></span>
+                            </div>
+                            <div class="josm-detect-row" data-josm-state="ok">
+                                <span class="josm-detect-label" data-i18n="josm.detect.port">Port</span>
+                                <span class="josm-detect-val josm-val-ok" id="josm-val-port"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- About -->
-            <div id="tab-about" class="tab-panel" role="tabpanel">
+            <div id="tab-about" class="tab-panel about-tab-panel" role="tabpanel">
                 <div class="about-content">
-                    <p class="about-intro" data-i18n-html="about.intro"></p>
-                    <div class="about-section">
-                        <div class="section-title" data-i18n="about.usage.title">How to use</div>
-                        <ul class="about-shortcuts">
-                            <li><kbd data-i18n="about.usage.scroll"></kbd><span data-i18n="about.usage.scrollDesc"></span></li>
-                            <li><kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.clickDesc"></span></li>
-                            <li><kbd data-i18n="about.usage.shift"></kbd> + <kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.shiftDesc"></span></li>
-                            <li><kbd data-i18n="about.usage.ctrl"></kbd> + <kbd data-i18n="about.usage.click"></kbd><span data-i18n="about.usage.ctrlDesc"></span></li>
-                        </ul>
-                        <p data-i18n="about.usage.context"></p>
+
+                    <!-- Intro with progressive disclosure.
+                         .about-intro2 and the More/Less toggle are wired
+                         via the CSS :checked + sibling selector — no JS needed. -->
+                    <div class="about-intro-wrap">
+                        <p class="about-intro1" data-i18n-html="about.intro1"></p>
+                        <input type="checkbox" id="about-more-toggle" class="toggle-input">
+                        <p class="about-intro2" data-i18n-html="about.intro2"></p>
+                        <label for="about-more-toggle" class="about-more-label">
+                            <span class="about-more-show" data-i18n="about.more"></span>
+                            <span class="about-more-hide" data-i18n="about.less"></span>
+                        </label>
                     </div>
-                    <div class="about-section">
-                        <div class="section-title" data-i18n="about.links.title">Links</div>
-                        <ul class="about-links">
-                            <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
-                            <li><a href="https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/" target="_blank" rel="noopener">SNCF — Mode de cantonnement des lignes</a></li>
-                            <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
-                            <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a></li>
-                            <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM editor</a></li>
-                            <li><a href="https://noeldev.github.io/FrenchRailwaySignalling/" target="_blank" rel="noopener">JOSM Presets — French Railway Signalling</a></li>
-                        </ul>
+
+                    <!-- Usage: collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open about-panel" id="about-usage-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="true" aria-controls="about-usage-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="about.usage.title"></span>
+                        </div>
+                        <div class="cp-body" id="about-usage-panel-body">
+                            <div class="panel-body">
+                                <dl class="about-shortcuts-grid">
+                                    <dt><kbd data-i18n="about.usage.scroll"></kbd></dt>
+                                    <dd data-i18n="about.usage.scrollDesc"></dd>
+                                    <dt><kbd data-i18n="about.usage.click"></kbd></dt>
+                                    <dd data-i18n="about.usage.clickDesc"></dd>
+                                    <dt><kbd data-i18n="about.usage.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.click"></kbd></dt>
+                                    <dd data-i18n-html="about.usage.shiftDesc"></dd>
+                                    <dt><kbd data-i18n="about.usage.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.click"></kbd></dt>
+                                    <dd data-i18n-html="about.usage.ctrlDesc"></dd>
+                                </dl>
+                            </div>
+                        </div>
                     </div>
-                    <div class="about-section">
-                        <div class="section-title" data-i18n="about.credits.title">Credits</div>
-                        <p class="about-credits">
+
+                    <!-- Links: collapsible, closed by default -->
+                    <div class="cp-panel about-panel" id="about-links-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="false" aria-controls="about-links-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="about.links.title"></span>
+                        </div>
+                        <div class="cp-body" id="about-links-panel-body" hidden>
+                            <div class="panel-body">
+                                <ul class="about-links">
+                                    <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
+                                    <li><a href="https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/" target="_blank" rel="noopener">SNCF — Mode de cantonnement des lignes</a></li>
+                                    <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
+                                    <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a></li>
+                                    <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM editor</a></li>
+                                    <li><a href="https://noeldev.github.io/FrenchRailwaySignalling/" target="_blank" rel="noopener">JOSM Presets — French Railway Signalling</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Credits — collapsible footer cp-panel, fixed below .about-content -->
+                <div class="cp-panel cp-panel--open about-credits-footer" id="about-credits-panel">
+                    <div class="panel-summary" role="button" tabindex="0"
+                         aria-expanded="true" aria-controls="about-credits-panel-body">
+                        <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                        <span data-i18n="about.credits.title">Credits</span>
+                    </div>
+                    <div class="cp-body" id="about-credits-panel-body">
+                        <div class="credits-body">
                             <span data-i18n="about.credits.site"></span><br>
-                            <span data-i18n="about.credits.data"></span> —
-                            <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence"
-                               target="_blank" rel="noopener"
-                               data-i18n="about.credits.licence"></a><br>
-                            <span data-i18n="about.credits.maps"></span>
-                            <a href="https://www.openstreetmap.org/copyright"
-                               target="_blank" rel="noopener"
-                               data-i18n="about.credits.osmContributors"></a>
-                        </p>
+                            <span data-i18n-html="about.credits.data"></span><br>
+                            <span data-i18n-html="about.credits.maps"></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -183,14 +283,13 @@
         <div id="map-container">
             <div id="map"></div>
 
-            <!-- Map controls: top-right -->
-            <!-- Map controls + basemap panel — flex column, bottom-aligned -->
+            <!-- Map controls: top-left -->
             <div class="map-ui-left">
 
                 <div id="map-controls">
                     <button id="btn-sidebar-toggle" class="mc-btn"
                             data-i18n-title="ctrl.toggle" title="Toggle panel" aria-label="Toggle panel">
-                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-hamburger"></use></svg>
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-hamburger"></use></svg>
                     </button>
                     <div class="mc-sep"></div>
                     <button id="btn-zoom-in" class="mc-btn"
@@ -204,11 +303,11 @@
                     <div class="mc-sep"></div>
                     <button id="btn-reset-view" class="mc-btn"
                             data-i18n-title="ctrl.resetView" title="Reset view">
-                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-home"></use></svg>
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-home"></use></svg>
                     </button>
                     <button id="btn-geolocate" class="mc-btn"
                             data-i18n-title="ctrl.locate" title="My location">
-                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-locate"></use></svg>
                     </button>
                     <div class="mc-sep"></div>
                     <button id="btn-fullscreen" class="mc-btn"
@@ -218,12 +317,12 @@
                     <div class="mc-sep"></div>
                     <button id="btn-basemap" class="mc-btn"
                             data-i18n-title="ctrl.basemap" title="Base map">
-                        <svg class="icon" width="15" height="15" aria-hidden="true"><use href="#icon-layers"></use></svg>
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-layers"></use></svg>
                     </button>
                     <div class="mc-sep mc-sep-collapse"></div>
                     <button id="btn-controls-toggle" class="mc-btn mc-collapse-btn"
                             data-i18n-title="ctrl.collapse" title="Collapse toolbar">
-                        <svg class="icon mc-chevron" width="13" height="13" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        <svg class="icon mc-chevron" width="14" height="14" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                     </button>
                 </div>
 
@@ -260,7 +359,6 @@
     </div>
 
     <!-- HTML Templates -->
-    <!-- Signal popup -->
     <!-- Unified signal popup — two tab panels + bottom tab bar -->
     <template id="tpl-signal-popup">
         <div class="pu-wrap">
@@ -282,12 +380,12 @@
                         <div class="pu-nav-group">
                             <button class="pu-nav-btn" data-action="nav-prev"
                                     data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                                <svg class="icon icon-prev" width="14" height="14" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             </button>
                             <span class="pu-nav-label"></span>
                             <button class="pu-nav-btn" data-action="nav-next"
                                     data-i18n-title="popup.next" data-i18n-aria="popup.next">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             </button>
                         </div>
                         <div class="pu-nav-right">
@@ -298,7 +396,7 @@
                             </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
-                                &#10005;
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
                             </button>
                         </div>
                     </div>
@@ -341,7 +439,7 @@
                             <span class="pu-val"></span>
                         </div>
 
-                        <!-- idreseau: osm-checking is the default visible state. -->
+                        <!-- networkId: osm-checking is the default visible state. -->
                         <div class="pu-row" data-field="networkId">
                             <span class="pu-label" data-i18n="fields.networkId">ID RÉSEAU</span>
                             <span class="pu-val"></span>
@@ -390,12 +488,12 @@
                         <div class="pu-nav-group">
                             <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-prev"
                                     data-i18n-title="popup.prev" data-i18n-aria="popup.prev">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                                <svg class="icon icon-prev" width="14" height="14" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             </button>
                             <span class="pu-tags-node-label pu-nav-label"></span>
                             <button class="pu-nav-btn pu-tags-arrow is-hidden" data-action="tags-next"
                                     data-i18n-title="popup.next" data-i18n-aria="popup.next">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             </button>
                         </div>
                         <div class="pu-nav-right">
@@ -406,7 +504,7 @@
                             </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
-                                &#10005;
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
                             </button>
                         </div>
                     </div>
@@ -418,7 +516,7 @@
                     <div class="pu-footer">
                         <button class="pu-action-btn" data-action="copy"
                                 data-i18n-title="popup.copy">
-                            <svg class="icon btn-icon-default" width="13" height="13" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                            <svg class="icon btn-icon-default" width="14" height="14" aria-hidden="true"><use href="#icon-copy"></use></svg>
                             <svg class="icon btn-icon-flash" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg>
                             <span class="btn-label" data-i18n="popup.copy">Copy tags</span>
                             <span class="btn-flash-label" data-i18n="popup.copied">Copied!</span>
@@ -434,7 +532,7 @@
                 </div><!-- /tab-panel[tags] -->
 
             </div><!-- /pu-panels-grid -->
-            <!-- ===== Bottom tab bar (Excel-style) ===== -->
+            <!-- ===== Bottom tab bar ===== -->
             <div class="pu-tabs-bar" role="tablist">
                 <button class="pu-tab-btn active" role="tab" aria-selected="true"
                         aria-controls="pu-panel-signals" data-tab="signals" data-action="tab-signals"
@@ -480,7 +578,7 @@
         </div>
     </template>
 
-    <!-- Tooltip: common field rows with pre-defined labels =====
+    <!-- Tooltip: common field rows with pre-defined labels.
          All labels are in HTML; JS fills .tt-val by querying [data-field].
          Fields are cloned individually so only those with values are appended. -->
     <template id="tpl-tt-common-fields">
@@ -510,32 +608,39 @@
         </div>
     </template>
 
-    <!-- Filter group panel -->
+    <!-- Filter group panel.
+         .fg-header holds the field title and the clear/remove action buttons.
+         .fg-tags holds the active value pills (hidden until values are selected).
+         .fg-combo holds the search input and dropdown trigger. -->
     <template id="tpl-filter-group">
-        <div class="filter-group">
+        <div class="filter-panel">
             <div class="fg-header">
                 <span class="section-title fg-title"></span>
-                <button class="fg-remove" data-i18n-title="dropdown.remove">&#10005;</button>
+                <div class="fg-actions">
+                    <button class="fg-clear" data-i18n-title="filter.clear" data-i18n-aria="filter.clear">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                    </button>
+                    <button class="fg-remove" data-i18n-title="filter.close" data-i18n-aria="filter.close">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
+                    </button>
+                </div>
             </div>
             <div class="fg-tags"></div>
             <div class="fg-combo">
                 <div class="fg-combo-input dd-trigger">
                     <input class="fg-search" type="text" autocomplete="off" spellcheck="false">
                     <span class="fg-combo-arrow dd-chevron">
-                        <svg width="6" height="6" aria-hidden="true"><use href="#icon-panel-arrow"></use></svg>
+                        <svg width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                     </span>
                 </div>
                 <div class="fg-dropdown dd-panel is-hidden">
                     <div class="fg-dropdown-inner"></div>
                 </div>
             </div>
-            <!-- "Supported only" toggle — shown only for the type_if filter -->
             <div class="supported-only-row is-hidden">
                 <label class="supported-only-label">
                     <input type="checkbox" class="chk-mapped-only toggle-input">
-                    <span class="toggle-track">
-                        <span class="toggle-thumb"></span>
-                    </span>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
                     <span class="toggle-label" data-i18n="toggle.supported">Supported types only</span>
                 </label>
             </div>
@@ -546,7 +651,9 @@
     <template id="tpl-filter-tag">
         <span class="fg-tag">
             <span class="fg-tag-label"></span>
-            <button class="fg-tag-remove" data-i18n-aria="dropdown.remove">&#10005;</button>
+            <button class="fg-tag-remove" data-i18n-aria="dropdown.remove">
+                <svg class="icon" width="8" height="8" aria-hidden="true"><use href="#icon-close"></use></svg>
+            </button>
         </span>
     </template>
 
@@ -573,22 +680,18 @@
         <div class="afm-option"></div>
     </template>
 
-    <!-- Pinned signals panel -->
+    <!-- Pinned signals panel body — injected into #pinned-container by pins.js -->
     <template id="tpl-pinned-section">
         <div class="pinned-section">
-            <div class="fg-header">
-                <span class="section-title" data-i18n="pinned.title"></span>
-                <button class="fg-remove" data-action="clear-pins"
-                        data-i18n-aria="pinned.clear"
-                        data-i18n-title="pinned.clear">&#10005;</button>
-            </div>
             <div class="fg-tags pinned-tags"></div>
-            <p class="fg-empty pinned-hint" data-i18n="pinned.empty"></p>
+            <div class="empty-state">
+                <svg class="empty-state-icon" aria-hidden="true"><use href="#icon-bookmark"></use></svg>
+                <span class="empty-state-text" data-i18n="pinned.empty"></span>
+            </div>
         </div>
     </template>
 
-    <!-- Settings: one basemap selector button -->
-    <!-- Language option row — cloned by buildLangOptions() in translation.js -->
+    <!-- Settings: language option row — cloned by buildLangOptions() in translation.js -->
     <template id="tpl-lang-option">
         <li class="lang-option" role="option">
             <img class="flag-img" width="20" height="15">
@@ -596,6 +699,7 @@
         </li>
     </template>
 
+    <!-- Settings: basemap selector button — cloned by sidebar.js -->
     <template id="tpl-basemap-btn">
         <button class="basemap-btn">
             <img class="basemap-thumb" width="36" height="36" alt=""
@@ -611,75 +715,91 @@
       as <img> elements and are not included here.
     -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-        <!-- Pin icon -->
+        <!-- Trash / delete — filter clear, pinned-panel clear -->
+        <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+        </symbol>
+        <!-- Close — filter panel close, popup close -->
+        <symbol id="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </symbol>
+        <!-- Pin / bookmark — signal pin button in popup -->
         <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="17" x2="12" y2="22"/>
-            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z" />
         </symbol>
-        <!-- Chevron down (controls collapse) -->
-        <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9" />
-        </symbol>
-        <!-- Layers / basemap -->
+        <!-- Layers — basemap picker button -->
         <symbol id="icon-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="12 2 2 7 12 12 22 7 12 2" />
             <polyline points="2 17 12 22 22 17" />
             <polyline points="2 12 12 17 22 12" />
         </symbol>
-        <!-- Three horizontal bars -->
+        <!-- Hamburger — sidebar toggle button -->
         <symbol id="icon-hamburger" viewBox="0 0 20 20" fill="currentColor">
             <rect y="2.5" width="20" height="2" rx="1" />
             <rect y="9" width="20" height="2" rx="1" />
             <rect y="15.5" width="20" height="2" rx="1" />
         </symbol>
-        <!-- Plus / zoom in -->
+        <!-- Plus — zoom in button -->
         <symbol id="icon-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
         </symbol>
-        <!-- Minus / zoom out -->
+        <!-- Minus — zoom out button -->
         <symbol id="icon-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="5" y1="12" x2="19" y2="12" />
         </symbol>
-        <!-- Home / reset view -->
+        <!-- Home — reset view button -->
         <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 11L12 5L20 11V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
         </symbol>
-        <!-- Crosshair / geolocate -->
+        <!-- Crosshair — geolocation button -->
         <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
         </symbol>
-        <!-- Fullscreen corners -->
+        <!-- Expand corners — fullscreen button -->
         <symbol id="icon-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
         </symbol>
-        <!-- Chevron left (popup nav) -->
-        <symbol id="icon-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-        </symbol>
-        <!-- Chevron right (popup nav) -->
-        <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Single chevron pointing right — rotated via CSS for all directions.
+             CP closed: 0deg (>)  CP open: 90deg (v)  Nav prev: 180deg (<)
+             Dropdown/combo: 90deg (v)  Toolbar collapse: 90deg (v)/−90deg (^) -->
+        <symbol id="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6" />
         </symbol>
-        <!-- Filled triangle — collapsible panel arrow and dropdown chevron -->
-        <symbol id="icon-panel-arrow" viewBox="0 0 8 8" fill="currentColor">
-            <polygon points="0,0 8,0 4,8" />
-        </symbol>
-        <!-- Copy to clipboard -->
+        <!-- Copy to clipboard — OSM tags copy button -->
         <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" />
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </symbol>
-        <!-- Check mark -->
+        <!-- Check mark — copy/JOSM success flash state -->
         <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12" />
         </symbol>
-        <!-- Circular refresh arrows (clockwise) -->
+        <!-- Circular arrows — OSM check retry button -->
         <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M23 4v6h-6" />
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </symbol>
+        <!-- Empty pin / no pinned signals — bookmark outline with diagonal strike -->
+        <symbol id="icon-bookmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </symbol>
+        <!-- Empty filter / no active filters — funnel outline with diagonal strike -->
+        <symbol id="icon-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </symbol>
+        <!-- External link — opens URL in a new tab (JOSM website button) -->
+        <symbol id="icon-external-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
         </symbol>
     </svg>
 

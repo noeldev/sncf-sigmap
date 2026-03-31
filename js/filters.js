@@ -27,7 +27,7 @@ import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { updateFilterCount, isSampled } from './statusbar.js';
 import { saveFilters, loadFilters } from './prefs.js';
-import { flyToLocation } from './map.js';
+import { flyToLocationWithMarker } from './map.js';
 import { getSignalLatlng } from './map-layer.js';
 
 const _ALL_FILTER_FIELDS = [
@@ -199,9 +199,21 @@ export function initAddFilterButton(btn) {
     btn.addEventListener('click', e => {
         e.stopPropagation();
         const existing = document.querySelector('.add-filter-menu');
-        if (existing) { existing.remove(); return; }
+        if (existing) { existing.remove(); btn.focus(); return; }
         const menu = _buildAddFilterMenu(btn);
-        if (menu) (document.fullscreenElement ?? document.body).appendChild(menu);
+        if (menu) {
+            (document.fullscreenElement ?? document.body).appendChild(menu);
+            // Focus first item so the menu is immediately keyboard-navigable.
+            menu.querySelector('.afm-option')?.focus();
+        }
+    });
+    // Open menu and focus first item with ArrowDown or Enter/Space.
+    btn.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            if (document.querySelector('.add-filter-menu')) return;
+            e.preventDefault();
+            btn.click();
+        }
     });
 }
 
@@ -223,18 +235,56 @@ function _buildAddFilterMenu(btn) {
         zIndex: '9999',
     });
 
+    const _activateOption = (f, menu) => {
+        _defs.push({ field: f.key, search: '' });
+        _buildPanels();
+        menu.remove();
+        btn.focus();
+    };
+
     for (const f of available) {
         const opt = _tpl.addFilterOption.content.cloneNode(true).querySelector('.afm-option');
         opt.textContent = t(f.labelKey);
+        opt.tabIndex = 0;
+        opt.setAttribute('role', 'menuitem');
+        // Mouse activation.
         opt.addEventListener('mousedown', e => {
             e.preventDefault();
-            // Do NOT stopPropagation: let the document 'click' handler dismiss the menu.
-            _defs.push({ field: f.key, search: '' });
-            _buildPanels();
-            menu.remove();
+            _activateOption(f, menu);
+        });
+        // Keyboard activation.
+        opt.addEventListener('keydown', e => {
+            switch (e.key) {
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    _activateOption(f, menu);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    (opt.nextElementSibling ?? menu.firstElementChild)?.focus();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (!opt.previousElementSibling) {
+                        // Wrap back to the trigger button.
+                        menu.remove();
+                        btn.focus();
+                    } else {
+                        opt.previousElementSibling?.focus();
+                    }
+                    break;
+                case 'Escape':
+                case 'Tab':
+                    e.preventDefault();
+                    menu.remove();
+                    btn.focus();
+                    break;
+            }
         });
         menu.appendChild(opt);
     }
+    menu.setAttribute('role', 'menu');
     return menu;
 }
 
@@ -352,6 +402,17 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 
         onActivate: activate,
 
+        onClear: () => {
+            if (_activeFilters[def.field]?.size > 0) {
+                delete _activeFilters[def.field];
+                _persistFilters();
+                _refreshTags(idx);
+                _refreshDropdown(idx);
+                _updateStatusBar();
+                _onChange?.();
+            }
+        },
+
         onPillRemove: val => {
             _toggle(def.field, val);
             // The focused pill button was detached by replaceChildren() inside
@@ -361,7 +422,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 
         // Clicking a networkId pill label flies the map to that signal's tile.
         onPillLabelClick: fieldMeta?.globalSearch
-            ? val => _flyToNetworkId(val)
+            ? val => flyToSignal(val)
             : undefined,
 
         onRemove: () => {
@@ -377,6 +438,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
                 def.panel.destroy();
                 delete _activeFilters[def.field];
                 _defs.splice(idx, 1);
+                _persistFilters();
                 _buildPanels();
             }
             _onChange?.();
@@ -412,6 +474,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 }
 
 
+
 function _buildPanels() {
     const container = document.getElementById('filters-container');
     if (!container) return;
@@ -420,12 +483,10 @@ function _buildPanels() {
     _defs.forEach(d => d.panel?.destroy());
     container.replaceChildren();
 
-    if (!_defs.length) {
-        const hint = _tpl.noMatch.content.cloneNode(true).querySelector('.fg-empty');
-        hint.dataset.i18n = 'filter.none';
-        hint.textContent = t('filter.none');
-        container.appendChild(hint);
-    }
+    // Show the static empty-state div when no filters are active.
+    // The div lives directly in #filters-container in index.html (always in the DOM).
+    document.getElementById('filters-empty-state')
+        ?.classList.toggle('is-hidden', _defs.length > 0);
 
     _defs.forEach((def, idx) => {
         const fieldMeta = _fieldDef(def.field);
@@ -434,7 +495,6 @@ function _buildPanels() {
         const activate = (val) => _toggle(def.field, val);
 
         def.panel = new FilterPanel(_panelOptions(def, idx, fieldMeta, label, activate));
-
         def.panel.appendTo(container);
         _refreshTags(idx);
         _refreshDropdown(idx);
@@ -598,22 +658,26 @@ function _persistFilters() {
 
 
 /**
- * Fast path: signal already in the viewport — fly to its exact coordinates.
- * Slow path: fetch the tile from the browser cache to get exact coordinates,
- * then fly. moveend triggers refresh() which reloads only the target tile.
+ * Fly to a signal by Network ID and show a location marker.
+ * Fast path: signal is in the current viewport — fly immediately.
+ * Slow path: fetch the tile from cache, then fly with marker after moveend.
+ * Exported so pins.js can reuse it without duplicating the lookup logic.
+ *
+ * @param {string} networkId
  */
-async function _flyToNetworkId(networkId) {
-    const rendered = getSignalLatlng(networkId);
-    if (rendered) {
-        flyToLocation(rendered);
+export async function flyToSignal(networkId) {
+    // Fast path: signal is currently rendered in the viewport.
+    const latlng = getSignalLatlng(networkId);
+    if (latlng) {
+        flyToLocationWithMarker(latlng);
         return;
     }
-
+    // Slow path: fetch tile from cache to get exact coordinates.
     const tileKey = _networkIdToTile.get(networkId);
     if (!tileKey) return;
     const signals = await fetchTileByKey(tileKey);
-    const loc = findSignalLocation(signals, networkId);
-    if (loc) flyToLocation(loc);
+    const location = findSignalLocation(signals, networkId);
+    if (location) flyToLocationWithMarker(location);
 }
 
 

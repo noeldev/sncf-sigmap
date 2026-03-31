@@ -5,25 +5,34 @@
  * JSON files may be nested objects — they are flattened at load time so that
  * t('values.direction.forward') resolves correctly regardless of structure.
  *
- * Parametric strings use {0}, {1}, … placeholders. Number arguments are
- * formatted with toLocaleString() automatically.
+ * After flattening, every string value containing markup patterns is
+ * precompiled into an HTML string once via _precompileAllMarkup(), so that
+ * no markup detection or conversion happens at translation time.
+ *
+ * Markup syntax (resolved once at load time, standard Markdown conventions):
+ *   **text**             → <strong>text</strong>
+ *   [label](https://…)   → external <a target="_blank" rel="noopener noreferrer">
+ *   [label](#tab-id)     → internal tab link with data-switch-tab="tab-id"
  *
  * HTML patterns:
- *   data-i18n="key"        → el.textContent  (or placeholder for inputs)
- *   data-i18n-html="key"   → el.innerHTML    (only for trusted markup)
+ *   data-i18n="key"        → el.textContent (or placeholder for inputs) — plain text only
+ *   data-i18n-html="key"   → el.innerHTML — may contain precompiled markup
  *   data-i18n-title="key"  → el.title
  *   data-i18n-aria="key"   → el.aria-label
  *
+ * Internal tab links are styled via the CSS selector a[data-switch-tab] and
+ * activated by a delegated click listener registered with initTabLinks().
+ *
  * Public API:
- *   loadStrings(locale)    — fetch and install strings for a locale (with en-us fallback)
+ *   loadStrings(locale)    — fetch and install strings for a locale (en-US fallback)
  *   t(key, ...args)        — translate a key, substituting {n} placeholders
- *   getLang()              — current locale tag, e.g. 'en-us'
+ *   getLang()              — current locale tag, e.g. 'en-US'
  *   setLang(locale)        — switch locale and reapply all translations
  *   translateElement(root) — apply translations to a DOM subtree
  *   translateAll()         — apply translations to the full live document
  *   onLangChange(fn)       — register a listener called after lang change
  *   buildLangOptions(el)   — populate a dropdown <ul> from _LANG_INFO
- *   cloneTemplate(id, sel) — clone a <template>, translate it, return the root element
+ *   initTabLinks(fn)       — register delegated click handler for [label](#tab) links
  */
 
 
@@ -41,8 +50,6 @@ const _LANG_INFO = {
     },
 };
 
-
-
 let _strings = {};
 
 
@@ -55,12 +62,7 @@ let _strings = {};
 
 /**
  * Populate a <ul> element with one .lang-option per supported locale.
- * Each item mirrors the structure expected by sidebar.js _updateLangBtn():
- *   <li class='lang-option' data-val='{code}'>
- *     <img src='assets/svg/{flag}' class='flag-img'>
- *     <span>{label}</span>
- *   </li>
- * @param {HTMLElement} listEl  The <ul> dropdown element
+ * @param {HTMLElement} listEl  The <ul> dropdown element.
  */
 export function buildLangOptions(listEl) {
     if (!listEl) return;
@@ -85,29 +87,25 @@ let _lang = _resolveInitialLang();
 
 /**
  * Fetch and install strings for the given locale.
- * Falls back to the default locale (en-US) when the requested locale
- * cannot be loaded. If the fallback also fails, strings remain empty
- * and t() returns keys verbatim.
+ * Falls back to en-US when the requested locale cannot be loaded.
  *
- * JSON files may be flat or nested — both are supported via _flatten().
+ * Pipeline: fetch JSON → _flatten() → _precompileAllMarkup() → _strings.
+ * After this call, every value is either plain text or a pre-built HTML string.
  *
- * @param {string} locale  e.g. 'en-US'
+ * @param {string} locale  BCP 47 locale code, e.g. 'en-US'.
+ * @returns {Promise<void>}
  */
 export async function loadStrings(locale) {
     const _load = async loc => {
         const res = await fetch(`./strings/strings.${loc.toLowerCase()}.json`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return _flatten(await res.json());
+        return _precompileAllMarkup(_flatten(await res.json()));
     };
 
     try {
         _strings = await _load(locale);
         _lang = locale;
-        try {
-            localStorage.setItem('lang', locale);
-        } catch {
-            /* storage blocked */
-        }
+        try { localStorage.setItem('lang', locale); } catch { /* storage blocked */ }
     } catch (err) {
         console.warn(`[i18n] Failed to load strings.${locale}.json: ${err.message}`);
         if (locale !== _LANG_INFO.default) {
@@ -115,12 +113,8 @@ export async function loadStrings(locale) {
             try {
                 _strings = await _load(_LANG_INFO.default);
                 _lang = _LANG_INFO.default;
-                try {
-                    localStorage.setItem('lang', _LANG_INFO.default);
-                } catch {
-                    /* noop */
-                }
-            } catch (fallbackErr) {
+                try { localStorage.setItem('lang', _LANG_INFO.default); } catch { /* noop */ }
+            } catch {
                 console.error('[i18n] Fallback also failed — UI strings will show as keys.');
             }
         }
@@ -129,10 +123,6 @@ export async function loadStrings(locale) {
 
 /**
  * Recursively flatten a nested object into dot-path keys.
- * { "values": { "direction": { "forward": "Increasing" } } }
- *   → { "values.direction.forward": "Increasing" }
- * Flat input objects pass through unchanged.
- *
  * @param {object} obj
  * @param {string} prefix
  * @returns {object}
@@ -148,6 +138,56 @@ function _flatten(obj, prefix = '') {
         }
     }
     return result;
+}
+
+/**
+ * Precompile all markup patterns in a flattened strings object into HTML strings.
+ * Strings without markup are passed through unchanged.
+ * Called once per locale load.
+ *
+ * @param {object} strings  Flat key→value strings object from _flatten().
+ * @returns {object}        Same shape; markup strings replaced by HTML strings.
+ */
+function _precompileAllMarkup(strings) {
+    const result = {};
+    for (const [key, val] of Object.entries(strings)) {
+        result[key] = typeof val === 'string' && (val.includes('**') || val.includes(']('))
+            ? _markupToHtml(val)
+            : val;
+    }
+    return result;
+}
+
+/**
+ * Convert a string containing **...** and [label](url) patterns to an HTML string.
+ *
+ * Both patterns are resolved via regex so that any surrounding HTML markup
+ * (e.g. <br>) passes through unchanged. Input comes exclusively from trusted
+ * string files in this repository — never from user input.
+ *
+ * Patterns:
+ *   **text**           → <strong>text</strong>
+ *   [label](https://…) → <a href target="_blank" rel="noopener noreferrer">label</a>
+ *   [label](#tab-id)   → <a data-switch-tab="tab-id">label</a>
+ *
+ * @param {string} str
+ * @returns {string}  HTML string with markup patterns replaced.
+ */
+function _markupToHtml(str) {
+    if (!str) return '';
+
+    return str
+        // **bold** -> <strong>bold</strong>
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+
+        // [label](url) -> <a...>label</a>
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
+            if (url.startsWith('#')) {
+                // Internal tab link — activation handled by initTabLinks().
+                return `<a href="#" data-switch-tab="${url.slice(1)}">${label}</a>`;
+            }
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
 }
 
 
@@ -178,7 +218,7 @@ export async function setLang(locale) {
  * Returns the key itself when no translation is found.
  *
  * @param {string} key
- * @param {...*}   args  Substitution values
+ * @param {...*}   args  Substitution values.
  * @returns {string}
  */
 export function t(key, ...args) {
@@ -191,24 +231,60 @@ export function t(key, ...args) {
 }
 
 
+/* ===== Markup helpers ===== */
+
+/**
+ * Register a delegated click handler for [label](#tab-id) links.
+ *
+ * Attaches a single listener on document that intercepts clicks on any element
+ * carrying a data-switch-tab attribute and forwards the tab ID to the callback.
+ * Delegation is required because the links are created dynamically by
+ * translateAll() and do not exist in the DOM when initSidebar() runs.
+ *
+ * Must be called once from sidebar.js during initSidebar().
+ *
+ * @param {function(string): void} onSwitch
+ *   Called with the tab panel ID (e.g. 'tab-settings') to activate.
+ */
+export function initTabLinks(onSwitch) {
+    document.addEventListener('click', e => {
+        const link = e.target.closest('[data-switch-tab]');
+        if (!link) {
+            return;
+        }
+        e.preventDefault();
+        onSwitch(link.dataset.switchTab);
+    });
+}
+
+
 /* ===== DOM translation ===== */
 
 /**
  * Apply translations to every data-i18n* element within a given root.
  * Works on any DOM subtree — including freshly cloned template content.
-  * @param {Element} root
-*/
+ *
+ * data-i18n      — plain text; sets el.textContent (or el.placeholder for inputs).
+ * data-i18n-html — may contain precompiled markup; sets el.innerHTML directly.
+ *
+ * @param {Element} root
+ */
 export function translateElement(root) {
     root.querySelectorAll('[data-i18n]').forEach(el => {
         const val = t(el.dataset.i18n);
-        if (el.tagName === 'INPUT') el.placeholder = val;
-        else {
+        if (el.tagName === 'INPUT') {
+            el.placeholder = val;
+        } else {
             el.textContent = val;
-            if (el.tagName === 'TITLE') document.title = val;
+            if (el.tagName === 'TITLE') {
+                document.title = val;
+            }
         }
     });
+    // data-i18n-html: innerHTML is safe — markup was precompiled from trusted
+    // string files at load time, never from user input.
     root.querySelectorAll('[data-i18n-html]').forEach(el => {
-        el.innerHTML = t(el.dataset.i18nHtml);  // trusted markup only
+        el.innerHTML = t(el.dataset.i18nHtml);
     });
     root.querySelectorAll('[data-i18n-title]').forEach(el => {
         el.title = t(el.dataset.i18nTitle);
@@ -221,7 +297,6 @@ export function translateElement(root) {
 /**
  * Translate the full live document and broadcast the language change
  * to all onLangChange listeners.
- * Listeners are responsible for re-rendering their own dynamic content.
  * Called once by setLang() and once by app.js after initial string load.
  */
 export function translateAll() {
@@ -232,7 +307,6 @@ export function translateAll() {
 
 /**
  * Register a callback invoked after every language change.
- * Called immediately after strings are reloaded and the document is retranslated.
  * @param {Function} fn
  */
 const _langListeners = [];
@@ -251,7 +325,6 @@ function _resolveInitialLang() {
     } catch {
         /* storage blocked */
     }
-    // Auto-detect from browser language; fall back to default.
     const browser = navigator.language.toLowerCase();
     return _supported.find(code => browser.startsWith(code.split('-')[0]))
         ?? _LANG_INFO.default;

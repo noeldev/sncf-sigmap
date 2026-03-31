@@ -239,6 +239,24 @@ function _applyOsmStatus(idRow, { status, nodeId }, feat) {
  * displayProps object merges p with the two resolved values so the DATA_FIELDS
  * loop can treat all fields uniformly without mutating the original p.
  */
+/**
+ * Update a nav counter label and control arrow button visibility.
+ * Shared by signal navigation (Signals tab) and node navigation (Tags tab) —
+ * both display an identical "A / B" counter with prev/next arrow buttons.
+ *
+ * @param {Element} labelEl    — The <span> showing the counter.
+ * @param {string}  prevAction — data-action value of the previous button.
+ * @param {string}  nextAction — data-action value of the next button.
+ * @param {number}  current    — Zero-based current index.
+ * @param {number}  total      — Total item count (0 renders '–').
+ */
+function _updateNavCounter(labelEl, prevAction, nextAction, current, total) {
+    labelEl.textContent = total > 0 ? t('popup.navLabel', current + 1, total) : '–';
+    _popupEl.querySelectorAll(
+        `[data-action="${prevAction}"], [data-action="${nextAction}"]`
+    ).forEach(btn => btn.classList.toggle('is-hidden', total <= 1));
+}
+
 function _updateSignalsPanel() {
     if (!_popupEl) return;
     const s = _feats[_currentIdx];
@@ -279,10 +297,11 @@ function _updateSignalColor(p) {
 
 /** Update the signal nav header: counter label, arrow button visibility, type badge. */
 function _updateNavHeader(p, total) {
-    _popupEl.querySelector('.pu-nav-label').textContent =
-        t('popup.navLabel', _currentIdx + 1, total);
-    _popupEl.querySelectorAll('[data-action="nav-prev"], [data-action="nav-next"]')
-        .forEach(btn => btn.classList.toggle('is-hidden', total <= 1));
+    _updateNavCounter(
+        _popupEl.querySelector('.pu-nav-label'),
+        'nav-prev', 'nav-next',
+        _currentIdx, total
+    );
     _popupEl.querySelector('.pu-row[data-field="signalType"] .pu-badge').textContent =
         p.signalType ?? '';
 }
@@ -338,7 +357,7 @@ function _updateNodeBadge(s) {
     if (nodeIdx === undefined) {
         nodeCounter.textContent = t('popup.nodeNA');
     } else {
-        nodeCounter.textContent = t('popup.nodeLabel', nodeIdx + 1, _nodes.length);
+        nodeCounter.textContent = t('popup.navLabel', nodeIdx + 1, _nodes.length);
         // Sync Tags tab to the node of the currently displayed signal.
         _tagsNodeIdx = nodeIdx;
     }
@@ -353,11 +372,11 @@ function _updateTagsPanel() {
     const total = _nodes.length;
     const node = total > 0 ? _nodes[_tagsNodeIdx] : null;
 
-    // Node navigation
-    const nodeLabel = _popupEl.querySelector('.pu-tags-node-label');
-    nodeLabel.textContent = total > 0 ? t('popup.nodeLabel', _tagsNodeIdx + 1, total) : '–';
-    _popupEl.querySelectorAll('.pu-tags-arrow').forEach(btn =>
-        btn.classList.toggle('is-hidden', total <= 1)
+    // Node navigation — uses same _updateNavCounter as signal nav
+    _updateNavCounter(
+        _popupEl.querySelector('.pu-tags-node-label'),
+        'tags-prev', 'tags-next',
+        _tagsNodeIdx, total
     );
 
     // Tags list

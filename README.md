@@ -19,13 +19,15 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - Export tags to clipboard or via JOSM Remote Control
 - View signal location on OpenStreetMap
 - Filters by signal type, line code, track name, direction, placement, network ID
-- Network ID filter searches all 123,870 signals; clicking a pill flies the map to that signal
+- Network ID filter searches all 123,870 signals; clicking a pill flies the map to that signal with a location marker
 - Active filters persist across sessions and are restored on next visit
 - `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
+- **Pinned signals**: Ctrl+click any signal to bookmark it; pinned signals appear in the Filters tab and can be used to fly back to any signal
 - Three basemaps: Jawg Transport, OpenStreetMap, Satellite — switchable from a floating panel on the map toolbar
 - Collapsible map toolbar
-- Persistent user preferences: default popup tab, JOSM confirmation, last map position, active filters, last basemap
-- Bilingual interface (EN / FR)
+- Persistent user preferences: default popup tab, JOSM confirmation, last map position, active filters, last basemap, pinned signals, collapsible panel states
+- Bilingual interface (EN / FR) with runtime language switching
+- Keyboard accessible (focus trap in popup, keyboard navigation in all dropdowns)
 
 ## Architecture
 
@@ -118,7 +120,7 @@ Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.g
 
 ## Signal popup
 
-Click a signal marker to open a two-tab popup. Hold **Shift** or **Ctrl** while clicking to flip the default tab: if *Signals* is the default, the popup opens on *OSM Tags*, and vice versa.
+Click a signal marker to open a two-tab popup. Hold **Shift** while clicking to flip the default tab (see the Settings tab to configure which tab opens by default). Hold **Ctrl** to pin or unpin the signal instead of opening the popup.
 
 ### Signals tab
 
@@ -149,6 +151,20 @@ Click **Copy tags** to copy the current node's OSM tags to the clipboard.
 
 Click **Open in JOSM** to create a node at the signal's exact coordinates with all OSM tags pre-filled via JOSM Remote Control. The browser must allow HTTP requests to `127.0.0.1` from HTTPS pages. A confirmation dialog appears if the signal is already in OSM.
 
+## Pinned signals
+
+Hold **Ctrl** and click any signal marker to pin it. Pinned signals appear as pill tags in the **Pinned Signals** panel in the Filters tab. Clicking a pill flies the map to that signal's location (fetching it from cache if necessary) and shows a temporary location marker. Pins persist across sessions.
+
+## Sidebar
+
+The sidebar has three tabs:
+
+- **Filters** — add/remove attribute filters; pinned signals and legend panels below
+- **Settings** — basemap selector, language picker (EN/FR), behavior toggles, JOSM Remote Control status
+- **About** — usage guide, links, credits
+
+Collapsible panels (`cp-panel`) remember their open/closed state across sessions via localStorage.
+
 ## JOSM integration
 
 JOSM is optional and only required for the **Open in JOSM** button.
@@ -160,6 +176,17 @@ JOSM → Edit → Preferences → Remote Control → **Enable remote control**
 ### Presets
 
 Install the [French Railway Signalling JOSM Presets](https://noeldev.github.io/FrenchRailwaySignalling) to easily edit the imported signals.
+
+## Internationalisation
+
+UI strings are loaded from `strings/strings.{locale}.json` at boot time. The active language is detected from the browser locale, saved in localStorage, and can be switched at runtime from the Settings tab without a page reload.
+
+String files support:
+- `**bold**` → `<strong>bold</strong>`
+- `[label](url)` → external link
+- `[label](#tab-id)` → internal tab link
+
+Strings containing markup are precompiled to HTML at load time; `data-i18n` elements receive plain text, `data-i18n-html` elements receive the compiled HTML.
 
 ## Signal type mapping
 
@@ -236,11 +263,11 @@ sncf-sigmap/
 │   ├── png/                      ← SNCF logos, favicon, basemap thumbnails
 │   └── svg/                      ← favicon, JOSM, OSM, flag icons
 ├── css/
-│   ├── base.css                  ← reset, custom properties, shared button bases
-│   ├── filters.css               ← filter panel, dropdowns, pill tags
-│   ├── map.css                   ← map container, markers, tooltips, statusbar
-│   ├── popup.css                 ← signal popup and OSM tags preview popup
-│   └── sidebar.css               ← sidebar layout, tabs, settings, legend
+│   ├── base.css                  ← reset, custom properties, shared button bases, toggle switch
+│   ├── filters.css               ← filter panels, dropdowns, pill tags, empty states
+│   ├── map.css                   ← map container, markers, tooltips, statusbar, toolbar
+│   ├── popup.css                 ← signal popup (two-tab: Signals + OSM Tags)
+│   └── sidebar.css               ← sidebar layout, tabs, collapsible panels, settings, about
 ├── data/tiles/                   ← generated by TileBuilder, committed to GitHub
 │   ├── index.json
 │   ├── manifest.json
@@ -249,19 +276,21 @@ sncf-sigmap/
 │   ├── app.js                    ← boot sequencer, map event wiring
 │   ├── block-system.js           ← line label and block signaling type lookup from index.json
 │   ├── cat-mapping.js            ← application signal categories, colors, and legend
+│   ├── collapsible-panel.js      ← cp-panel open/close state, localStorage persistence, ARIA
 │   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
 │   ├── config.local.js           ← JAWG_API_KEY — git-ignored, never committed
 │   ├── config.local.example.js   ← template, safe to commit
 │   ├── filter-panel.js           ← per-filter DOM panel (label, pills, combo, list)
 │   ├── filters.js                ← filter state, value index, dropdown orchestration
 │   ├── josm.js                   ← JOSM Remote Control connection management
-│   ├── map.js                    ← Leaflet initialisation, basemap tile layers, position persistence, map events
+│   ├── map.js                    ← Leaflet initialisation, basemap tile layers, position persistence, location marker
 │   ├── map-controls.js           ← zoom, geolocate, fullscreen, sidebar toggle, basemap picker, collapsible toolbar
 │   ├── map-layer.js              ← signal marker pipeline (worker → render)
 │   ├── overpass.js               ← Overpass API existence check (batch)
+│   ├── pins.js                   ← pinned signals management, panel, navigation
 │   ├── prefs.js                  ← persistent user preferences (localStorage)
-│   ├── progress.js               ← progress overlay
-│   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel
+│   ├── progress.js               ← progress overlay and flash messages
+│   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel, tab links
 │   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
 │   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
 │   ├── sncf-convert.js           ← SNCF raw data normalization (single boundary: SNCF → app field names and OSM values)
@@ -269,7 +298,7 @@ sncf-sigmap/
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
 │   ├── tiles.worker.js           ← tile fetch, normalization, spatial/attribute filtering (Web Worker)
 │   ├── tooltip.js                ← hover tooltip builder
-│   ├── translation.js            ← i18n loader — fetches strings.{locale}.json, t() with {n} substitution
+│   ├── translation.js            ← i18n: strings.{locale}.json loader, t(), markup precompilation (**bold**, [link](url))
 │   ├── worker-contract.js        ← worker message types and postMessage helpers
 │   └── ui/
 │       ├── combobox.js           ← search input behavior for filter dropdowns

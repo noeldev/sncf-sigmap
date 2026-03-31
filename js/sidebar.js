@@ -13,7 +13,7 @@
  *   initSidebar()  — wire all sidebar UI; called once from app.js/_boot().
  */
 
-import { getLang, setLang, buildLangOptions, onLangChange } from './translation.js';
+import { getLang, setLang, buildLangOptions, onLangChange, initTabLinks } from './translation.js';
 import {
     getAutoTagsTab, setAutoTagsTab,
     getSkipJosmConfirm, setSkipJosmConfirm,
@@ -32,6 +32,7 @@ export function initSidebar() {
     _initLangPicker();
     _initTabs();
     _initBehaviorToggles();
+    _initTabLinks();
     // Rebuild basemap labels on language change — basemap buttons are
     // generated at runtime and don't carry data-i18n attributes.
     onLangChange(refreshBasemapLabels);
@@ -50,6 +51,9 @@ function _initBehaviorToggles() {
  * Bind a checkbox to a preference getter/setter.
  * Sets the initial checked state from the stored preference and
  * updates the preference on every change.
+ * @param {string}             id      — Element ID of the checkbox.
+ * @param {function(): boolean} getter — Returns the current stored value.
+ * @param {function(boolean): void} setter — Persists the new value.
  */
 function _initToggle(id, getter, setter) {
     const el = document.getElementById(id);
@@ -68,25 +72,34 @@ function _initLangPicker() {
 
     // Populate options from _LANG_INFO — replaces any static HTML placeholders.
     buildLangOptions(dropdown);
+    // tabindex:-1 keeps items out of the natural tab order while still allowing
+    // programmatic focus from Dropdown keyboard navigation.
+    dropdown.querySelectorAll('.lang-option').forEach(opt => opt.setAttribute('tabindex', '-1'));
     dropdown.classList.add('is-hidden');
 
     // Re-render the language button whenever the language changes.
     onLangChange(() => _updateLangButton(dropdown));
 
-    const _activate = async (val) => {
-        await setLang(val);   // calls translateAll → fires onLangChange listeners
-        langDd.close();
-    };
-
+    // Passing input:btn gives Dropdown a focusInput() target so that:
+    // - Escape in the list returns focus to the button.
+    // - Shift+Tab on the first item returns focus to the button.
+    // - Tab on the last item closes the dropdown.
     const langDd = new Dropdown({
-        panel: document.getElementById('lang-select-wrap'),
         dropdownEl: dropdown,
         triggerEl: btn,
+        input: btn,
         listEl: dropdown,
         itemSel: '.lang-option',
         onActivate: _activate,
+        activationFocusMode: 'input',  // return focus to btn after selecting
     });
 
+    async function _activate(val) {
+        await setLang(val);   // calls translateAll → fires onLangChange listeners
+        langDd.close();
+    }
+
+    // Mouse click on a list option.
     dropdown.addEventListener('mousedown', e => {
         const opt = e.target.closest('.lang-option');
         if (!opt) return;
@@ -94,11 +107,27 @@ function _initLangPicker() {
         _activate(opt.dataset.val);
     });
 
+    // Button: toggle open/close on click; open and focus active/first item on keyboard.
     btn.addEventListener('click', e => {
         e.stopPropagation();
         const wasOpen = langDd.isOpen();
         closeAllDropdowns();
         if (!wasOpen) langDd.open();
+    });
+
+    btn.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!langDd.isOpen()) {
+                closeAllDropdowns();
+                langDd.open();
+            }
+            // Focus the currently-active locale option, or fall back to first.
+            queueMicrotask(() => {
+                const active = dropdown.querySelector('.lang-option.active');
+                (active ?? dropdown.querySelector('.lang-option'))?.focus();
+            });
+        }
     });
 
     _updateLangButton(dropdown);
@@ -107,6 +136,7 @@ function _initLangPicker() {
 /**
  * Sync the language button flag + label with the current language,
  * and mark the active option in the dropdown.
+ * @param {HTMLElement} dropdown — The language <ul> dropdown element.
  */
 function _updateLangButton(dropdown) {
     const lang = getLang();
@@ -125,7 +155,9 @@ function _updateLangButton(dropdown) {
         if (imgSrc) img.src = imgSrc;
         img.alt = option.querySelector('span')?.textContent || '';
     }
-    if (lblEl && option) lblEl.textContent = option.querySelector('span')?.textContent || lang;
+    if (lblEl && option) {
+        lblEl.textContent = option.querySelector('span')?.textContent || lang;
+    }
 
     dropdown.querySelectorAll('.lang-option').forEach(o =>
         o.classList.toggle('active', o.dataset.val === lang)
@@ -135,28 +167,51 @@ function _updateLangButton(dropdown) {
 
 // ===== Tabs =====
 
+/**
+ * Activate a tab panel by its element ID (e.g. 'tab-settings').
+ * Updates ARIA attributes, active classes, and triggers side-effects
+ * (dropdown close, JOSM status refresh on Settings).
+ *
+ * Used by both the tab click handler and the [[#tab-id]] link listener.
+ *
+ * @param {string} tabId — ID of the tab panel element, e.g. 'tab-settings'.
+ */
+function _switchToTab(tabId) {
+    closeAllDropdowns();
+
+    document.querySelectorAll('.stab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+    const tab = document.querySelector(`.stab[aria-controls="${tabId}"]`);
+    if (!tab) return;
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected', 'true');
+    document.getElementById(tabId)?.classList.add('active');
+
+    if (tabId === 'tab-settings') _refreshJosmStatus();
+}
+
 function _initTabs() {
-    const tabs = document.querySelectorAll('.stab');
-    const panels = document.querySelectorAll('.tab-panel');
-
-    tabs.forEach(tab =>
-        tab.addEventListener('click', () => {
-            // Close any open dropdown before switching panels.
-            closeAllDropdowns();
-
-            tabs.forEach(t => {
-                t.classList.remove('active');
-                t.setAttribute('aria-selected', 'false');
-            });
-            panels.forEach(p => p.classList.remove('active'));
-
-            tab.classList.add('active');
-            tab.setAttribute('aria-selected', 'true');
-            document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
-
-            if (tab.dataset.tab === 'settings') _refreshJosmStatus();
-        })
+    document.querySelectorAll('.stab').forEach(tab =>
+        tab.addEventListener('click', () =>
+            _switchToTab(tab.getAttribute('aria-controls'))
+        )
     );
+}
+
+/**
+ * Register the delegated [...](#tab-id) link listener via translation.js.
+ *
+ * initTabLinks() attaches a single click handler on document that intercepts
+ * any element carrying [data-switch-tab]. This delegation pattern is required
+ * because the links are created dynamically by translateAll() — they do not
+ * exist in the DOM when initSidebar() runs.
+ */
+function _initTabLinks() {
+    initTabLinks(tabId => _switchToTab(tabId));
 }
 
 
@@ -178,7 +233,14 @@ async function _refreshJosmStatus() {
     }
 }
 
-/** Populate the JOSM detection panel with version/protocol/port values. */
+/**
+ * Populate the JOSM detection panel fields with the detected version info.
+ * @param {object} opts
+ * @param {string} opts.version
+ * @param {number} opts.protocolMajor
+ * @param {number} opts.protocolMinor
+ * @param {number} opts.port
+ */
 function _updateJosmFields({ version, protocolMajor, protocolMinor, port }) {
     document.getElementById('josm-val-version').textContent = version;
     document.getElementById('josm-val-protocol').textContent = `${protocolMajor}.${protocolMinor}`;

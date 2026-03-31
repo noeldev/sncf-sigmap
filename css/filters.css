@@ -1,47 +1,71 @@
-/* ===== filters.css — Filter group panels and all child components =====
+/* ===== filters.css — Filter panels and all child components =====
  *
- * Covers: FilterPanel (.filter-group), combo input, dropdown list items,
- * pills (.fg-tag), "Supported only" toggle, and the "Add filter" menu.
+ * Covers: FilterPanel (.filter-panel), combo input, dropdown list items,
+ * pills (.fg-tag), "Supported only" toggle, "Add filter" menu,
+ * and empty states for the Filters and Pinned Signals sections.
  *
- * The outer toolbar (.panel-toolbar, .tbtn) and shared dropdown primitives
- * (.dd-trigger, .dd-panel) are in sidebar.css because they are also used
- * by the language picker. */
+ * Shared dropdown primitives (.dd-trigger, .dd-panel) and the toolbar
+ * (.panel-toolbar, .tbtn) are in sidebar.css. */
 
-#filters-container {
-    padding: 10px 12px 0;
+
+/* ===== .filter-panel (was .filter-group) =====
+ *
+ * Filter panels tile flush inside #filters-container.
+ * Border-top between adjacent panels is applied on the header of the
+ * second and later panels to avoid a double border at the top. */
+
+.filter-panel {
+    padding-bottom: 14px;
 }
 
-/* ===== Filter group panel ===== */
-
-.filter-group {
-    margin-bottom: 14px;
-}
-
-    .filter-group .section-title {
-        margin-bottom: 0;
+    .filter-panel + .filter-panel .fg-header {
+        border-top: 1px solid var(--border);
     }
+
+
+/* ===== Filter panel header ===== */
 
 .fg-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 5px;
+    padding: 7px 10px;
+    gap: 6px;
 }
 
+/* Actions container: clear + remove buttons on the right */
+.fg-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* Clear (trash) and Remove (×) icon buttons */
+.fg-clear,
 .fg-remove {
     background: none;
     border: none;
     color: var(--text3);
-    font-size: 14px;
+    padding: 3px 4px;
     cursor: pointer;
-    padding: 0 2px;
-    transition: color .15s;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: color .15s, background .15s;
 }
+
+    .fg-clear:hover {
+        color: var(--warn);
+        background: rgba(210, 153, 34, .08);
+    }
 
     .fg-remove:hover {
         color: var(--accent2);
+        background: rgba(37, 137, 199, .08);
     }
+
 
 /* ===== Pills (active value tags) ===== */
 
@@ -49,7 +73,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    margin-bottom: 5px;
+    padding: 0 10px 6px;
 }
 
 .fg-tag {
@@ -69,7 +93,18 @@
     cursor: default;
 }
 
-/* networkId pills are clickable — flyToLocation on label click. */
+.fg-tag:hover,
+.fg-tag:focus-within {
+    background: var(--accent);
+    border-color: var(--accent2);
+}
+
+    .fg-tag:hover .fg-tag-remove,
+    .fg-tag:focus-within .fg-tag-remove {
+        color: #fff;
+    }
+
+/* networkId pills: flyToLocation on label click */
 .fg-tag--clickable .fg-tag-label {
     cursor: pointer;
 }
@@ -78,16 +113,33 @@
     background: none;
     border: none;
     color: var(--accent2);
-    font-size: 10px;
     cursor: pointer;
-    padding: 0;
+    padding: 2px;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 2px;
+    transition: color .1s, background .1s;
 }
 
-/* ===== Combo input ===== */
+    /* Hover and keyboard focus: distinct background so the button reads as
+ * a separate interactive target from the pill itself. */
+    .fg-tag-remove:hover,
+    .fg-tag-remove:focus-visible {
+        color: #fff;
+        background: rgba(255, 255, 255, .2);
+        outline: none;
+    }
+
+
+/* ===== Combo input =====
+ *
+ * position:relative on .fg-combo makes .fg-dropdown (position:absolute)
+ * align to the combo width, matching the input's left/right edges. */
 
 .fg-combo {
-    position: relative;
+    position: relative; /* containing block for .fg-dropdown (position:absolute sibling) */
+    padding: 0 10px;
 }
 
 .fg-combo-input {
@@ -121,7 +173,7 @@
     padding-right: 8px;
 }
 
-/* readOnly combo (direction, placement) — pointer cursor on wrapper, not text on input */
+/* readOnly combo (direction, placement) */
 .fg-combo-readonly {
     cursor: pointer;
 }
@@ -130,13 +182,23 @@
         cursor: pointer;
     }
 
-/* ===== Dropdown list ===== */
+
+/* ===== Dropdown list =====
+ *
+ * Positioned absolutely within .fg-combo (position:relative),
+ * aligned flush with the combo-input left and right edges.
+ * z-index:200 floats it above sibling filter panels. */
 
 .fg-dropdown {
+    position: absolute;
+    left: 10px; /* offset .fg-combo's horizontal padding so dropdown aligns with the input */
+    right: 10px;
+    z-index: 200;
     max-height: 220px;
     overflow-y: auto;
     font-family: var(--ff-mono);
     font-size: 11px;
+    /* Background, border, border-radius, box-shadow from .dd-panel in sidebar.css */
 }
 
 .fg-dropdown-inner {
@@ -200,7 +262,7 @@
     white-space: nowrap;
 }
 
-/* Blue dot after value name for OSM-mapped types (type_if only) */
+/* Blue dot for OSM-mapped types (signalType only) */
 .fg-drop-item.mapped .fgi-name::after {
     content: ' ●';
     color: var(--accent2);
@@ -215,7 +277,7 @@
     flex-shrink: 0;
 }
 
-/* Empty / hint row */
+/* Inline hint row */
 .fg-empty {
     font-size: 11px;
     font-family: var(--ff-mono);
@@ -224,11 +286,12 @@
     padding: 6px 8px;
 }
 
-/* ===== "Supported only" toggle (type_if) ===== */
+
+/* ===== "Supported only" toggle (signalType) ===== */
 
 .supported-only-row {
-    margin-top: 6px;
-    padding: 5px 0;
+    margin-top: 2px;
+    padding: 4px 10px 0;
 }
 
 .supported-only-label {
@@ -239,14 +302,13 @@
     user-select: none;
 }
 
-/* Use .toggle-input on the checkbox — defined in base.css. */
-
-/* Toggle: base styles and :checked activation defined in base.css. */
+/* Toggle base + :checked state defined in base.css */
 
 .toggle-label {
     font-size: 11px;
     color: var(--text2);
 }
+
 
 /* ===== "Add filter" dropdown menu ===== */
 
@@ -274,12 +336,61 @@
         background: rgba(255,255,255,.05);
     }
 
-/* ===== Pinned signals section =====
- * Reuses .fg-header, .fg-remove, .fg-tags, .fg-empty from above.
- * Only the section wrapper needs its own style. */
+
+/* ===== Empty states =====
+ *
+ * Shared component used by the Filters tab ("no active filters") and the
+ * Pinned Signals panel ("no pinned signals"). Centered icon + short text.
+ *
+ * Icon styling is intentionally faint (low opacity) for a watermark effect —
+ * it should not compete with filter panels when both are visible. */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    text-align: center;
+}
+
+/* The <use> SVG inside .empty-state — sized and faded */
+.empty-state-icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 10px;
+    opacity: .15;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+.empty-state-text {
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    line-height: 1.4;
+    max-width: 180px;
+}
+
+#filters-empty-state.empty-state {
+    padding: 20px 10px 14px;
+}
+
+
+/* ===== Pinned signals section ===== */
 
 .pinned-section {
-    padding: 10px 12px 4px;
-    border-top: 1px solid var(--border);
-    margin-top: 4px;
+    padding: 14px 10px;
+}
+
+/* Overrides .fg-tags inherited side-padding when inside .pinned-section */
+.pinned-tags {
+    padding: 0;
+    margin-bottom: 4px;
+}
+
+/* Empty state inside the pinned section — slightly tighter top padding */
+.pinned-section .empty-state {
+    padding-top: 6px;
+    padding-bottom: 0;
 }

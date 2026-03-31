@@ -212,12 +212,56 @@ export function refreshBasemapLabels() {
 /**
  * Fly to a location with smooth animation.
  * Zoom is clamped between the current zoom and [14, 17].
- * Shared by map-controls.js and filters.js.
+ * Shared by map-controls.js, filters.js, and pins.js.
  * @param {[number, number]} latlng
  */
 export function flyToLocation(latlng) {
     const zoom = Math.min(Math.max(map.getZoom(), 14), 17);
     map.flyTo(latlng, zoom, { duration: 1.5, easeLinearity: 0.25 });
+}
+
+/** Active location marker — cleared on click or next call. */
+let _locMarker = null;
+
+/**
+ * Fly to a location and show a temporary highlight marker once the animation
+ * is complete. Dismissed automatically on the next map click.
+ *
+ * @param {[number, number]} latlng
+ */
+export function flyToLocationWithMarker(latlng) {
+    flyToLocation(latlng);
+    // Wait for the fly animation to complete before showing the marker,
+    // so it appears on top of freshly rendered tile markers.
+    map.once('moveend', () => showLocationMarker(latlng));
+}
+
+/**
+ * Show a marker at latlng without triggering a fly animation.
+ * Useful when the signal is already in the viewport.
+ * Dismissed on the next map click.
+ *
+ * @param {[number, number]} latlng
+ */
+
+export function showLocationMarker(latlng) {
+    _dismissLocMarker();
+
+    // interactive:false prevents the marker from capturing map clicks.
+    // zIndexOffset pushes the marker above all signal dots regardless of latitude.
+    _locMarker = L.marker(latlng, {
+        interactive: false,
+        zIndexOffset: 10000
+    }).addTo(map);
+
+    map.once('click', _dismissLocMarker);
+}
+
+function _dismissLocMarker() {
+    if (_locMarker) {
+        _locMarker.remove();
+        _locMarker = null;
+    }
 }
 
 
