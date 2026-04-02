@@ -1,45 +1,133 @@
 /**
  * sidebar.js — Sidebar UI orchestration.
  *
- * Responsibilities:
- *   - Language picker dropdown (flag, label, activation, keyboard nav).
+ * Owns all sidebar-DOM-related initialisation:
+ *   - Collapsible panels (cp-panel).
+ *   - Language picker dropdown.
  *   - Tab switching (Filters / Settings / About).
+ *   - Legend (delegated to legend.js).
+ *   - Filter panels and Reset button (delegated to filters.js).
+ *   - Pinned signals panel (delegated to pins.js).
  *   - JOSM detection panel (lazy-loaded on first Settings tab open).
  *
- * All logic here is purely sidebar-DOM-related.
  * No map state, no tile data, no worker interaction.
  *
  * Public API:
- *   initSidebar()  — wire all sidebar UI; called once from app.js/_boot().
+ *   initSidebar({ onRefresh })
+ *     onRefresh({ filterCount? }) — called after filter changes.
  */
 
-import { getLang, setLang, buildLangOptions, onLangChange, initTabLinks } from './translation.js';
+import { t } from './translation.js';
 import {
     getAutoTagsTab, setAutoTagsTab,
     getSkipJosmConfirm, setSkipJosmConfirm,
     getRememberPosition, setRememberPosition,
 } from './prefs.js';
-import { refreshBasemapLabels } from './map.js';
-import { Dropdown, closeAll as closeAllDropdowns } from './ui/dropdown.js';
+import { closeAll as closeAllDropdowns } from './ui/dropdown.js';
+import { initCollapsiblePanels } from './collapsible-panel.js';
+import { initLangPicker } from './lang-picker.js';
+import { initLegend, updateLegendIndicator } from './legend.js';
+import {
+    initFilters, resetFilters, loadFilterIndex,
+    hasAnyFilters, getActiveFilterCount 
+} from './filters.js';
+import { initFilterToolbar, updateFilterToolbar } from './filter-toolbar.js';
+import { initPins } from './pins.js';
 
+
+/* ===== Module state ===== */
+
+/** Map-level refresh callback provided by app.js at init time. */
+let _onRefresh = null;
+
+
+/* ===== Public API ===== */
 
 /**
  * Initialize all sidebar UI components.
  * Must be called after the DOM is ready and initMap() has resolved
- * (refreshBasemapLabels() needs the tile layers to exist).
+ * (refreshBasemapLabels needs the tile layers to exist).
+ *
+ * @param {object}   opts
+ * @param {Function} opts.onRefresh  Called after any filter change that needs a map refresh.
+ *                                   Receives { filterCount?: number }.
  */
-export function initSidebar() {
-    _initLangPicker();
+export function initSidebar({ onRefresh }) {
+    _onRefresh = onRefresh;
+    initCollapsiblePanels();
+    initLangPicker();
+    initLegend();
+
     _initTabs();
-    _initBehaviorToggles();
     _initTabLinks();
-    // Rebuild basemap labels on language change — basemap buttons are
-    // generated at runtime and don't carry data-i18n attributes.
-    onLangChange(refreshBasemapLabels);
+    _initBehaviorToggles();
+    _initFilters();
+    _initResetButton();
+    _initFilterIndex();
 }
 
 
-// ===== Behavior toggles =====
+/* ===== Filter index loading ===== */
+
+/**
+ * Start the filter index fetch asynchronously — non-blocking.
+ * Called from initSidebar; fires _onFilterIndexLoaded when complete.
+ */
+function _initFilterIndex() {
+    loadFilterIndex().then(_onFilterIndexLoaded).catch(console.error);
+}
+
+/**
+ * Called when the filter index has finished loading.
+ * Initialises the pinned signals panel (requires networkIdToTile to be populated).
+ */
+function _onFilterIndexLoaded() {
+    initPins({ container: document.getElementById('pinned-container') });
+}
+
+
+/* ===== Filters ===== */
+
+function _initFilters() {
+    initFilters(_onFiltersChange);
+    initFilterToolbar(document.getElementById('btn-add-filter'));
+}
+
+/**
+ * Called by filters.js after every filter state change.
+ * Updates sidebar UI then notifies app.js via _onRefresh.
+ */
+function _onFiltersChange() {
+    _updateResetButton();
+    updateLegendIndicator();
+    updateFilterToolbar();
+    _onRefresh({ filterCount: getActiveFilterCount() });
+}
+
+/** Sync the Reset button's disabled state with whether any filters are active. */
+function _updateResetButton() {
+    const btn = document.getElementById('btn-reset-filters');
+    if (btn) btn.disabled = !hasAnyFilters();
+}
+
+/**
+ * Wire the Reset button.
+ * The button is only enabled when filters are active, so confirmation
+ * is always appropriate when reachable.
+ */
+function _initResetButton() {
+    _updateResetButton();
+    document.getElementById('btn-reset-filters')
+        ?.addEventListener('click', _onResetFilters);
+}
+
+function _onResetFilters() {
+    if (!confirm(t('buttons.confirmReset'))) return;
+    resetFilters();
+}
+
+
+/* ===== Behavior toggles ===== */
 
 function _initBehaviorToggles() {
     _initToggle('chk-auto-tags-tab', getAutoTagsTab, setAutoTagsTab);
@@ -49,11 +137,9 @@ function _initBehaviorToggles() {
 
 /**
  * Bind a checkbox to a preference getter/setter.
- * Sets the initial checked state from the stored preference and
- * updates the preference on every change.
- * @param {string}             id      — Element ID of the checkbox.
- * @param {function(): boolean} getter — Returns the current stored value.
- * @param {function(boolean): void} setter — Persists the new value.
+ * @param {string}               id      Element ID of the checkbox.
+ * @param {function(): boolean}  getter  Returns the current stored value.
+ * @param {function(boolean): void} setter  Persists the new value.
  */
 function _initToggle(id, getter, setter) {
     const el = document.getElementById(id);
@@ -63,125 +149,19 @@ function _initToggle(id, getter, setter) {
 }
 
 
-// ===== Language picker =====
-
-function _initLangPicker() {
-    const dropdown = document.getElementById('lang-dropdown');
-    const btn = document.getElementById('lang-select-btn');
-    if (!dropdown || !btn) return;
-
-    // Populate options from _LANG_INFO — replaces any static HTML placeholders.
-    buildLangOptions(dropdown);
-    // tabindex:-1 keeps items out of the natural tab order while still allowing
-    // programmatic focus from Dropdown keyboard navigation.
-    dropdown.querySelectorAll('.lang-option').forEach(opt => opt.setAttribute('tabindex', '-1'));
-    dropdown.classList.add('is-hidden');
-
-    // Re-render the language button whenever the language changes.
-    onLangChange(() => _updateLangButton(dropdown));
-
-    // Passing input:btn gives Dropdown a focusInput() target so that:
-    // - Escape in the list returns focus to the button.
-    // - Shift+Tab on the first item returns focus to the button.
-    // - Tab on the last item closes the dropdown.
-    const langDd = new Dropdown({
-        dropdownEl: dropdown,
-        triggerEl: btn,
-        input: btn,
-        listEl: dropdown,
-        itemSel: '.lang-option',
-        onActivate: _activate,
-        activationFocusMode: 'input',  // return focus to btn after selecting
-    });
-
-    async function _activate(val) {
-        await setLang(val);   // calls translateAll → fires onLangChange listeners
-        langDd.close();
-    }
-
-    // Mouse click on a list option.
-    dropdown.addEventListener('mousedown', e => {
-        const opt = e.target.closest('.lang-option');
-        if (!opt) return;
-        e.preventDefault();
-        _activate(opt.dataset.val);
-    });
-
-    // Button: toggle open/close on click; open and focus active/first item on keyboard.
-    btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const wasOpen = langDd.isOpen();
-        closeAllDropdowns();
-        if (!wasOpen) langDd.open();
-    });
-
-    btn.addEventListener('keydown', e => {
-        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            if (!langDd.isOpen()) {
-                closeAllDropdowns();
-                langDd.open();
-            }
-            // Focus the currently-active locale option, or fall back to first.
-            queueMicrotask(() => {
-                const active = dropdown.querySelector('.lang-option.active');
-                (active ?? dropdown.querySelector('.lang-option'))?.focus();
-            });
-        }
-    });
-
-    _updateLangButton(dropdown);
-}
-
-/**
- * Sync the language button flag + label with the current language,
- * and mark the active option in the dropdown.
- * @param {HTMLElement} dropdown — The language <ul> dropdown element.
- */
-function _updateLangButton(dropdown) {
-    const lang = getLang();
-    const option = dropdown.querySelector(`[data-val="${lang}"]`);
-    const flagEl = document.getElementById('lang-flag');
-    const lblEl = document.getElementById('lang-label');
-
-    if (flagEl && option) {
-        const imgSrc = option.querySelector('img')?.src;
-        let img = flagEl.querySelector('img');
-        if (!img) {
-            img = document.createElement('img');
-            img.className = 'flag-img';
-            flagEl.appendChild(img);
-        }
-        if (imgSrc) img.src = imgSrc;
-        img.alt = option.querySelector('span')?.textContent || '';
-    }
-    if (lblEl && option) {
-        lblEl.textContent = option.querySelector('span')?.textContent || lang;
-    }
-
-    dropdown.querySelectorAll('.lang-option').forEach(o =>
-        o.classList.toggle('active', o.dataset.val === lang)
-    );
-}
-
-
-// ===== Tabs =====
+/* ===== Tabs ===== */
 
 /**
  * Activate a tab panel by its element ID (e.g. 'tab-settings').
- * Updates ARIA attributes, active classes, and triggers side-effects
- * (dropdown close, JOSM status refresh on Settings).
- *
- * Used by both the tab click handler and the [[#tab-id]] link listener.
- *
- * @param {string} tabId — ID of the tab panel element, e.g. 'tab-settings'.
+ * Updates ARIA attributes, active classes, and triggers side-effects.
+ * @param {string} tabId
  */
 function _switchToTab(tabId) {
     closeAllDropdowns();
 
-    document.querySelectorAll('.stab').forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
+    document.querySelectorAll('.stab').forEach(tab => {
+        tab.classList.remove('active');
+        tab.setAttribute('aria-selected', 'false');
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
 
@@ -203,19 +183,24 @@ function _initTabs() {
 }
 
 /**
- * Register the delegated [...](#tab-id) link listener via translation.js.
+ * Register a delegated click handler for [label](#tab-id) links.
  *
- * initTabLinks() attaches a single click handler on document that intercepts
- * any element carrying [data-switch-tab]. This delegation pattern is required
- * because the links are created dynamically by translateAll() — they do not
- * exist in the DOM when initSidebar() runs.
+ * Attaches a single listener on document that intercepts clicks on any element
+ * carrying a data-switch-tab attribute and forwards the tab ID to the callback.
+ * Delegation is required because the links are created dynamically by
+ * translateAll() and do not exist in the DOM when initSidebar() runs.
  */
 function _initTabLinks() {
-    initTabLinks(tabId => _switchToTab(tabId));
+    document.addEventListener('click', e => {
+        const link = e.target.closest('[data-switch-tab]');
+        if (!link) return;
+        e.preventDefault();
+        _switchToTab(link.dataset.switchTab);
+    });
 }
 
 
-// ===== JOSM detection panel =====
+/* ===== JOSM detection panel ===== */
 
 async function _refreshJosmStatus() {
     const body = document.getElementById('josm-detect-body');
@@ -234,7 +219,7 @@ async function _refreshJosmStatus() {
 }
 
 /**
- * Populate the JOSM detection panel fields with the detected version info.
+ * Populate the JOSM detection panel with detected version info.
  * @param {object} opts
  * @param {string} opts.version
  * @param {number} opts.protocolMajor

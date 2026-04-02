@@ -16,7 +16,7 @@ export const TILE_DEG = 0.5;
 export const OVERVIEW_MAX_ZOOM = 10;
 
 // Max signals shown in overview mode (zoom < OVERVIEW_MAX_ZOOM)
-export const OVERVIEW_MAX_SIGNALS = 400;
+export const OVERVIEW_MAX_SIGNALS = 300;
 
 // Geographic bounds for the mapped area — all location-specific values in one place.
 // Leaflet LatLngBounds format: [[swLat, swLng], [neLat, neLng]].

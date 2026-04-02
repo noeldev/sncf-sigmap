@@ -12,12 +12,14 @@
  * Position persistence (save/restore) is also owned here since it requires
  * direct access to the map instance.
  *
- * refreshBasemapLabels() is exported so sidebar.js can trigger a label update
- * when the UI language changes, without exposing any internal basemap state.
+ * Basemap button labels are rebuilt automatically on language change via
+ * onLangChange(_buildBasemapButtons), registered inside _initMap().
  */
 
 import { MAP_BBOX, MAP_STARTUP_ZOOM, DEFAULT_BASEMAP, OVERVIEW_MAX_ZOOM } from './config.js';
-import { t } from './translation.js';
+import { initMapControls } from './map-controls.js';
+import { initLayer } from './map-layer.js';
+import { t, onLangChange } from './translation.js';
 import {
     getRememberPosition, getLastPosition, setLastPosition,
     getLastBasemap, setLastBasemap
@@ -64,13 +66,21 @@ const BASEMAPS = {
 const _tileLayers = {};
 let _current = null;
 
-export async function initMap(containerId) {
+/* Initialise the Leaflet map, signal marker layer, and toolbar controls. */
+export async function initMap() {
+    await _initMap('map');
+    initLayer();
+    initMapControls();
+}
+
+async function _initMap(containerId) {
     const jawgKey = await _loadJawgKey();
     _current = _resolveInitialBasemap(jawgKey);
     _createMapInstance(containerId);
     _createTileLayers(jawgKey);
     _tileLayers[_current].addTo(map);
     _buildBasemapButtons();
+    onLangChange(_buildBasemapButtons);
     return map;
 }
 
@@ -202,14 +212,6 @@ function _makeBasemapBtn(key, def, tpl) {
 }
 
 /**
- * Rebuild basemap selector buttons with updated translated labels.
- * Called by sidebar.js whenever the UI language changes.
- */
-export function refreshBasemapLabels() {
-    _buildBasemapButtons();
-}
-
-/**
  * Fly to a location with smooth animation.
  * Zoom is clamped between the current zoom and [14, 17].
  * Shared by map-controls.js, filters.js, and pins.js.
@@ -237,6 +239,17 @@ export function flyToLocationWithMarker(latlng) {
 }
 
 /**
+ * Removes the location highlight marker from the map.
+ * Exported so it can be called when interacting with other map elements.
+ */
+export function dismissLocationMarker() {
+    if (_locMarker) {
+        _locMarker.remove();
+        _locMarker = null;
+    }
+}
+
+/**
  * Show a marker at latlng without triggering a fly animation.
  * Useful when the signal is already in the viewport.
  * Dismissed on the next map click.
@@ -245,7 +258,7 @@ export function flyToLocationWithMarker(latlng) {
  */
 
 export function showLocationMarker(latlng) {
-    _dismissLocMarker();
+    dismissLocationMarker();
 
     // interactive:false prevents the marker from capturing map clicks.
     // zIndexOffset pushes the marker above all signal dots regardless of latitude.
@@ -254,14 +267,7 @@ export function showLocationMarker(latlng) {
         zIndexOffset: 10000
     }).addTo(map);
 
-    map.once('click', _dismissLocMarker);
-}
-
-function _dismissLocMarker() {
-    if (_locMarker) {
-        _locMarker.remove();
-        _locMarker = null;
-    }
+    map.once('click', dismissLocationMarker);
 }
 
 

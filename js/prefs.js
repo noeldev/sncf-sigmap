@@ -17,8 +17,12 @@
  *   setLastPosition(lat, lng, zoom)
  *   getLastBasemap()         — last selected basemap key | null
  *   setLastBasemap(key)
+ *   getLangPref()            - last selected UI language code | null
+ *   setLangPref(locale)      - persist selected UI language code (BCP 47 format)
  *   saveFilters(filters)     — persist active filter state
  *   loadFilters()            — restore persisted filter state
+ *   savePins(ids)            — persist active pinned signals
+ *   loadPins()               — restore persisted pinned signals
  *   onPrefsChange(fn)        — register a listener called after any preference changes
  */
 
@@ -153,6 +157,22 @@ export function setLastBasemap(key) {
 }
 
 /**
+ * Return the persisted UI language code, or null if none is stored.
+ * @returns {string|null}
+ */
+export function getLangPref() {
+    return _s.get('lang', null);
+}
+
+/**
+ * Persist the selected UI language code.
+ * @param {string} locale  BCP 47 locale code, e.g. 'fr-FR'.
+ */
+export function setLangPref(locale) {
+    _s.set('lang', locale);
+}
+
+/**
  * Persist the current active filters as a JSON-serializable structure.
  * Each filter is stored as { field, values: string[] }.
  * @param {Array<{field: string, values: string[]}>} filters
@@ -186,9 +206,9 @@ export function loadPins() {
 }
 
 /**
- * Register a callback invoked after any boolean preference changes.
- * @param {Function} fn
- */
+* Register a callback invoked after any boolean preference changes.
+* @param {Function} fn
+*/
 export function onPrefsChange(fn) {
     _listeners.push(fn);
 }

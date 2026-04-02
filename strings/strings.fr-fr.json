@@ -15,7 +15,8 @@
   },
   "buttons": {
     "addFilter": "+ Ajouter",
-    "reset": "Réinitialiser"
+    "reset": "Réinitialiser",
+    "confirmReset": "Réinitialiser tous les filtres actifs ?"
   },
   "toggle": {
     "supported": "Types supportés uniquement",
@@ -24,7 +25,8 @@
     "rememberPosition": "Restaurer la dernière position de la carte au démarrage"
   },
   "legend": {
-    "title": "Légende"
+    "title": "Légende",
+    "clickToFilter": "Cliquer pour filtrer par cette catégorie"
   },
   "fields": {
     "signalType": "Type IF",
@@ -134,7 +136,8 @@
       "port": "Port",
       "checking": "…",
       "notDetected": "Non détecté",
-      "notAllowed": "Non autorisé"
+      "notAllowed": "Non autorisé",
+      "website": "Site web de JOSM"
     }
   },
   "cat": {
@@ -191,6 +194,7 @@
   "filter": {
     "none": "Aucun filtre actif.",
     "clear": "Effacer les valeurs",
+    "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
     "close": "Supprimer le filtre"
   }
 }

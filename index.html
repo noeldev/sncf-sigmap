@@ -55,7 +55,7 @@
                 <!-- Toolbar: sticky, always accessible -->
                 <div class="panel-toolbar">
                     <button class="tbtn" id="btn-add-filter" data-i18n="buttons.addFilter">+ Add filter</button>
-                    <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="buttons.reset">Reset</button>
+                    <button class="tbtn tbtn-ghost" id="btn-reset-filters" data-i18n="buttons.reset" disabled>Reset</button>
                 </div>
 
                 <!-- Single scroll area: filter panels + Pinned Signals + Legend -->
@@ -103,10 +103,10 @@
                 </div><!-- /filters-scroll -->
 
                 <template id="tpl-legend-row">
-                    <div class="panel-row">
+                    <button type="button" class="legend-item">
                         <span class="legend-dot"></span>
                         <span class="legend-label"></span>
-                    </div>
+                    </button>
                 </template>
             </div>
 

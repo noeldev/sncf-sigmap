@@ -50,7 +50,7 @@ export function showProgress(msg = '') {
 }
 
 /**
-* Show a brief message in the progress overlay without the spinner.
+ * Show a brief message in the progress overlay without the spinner.
  * Auto-hides after the given duration (default 1.5 s).
  * @param {string} msg
  * @param {number} [durationMs=1500]

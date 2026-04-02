@@ -20,20 +20,27 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
-import { MIN_SEARCH_THRESHOLD } from './config.js';
+import { MIN_SEARCH_THRESHOLD, TILES_BASE } from './config.js';
+import { getCategoryEntries } from './cat-mapping.js';
 import { fetchTileByKey, findSignalLocation } from './tiles.js';
-import { getSupportedTypes } from './signal-mapping.js';
+import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
-import { updateFilterCount, isSampled } from './statusbar.js';
 import { saveFilters, loadFilters } from './prefs.js';
 import { flyToLocationWithMarker } from './map.js';
-import { getSignalLatlng } from './map-layer.js';
+import { isSampled, getSignalLatlng } from './map-layer.js';
+import { initBlockSystem } from './block-system.js';
 
 const _ALL_FILTER_FIELDS = [
-    { key: 'signalType', labelKey: 'fields.signalType' },
-    { key: 'lineCode', labelKey: 'fields.lineCode', numericOnly: true },
-    { key: 'trackName', labelKey: 'fields.trackName' },
+    {
+        key: 'signalType', labelKey: 'fields.signalType'
+    },
+    {
+        key: 'lineCode', labelKey: 'fields.lineCode', numericOnly: true
+    },
+    {
+        key: 'trackName', labelKey: 'fields.trackName'
+    },
     {
         key: 'direction', labelKey: 'fields.direction',
         valueOrder: ['backward', 'forward', 'both'], readOnly: true,
@@ -63,7 +70,7 @@ let _defs = [];             // [{ field: string, search: string, panel: FilterPa
 let _mappedOnly = false;
 let _mappedTypes = getSupportedTypes();
 let _onChange = null;
-let _addFilterBtn = null;
+let _activeGroup = null;  // active group preset key, or null
 
 // Templates: resolved lazily via getters so they are always read from the live DOM.
 const _tpl = {
@@ -71,8 +78,7 @@ const _tpl = {
     get tag() { return document.getElementById('tpl-filter-tag'); },
     get item() { return document.getElementById('tpl-filter-drop-item'); },
     get noMatch() { return document.getElementById('tpl-filter-no-match'); },
-    get addFilterMenu() { return document.getElementById('tpl-add-filter-menu'); },
-    get addFilterOption() { return document.getElementById('tpl-add-filter-option'); },
+
 };
 
 /* ===== Public API ===== */
@@ -83,7 +89,6 @@ export function initFilters(onChange) {
     _initFieldState();
     _clearActiveFilters();
     _buildPanels();
-    _initMenuDismissListener();
 
     onLangChange(() => {
         _buildPanels();
@@ -94,28 +99,20 @@ export function initFilters(onChange) {
 }
 
 /**
-  * Return the networkId → tileKey map built from index.json.
- * Used by pins.js to fly to pinned signals.
- * @returns {Map<string, string>}
- */
-export function getNetworkIdToTile() {
-    return _networkIdToTile;
-}
-
-/**
-* Fetch and parse the filter index from index.json.
+ * Fetch and parse the filter index from index.json.
  * Populates _indexValues and _globalCounts for all indexed fields.
- * Also builds the networkId → tileKey map for the globalSearch filter.
- * @param {string} tilesBase  Base URL of the tiles directory.
+ * Also builds the networkId → tileKey map for the globalSearch filter,
+ * and initialises the block system from the same index data.
  * @returns {Promise<object|null>}  Raw index data, or null on failure.
  */
-export async function loadFilterIndex(tilesBase) {
+export async function loadFilterIndex() {
     try {
-        const res = await fetch(tilesBase + 'index.json');
+        const res = await fetch(TILES_BASE + 'index.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         _parseFieldIndex(data);
         _parseNetworkIdIndex(data);
+        initBlockSystem(data);
         _defs.forEach((_, i) => _refreshDropdown(i));
         return data;
     } catch (err) {
@@ -163,18 +160,89 @@ export function resetCounts() {
     // causes the worker to exclude groups that would otherwise carry those values.
 }
 
+function _resetSearch(targetField = null) {
+    _defs.forEach(d => {
+        if (!targetField || d.field === targetField) {
+            d.search = '';
+        }
+    });
+}
+
+function _resetKnownValues() {
+    _ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
+}
+
 /**
  * Remove all active filters and clear persisted filter state.
  * Called from app.js when the Reset Filters button is clicked.
  */
 export function resetFilters() {
-    _clearActiveFilters();
     _mappedOnly = false;
     saveFilters([]);
-    _defs.forEach(d => { d.search = ''; });
-    _ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
+    _clearActiveFilters();
+    _clearActiveGroup();
+    _resetSearch();
+    _resetKnownValues();
     _buildPanels();
     _onChange?.();
+}
+
+/**
+ * Reset non-signalType filters and apply a signalType filter for the given
+ * display group. Called when the user clicks a category in the legend.
+ *
+ * Logic:
+ *   1. Toggle off: if the current state is exactly this group (and nothing else),
+ *      confirm then reset all filters.
+ *   2. No-op: if applying this group would produce no change, return silently.
+ *   3. Confirm only when meaningful filter state (active values or searches)
+ *      would be overwritten.
+ *
+ * @param {string} group  Display group name matching _SIGNAL_MAPPING (e.g. 'main').
+ */
+export function filterByGroup(group) {
+    const types = getTypesByGroup(group);
+    if (!types.length) return;
+
+    const current = _activeFilters['signalType'];
+    const isAlreadyActive = current?.size === types.length && types.every(v => current.has(v));
+    const signalDef = _defs.find(d => d.field === 'signalType');
+
+    // Toggle off: current state is exactly this legend group — nothing else, no search.
+    if (isAlreadyActive && _defs.length === 1 && signalDef && !signalDef.search && _mappedOnly) {
+        if (!confirm(t('filter.confirmClear'))) return;
+        resetFilters();
+        return;
+    }
+
+    // No-op: applying this group would produce no state change.
+    if (isAlreadyActive && _defs.length === 0) return;
+
+    // Confirm only when meaningful filters (values or searches) would be overwritten.
+    if (hasAnyFilters() && !confirm(t('filter.confirmClear'))) return;
+
+    // Destroy and remove all non-signalType panels.
+    _defs = _defs.filter(d => {
+        if (d.field === 'signalType') return true;
+        d.panel?.destroy();
+        delete _activeFilters[d.field];
+        return false;
+    });
+
+    // Reuse the existing signalType panel entry or create one.
+    if (signalDef) {
+        signalDef.search = '';
+    } else {
+        _defs.push({ field: 'signalType', search: '' });
+    }
+
+    // Apply the group filter; enable mappedOnly since all returned types are supported.
+    _mappedOnly = true;
+    _activeFilters['signalType'] = new Set(types);
+    _activeGroup = group;
+
+    _buildPanels();
+    _commit();
 }
 
 /**
@@ -189,119 +257,17 @@ export function getActiveFiltersForWorker() {
 }
 
 /**
- * Wire the '+ Add filter' button to its dropdown menu.
- * Adds only fields not already present in the active filter list.
- * @param {HTMLElement|null} btn
+ * Returns true when at least one filter panel has active values or a pending
+ * search query. Empty open panels do not count.
+ * Used by app.js to enable/disable the Reset button and by filterByGroup
+ * to decide whether a confirmation is needed before overwriting filter state.
+ * @returns {boolean}
  */
-export function initAddFilterButton(btn) {
-    if (!btn) return;
-    _addFilterBtn = btn;
-    btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const existing = document.querySelector('.add-filter-menu');
-        if (existing) { existing.remove(); btn.focus(); return; }
-        const menu = _buildAddFilterMenu(btn);
-        if (menu) {
-            (document.fullscreenElement ?? document.body).appendChild(menu);
-            // Focus first item so the menu is immediately keyboard-navigable.
-            menu.querySelector('.afm-option')?.focus();
-        }
-    });
-    // Open menu and focus first item with ArrowDown or Enter/Space.
-    btn.addEventListener('keydown', e => {
-        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-            if (document.querySelector('.add-filter-menu')) return;
-            e.preventDefault();
-            btn.click();
-        }
-    });
-}
-
-/**
- * Build the add-filter dropdown menu positioned below btn.
- * Returns null when all fields are already in use.
- */
-function _buildAddFilterMenu(btn) {
-    const used = new Set(_defs.map(d => d.field));
-    const available = _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
-    if (!available.length) return null;
-
-    const menu = _tpl.addFilterMenu.content.cloneNode(true).querySelector('.add-filter-menu');
-    const r = btn.getBoundingClientRect();
-    Object.assign(menu.style, {
-        position: 'fixed',
-        top: (r.bottom + 4) + 'px',
-        left: r.left + 'px',
-        zIndex: '9999',
-    });
-
-    const _activateOption = (f, menu) => {
-        _defs.push({ field: f.key, search: '' });
-        _buildPanels();
-        menu.remove();
-        btn.focus();
-    };
-
-    for (const f of available) {
-        const opt = _tpl.addFilterOption.content.cloneNode(true).querySelector('.afm-option');
-        opt.textContent = t(f.labelKey);
-        opt.tabIndex = 0;
-        opt.setAttribute('role', 'menuitem');
-        // Mouse activation.
-        opt.addEventListener('mousedown', e => {
-            e.preventDefault();
-            _activateOption(f, menu);
-        });
-        // Keyboard activation.
-        opt.addEventListener('keydown', e => {
-            switch (e.key) {
-                case 'Enter':
-                case ' ':
-                    e.preventDefault();
-                    _activateOption(f, menu);
-                    break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    (opt.nextElementSibling ?? menu.firstElementChild)?.focus();
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    if (!opt.previousElementSibling) {
-                        // Wrap back to the trigger button.
-                        menu.remove();
-                        btn.focus();
-                    } else {
-                        opt.previousElementSibling?.focus();
-                    }
-                    break;
-                case 'Escape':
-                case 'Tab':
-                    e.preventDefault();
-                    menu.remove();
-                    btn.focus();
-                    break;
-            }
-        });
-        menu.appendChild(opt);
-    }
-    menu.setAttribute('role', 'menu');
-    return menu;
+export function hasAnyFilters() {
+    return _defs.some(d => _activeFilters[d.field]?.size > 0 || d.search.length > 0);
 }
 
 /* ===== Internal helpers ===== */
-
-/**
- * Parse filter value counts from index.json into _indexValues and _globalCounts.
- * Entries are objects: { value: count } or { value: { count, label? } }.
- */
-/** Wire the outside-click listener that dismisses the 'Add filter' menu. */
-function _initMenuDismissListener() {
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.add-filter-menu') &&
-            !e.target.closest('#btn-add-filter'))
-            document.querySelector('.add-filter-menu')?.remove();
-    });
-}
 
 
 function _parseFieldIndex(data) {
@@ -346,21 +312,33 @@ function _clearActiveFilters() {
     for (const key in _activeFilters) delete _activeFilters[key];
 }
 
-function _fieldDef(key) {
-    return _ALL_FILTER_FIELDS.find(f => f.key === key);
+/**
+ * Return the list of filter fields not yet in use
+ * @returns {{ key: string, labelKey: string }[]}
+ */
+export function getAvailableFields() {
+    const used = new Set(_defs.map(d => d.field));
+    return _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
 }
 
-function _updateAddFilterBtn() {
-    if (!_addFilterBtn) return;
-    const used = new Set(_defs.map(d => d.field));
-    _addFilterBtn.disabled = !_ALL_FILTER_FIELDS.some(f => !used.has(f.key));
+/**
+ * Add a new filter panel for the given field key
+ * @param {string} key
+ */
+export function addFilterField(key) {
+    _defs.push({ field: key, search: '' });
+    _buildPanels();
+}
+
+function _fieldDef(key) {
+    return _ALL_FILTER_FIELDS.find(f => f.key === key);
 }
 
 /**
  * Normalize a string for case-insensitive, accent-insensitive search comparison.
  */
 function _normalize(str) {
-    return String(str).toUpperCase();
+    return str.toUpperCase();
 }
 
 /**
@@ -375,6 +353,36 @@ function _translateFilterValue(field, val) {
     const key = `values.${field}.${val}`;
     const translated = t(key);
     return translated !== key ? translated : val;
+}
+
+
+/* ===== Group preset state ===== */
+
+function _syncActiveGroup(field) {
+    if (field === 'signalType') _clearActiveGroup();
+}
+
+/**
+ * Clear the active group preset when any filter is manually changed.
+ * No-op when already null — avoids a spurious callback on every toggle.
+ */
+function _clearActiveGroup() {
+    if (_activeGroup === null) return;
+    _activeGroup = null;
+}
+
+
+/* ===== Commit helper ===== */
+
+/**
+ * Persist filter state and fire the external change callback.
+ * Every filter mutation ends with _commit() — the single exit point
+ * for state changes. Internal panel refreshes (_refreshTags, _refreshDropdown,
+ * _buildPanels) run before _commit() as they are filters.js's own concern.
+ */
+function _commit() {
+    _persistFilters();
+    _onChange?.();
 }
 
 
@@ -401,79 +409,113 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         mappedOnly: _mappedOnly,
 
         onActivate: activate,
-
-        onClear: () => {
-            if (_activeFilters[def.field]?.size > 0) {
-                delete _activeFilters[def.field];
-                _persistFilters();
-                _refreshTags(idx);
-                _refreshDropdown(idx);
-                _updateStatusBar();
-                _onChange?.();
-            }
-        },
-
-        onPillRemove: val => {
-            _toggle(def.field, val);
-            // The focused pill button was detached by replaceChildren() inside
-            // _refreshTags → focus moved to <body>.  Restore via microtask.
-            queueMicrotask(() => def.panel?.focusInput());
-        },
-
-        // Clicking a networkId pill label flies the map to that signal's tile.
-        onPillLabelClick: fieldMeta?.globalSearch
-            ? val => flyToSignal(val)
-            : undefined,
-
-        onRemove: () => {
-            // First press: clear selected values if any — keep the panel open.
-            // Second press (no values): remove the panel entirely.
-            if (_activeFilters[def.field]?.size > 0) {
-                delete _activeFilters[def.field];
-                _persistFilters();
-                _refreshTags(idx);
-                _refreshDropdown(idx);
-                _updateStatusBar();
-            } else {
-                def.panel.destroy();
-                delete _activeFilters[def.field];
-                _defs.splice(idx, 1);
-                _persistFilters();
-                _buildPanels();
-            }
-            _onChange?.();
-        },
-
-        onToggleMappedOnly: checked => {
-            // The CSS :checked + .toggle-track rule drives the visual state —
-            // no manual class manipulation needed here.
-            _mappedOnly = checked;
-            delete _activeFilters['signalType'];
-            _defs.forEach(d => { if (d.field === 'signalType') d.search = ''; });
-            _persistFilters();
-            _buildPanels();
-            _onChange?.();
-        },
-
-        onSearch: query => {
-            // numericOnly: strip non-digit characters before storing the query.
-            // FilterPanel.setSearch() keeps the visible input in sync when the
-            // sanitized value differs from what was typed.
-            const sanitized = fieldMeta?.numericOnly
-                ? query.replace(/\D/g, '')
-                : query;
-            if (sanitized !== query) def.panel?.setSearch(sanitized);
-            def.search = sanitized;
-            _refreshDropdown(idx);
-            _openDropdown(idx);
-        },
-
+        onClear: () => _onClear(def, idx),
+        onPillRemove: val => _onPillRemove(def, val),
+        onPillLabelClick: fieldMeta?.globalSearch ? val => flyToSignal(val) : undefined,
+        onRemove: () => _onRemove(def, idx),
+        onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
+        onSearch: query => _onSearch(def, idx, fieldMeta, query),
         onEnter: () => _selectFirst(idx),
         onOpen: () => _openDropdown(idx),
     };
 }
 
 
+
+
+/* ===== Panel callback handlers ===== */
+
+/**
+ * Ask for user confirmation before executing callback when the given field has
+ * active filter values. Executes immediately when no values are active.
+ * @param {string}   field
+ * @param {Function} callback
+ */
+function _confirmIfActive(field, callback) {
+    if (_activeFilters[field]?.size > 0 && !confirm(t('filter.confirmClear'))) return;
+    callback();
+}
+
+/**
+ * Clear all active filter values for the given panel field.
+ * Handles persistence and UI refresh. Confirmation is the caller's responsibility.
+ * @param {{ field: string, panel: FilterPanel }} def
+ * @param {number} idx
+ */
+function _clearFilter(def, idx) {
+    _syncActiveGroup(def.field);
+    delete _activeFilters[def.field];
+    _refreshTags(idx);
+    _refreshDropdown(idx);
+    _commit();
+}
+
+/** onClear handler — clears active values with confirmation when needed. */
+function _onClear(def, idx) {
+    _confirmIfActive(def.field, () => _clearFilter(def, idx));
+}
+
+/**
+ * onPillRemove handler — toggles the removed value and restores focus to the input.
+ * @param {{ field: string, panel: FilterPanel }} def
+ * @param {string} val
+ */
+function _onPillRemove(def, val) {
+    _toggle(def.field, val);
+    // The focused pill button was detached by replaceChildren() inside
+    // _refreshTags → focus moved to <body>. Restore via microtask.
+    queueMicrotask(() => def.panel?.focusInput());
+}
+
+/**
+ * onRemove handler — destroys the panel entirely.
+ * Asks for confirmation first when the field has active values.
+ */
+function _onRemove(def, idx) {
+    _confirmIfActive(def.field, () => {
+        _syncActiveGroup(def.field); 
+        def.panel.destroy();
+        delete _activeFilters[def.field];
+        _defs.splice(idx, 1);
+        _buildPanels();
+        _commit();
+    });
+}
+
+/**
+ * onToggleMappedOnly handler — toggles the "supported types only" dropdown
+ * filter mode. Clears all signalType active values and rebuilds the panel.
+ * The CSS :checked + .toggle-track rule drives the visual state.
+ * @param {{ field: string }} def
+ * @param {boolean}          checked
+ */
+function _onToggleMappedOnly(def, checked) {
+    _confirmIfActive(def.field, () => {
+        _clearActiveGroup();
+        _mappedOnly = checked;
+        delete _activeFilters['signalType'];
+        _resetSearch('signalType');
+        _buildPanels();
+        _commit();
+    });
+}
+
+/**
+ * onSearch handler — sanitizes the query (numericOnly fields strip non-digits),
+ * keeps the visible input in sync when the sanitized value differs, and refreshes
+ * the dropdown.
+ * @param {{ field: string, search: string, panel: FilterPanel }} def
+ * @param {number}      idx
+ * @param {object|null} fieldMeta
+ * @param {string}      query
+ */
+function _onSearch(def, idx, fieldMeta, query) {
+    const sanitized = fieldMeta?.numericOnly ? query.replace(/\D/g, '') : query;
+    if (sanitized !== query) def.panel?.setSearch(sanitized);
+    def.search = sanitized;
+    _refreshDropdown(idx);
+    _openDropdown(idx);
+}
 
 function _buildPanels() {
     const container = document.getElementById('filters-container');
@@ -499,9 +541,6 @@ function _buildPanels() {
         _refreshTags(idx);
         _refreshDropdown(idx);
     });
-
-    _updateStatusBar();
-    _updateAddFilterBtn();
 }
 
 /* ===== DOM update helpers ===== */
@@ -509,7 +548,10 @@ function _buildPanels() {
 function _refreshTags(idx) {
     const def = _defs[idx];
     if (!def?.panel) return;
-    def.panel.refreshTags(_activeFilters[def.field] || new Set());
+    // Render the pills and toggle the clear button visibility accordingly
+    const activeVals = Array.from(_activeFilters[def.field] || []);
+    def.panel.refreshTags(activeVals);
+    def.panel.toggleClearBtn(activeVals.length > 0);
 }
 
 /**
@@ -632,6 +674,7 @@ function _itemSorter(fieldMeta, isSignalType, numericSort) {
  * Recreates panels and re-activates values without triggering _onChange.
  */
 function _restoreFilters() {
+    debugger;
     const saved = loadFilters();
     if (!saved.length) return;
     for (const { field, values, mappedOnly } of saved) {
@@ -643,7 +686,26 @@ function _restoreFilters() {
             _activeFilters[field].add(v);
         }
     }
-    if (_defs.length) { _buildPanels(); _onChange?.(); }
+    if (_defs.length) {
+        _activeGroup = _detectActiveGroup();
+        _buildPanels();
+        _onChange?.();
+    }
+}
+
+/**
+ * Check whether the current signalType active filters match exactly one
+ * legend category. Returns the matching group key, or null.
+ */
+function _detectActiveGroup() {
+    const current = _activeFilters['signalType'];
+    if (!current?.size) return null;
+    for (const [key] of getCategoryEntries()) {
+        const types = getTypesByGroup(key);
+        if (types.length > 0 && current.size === types.length && types.every(v => current.has(v)))
+            return key;
+    }
+    return null;
 }
 
 /** Serialize active filter state to localStorage via prefs.js. */
@@ -695,11 +757,8 @@ function _openDropdown(idx) {
     _defs[idx]?.panel?.openDropdown();
 }
 
-function _closeDropdown(idx) {
-    _defs[idx]?.panel?.closeDropdown();
-}
-
 function _toggle(field, val) {
+    _syncActiveGroup(field); 
     if (!_activeFilters[field]) _activeFilters[field] = new Set();
     const wasActive = _activeFilters[field].has(val);
     wasActive
@@ -720,13 +779,24 @@ function _toggle(field, val) {
         _refreshDropdown(idx);
         _openDropdown(idx);
     }
-    _persistFilters();
-    _updateStatusBar();
-    _onChange?.();
+    _commit();
 }
 
-function _updateStatusBar() {
-    updateFilterCount(
-        Object.values(_activeFilters).filter(s => s.size > 0).length
-    );
+/**
+ * Return the number of fields that have at least one active filter value.
+ * Used by app.js to update the status bar after any filter change.
+ * @returns {number}
+ */
+export function getActiveFilterCount() {
+    return Object.values(_activeFilters).filter(s => s.size > 0).length;
+}
+
+/**
+ * Return the currently active group preset key, or null when no preset
+ * category is active (e.g. after a manual filter change).
+ * Used by sidebar.js/legend.js to sync the legend indicator after every filter change.
+ * @returns {string|null}
+ */
+export function getActiveGroup() {
+    return _activeGroup;
 }

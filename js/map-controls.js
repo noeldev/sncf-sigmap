@@ -72,55 +72,66 @@ function _geolocate() {
 // Persistent reference to geolocation layers
 let _geoMarkers = [];
 
-// Handle successful geolocation
+/**
+ * Handle successful geolocation: shows a pulsing user marker immediately
+ * and delays the accuracy circle until the map movement (flyTo) finishes.
+ * @param {GeolocationPosition} pos 
+ * @param {HTMLElement} [btn] - The geolocation button to reset state
+ */
 function _onGeolocateSuccess(pos, btn) {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
 
-    // Remove existing markers from previous calls to prevent artifacts
+    // Clear previous geolocation state to avoid multiple markers
     _geoMarkers.forEach(m => m.remove());
     _geoMarkers = [];
 
-    // Initialize accuracy circle without adding it to the map
+    // Create the accuracy circle (real-world meters bounds)
     const accuracyCircle = L.circle([lat, lng], {
         radius: accuracy,
         color: '#2589c7',
-        fillOpacity: 0.1,
+        fillOpacity: 0.2,
         weight: 1,
+        className: 'gps-accuracy-circle'
     });
 
-    // Initialize position marker without adding it to the map
-    const posMarker = L.circleMarker([lat, lng], {
-        radius: 7,
-        color: '#fff',
-        fillColor: '#2589c7',
-        fillOpacity: 1,
-        weight: 2,
+    // Create the pulsing dot using a divIcon for stable rendering during zoom
+    const pulseIcon = L.divIcon({
+        className: 'gps-pulse-icon',
+        html: '<div class="gps-pulse-ring"></div><div class="gps-pulse-dot"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
+
+    // Position marker using the custom icon
+    const posMarker = L.marker([lat, lng], {
+        icon: pulseIcon,
+        zIndexOffset: 1000
     }).bindPopup(`±${Math.round(accuracy)} m`);
 
-    // Store references for the next cleanup cycle
+    // Keep references for cleanup in the next geolocation cycle
     _geoMarkers.push(accuracyCircle, posMarker);
 
-    // Display logic to be triggered at the end of the flight
-    let markersDisplayed = false;
-    const displayMarkers = () => {
-        if (markersDisplayed) return;
-        markersDisplayed = true;
-        map.off('moveend', displayMarkers);
-        accuracyCircle.addTo(map);
-        posMarker.addTo(map);
+    // Show the dot immediately as it handles CSS transforms gracefully
+    posMarker.addTo(map);
+
+    const showCircle = () => {
+        map.off('moveend', showCircle);
+        // Safety check: only add the circle if it hasn't been cleared by a new request
+        if (_geoMarkers.includes(accuracyCircle)) {
+            accuracyCircle.addTo(map);
+        }
     };
 
-    // Interrupt flight and show markers if user interacts
-    const stopFly = () => {
+    // Delay the SVG circle until the map is stable
+    map.once('moveend', showCircle);
+
+    // Interrupt flight and show circle if the user interacts with the map
+    map.once('mousedown touchstart', () => {
         map.stop();
-        displayMarkers();
-    };
+        showCircle();
+    });
 
-    // Event listeners for flight lifecycle
-    map.once('mousedown touchstart', stopFly);
-    map.once('moveend', displayMarkers);
-
-    // Start animated transition while markers are detached
+    // Execute the transition
     flyToLocation([lat, lng]);
 
     btn?.classList.remove('active');

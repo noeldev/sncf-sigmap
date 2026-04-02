@@ -750,6 +750,18 @@ export function isSupported(signalType) {
 }
 
 /**
+ * Return all signalType keys belonging to the given display group.
+ * Used by filters.js to populate a signalType filter from a legend category click.
+ * @param {string} group  Group name (e.g. 'main', 'shunting').
+ * @returns {string[]}
+ */
+export function getTypesByGroup(group) {
+    return Object.entries(_SIGNAL_MAPPING)
+        .filter(([, def]) => def.group === group)
+        .map(([type]) => type);
+}
+
+/**
  * Return the OSM :ref tag key for a given signalType, or null if unsupported.
  * Example: "CARRE" -> "railway:signal:main:ref"
  */

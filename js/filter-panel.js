@@ -2,15 +2,15 @@
  * ui/filter-panel.js — Single filter panel (DOM + UI controllers).
  *
  * FilterPanel owns:
- *   • DOM creation from the tpl-filter-group template and element caching.
- *   • One Dropdown, one ComboBox, one PillList instance.
- *   • Delegated mousedown on the item list (shared activation path for mouse).
- *   • clearBtn / removeBtn / toggleChk event wiring.
+ * - DOM creation from the tpl-filter-group template and element caching.
+ * - One Dropdown, one ComboBox, one PillList instance.
+ * - Delegated mousedown on the item list (shared activation path for mouse).
+ * - clearBtn / removeBtn / toggleChk event wiring.
  *
  * FilterPanel does NOT own:
- *   • Application state (_activeFilters, _counts, _confirmedFilters…).
- *   • Data preparation (filtering / sorting item arrays).
- *   • Sibling-dropdown coordination.
+ * - Application state (_activeFilters, _counts, _confirmedFilters…).
+ * - Data preparation (filtering / sorting item arrays).
+ * - Sibling-dropdown coordination.
  *
  * All application-specific behaviour is injected via callbacks so that
  * FilterPanel remains a pure UI component.
@@ -51,7 +51,7 @@ export class FilterPanel {
      * @param {Function}      opts.onActivate
      * @param {Function}      opts.onPillRemove
      * @param {Function}      [opts.onPillLabelClick]
-     * @param {Function}      [opts.onClear]
+     * @param {Function}      opts.onClear
      * @param {Function}      opts.onRemove
      * @param {Function}      [opts.onToggleMappedOnly]
      * @param {Function}      opts.onSearch
@@ -194,11 +194,21 @@ export class FilterPanel {
 
     /* ===== Public API ===== */
 
-    /** Append the panel element to a container. */
+    /**
+     * Append the panel element to a container. 
+     * @param {HTMLElement} container
+     */
     appendTo(container) {
         container.appendChild(this._el.panel);
     }
 
+    /**
+     * Show or hide the clear (trash) button based on whether there are active pills.
+     * @param {boolean} visible
+     */
+    toggleClearBtn(visible) {
+        this._el.clearBtn?.classList.toggle('is-hidden', !visible);
+    }
 
     /* ----- List rendering ----- */
 

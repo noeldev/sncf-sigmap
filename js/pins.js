@@ -8,7 +8,6 @@
  *   initPins(opts)       — create the panel and wire it into the sidebar.
  *   isPinned(networkId)  — return true when the signal is currently pinned.
  *   togglePin(networkId) — add or remove a pin; triggers a panel refresh.
- *   flashPinned(msg)     — show a brief overlay message (e.g. "Pinned!").
  */
 
 import { t, translateElement, onLangChange } from './translation.js';
@@ -22,9 +21,6 @@ import { PillList } from './ui/pill-list.js';
 
 /** Ordered array of pinned Network IDs — insertion order preserved. */
 let _pins = [];
-
-/** Map from networkId → tileKey — populated from the filter index at init. */
-let _networkIdToTile = new Map();
 
 /** PillList instance for the pinned panel. */
 let _pillList = null;
@@ -45,11 +41,9 @@ let _onPinsChange = null;
  * Initialize the pinned signals panel in the sidebar.
  * @param {object}   opts
  * @param {Element}  opts.container        — Element to append the panel to.
- * @param {Map}      opts.networkIdToTile  — networkId → tileKey map from filters.js.
  * @param {Function} [opts.onChange]       — Called after any pin change.
  */
-export function initPins({ container, networkIdToTile, onChange }) {
-    _networkIdToTile = networkIdToTile;
+export function initPins({ container, onChange }) {
     _onPinsChange    = onChange ?? null;
     _pins            = loadPins();
 
@@ -72,29 +66,25 @@ export function isPinned(networkId) {
 }
 
 /**
- * Add or remove a pin for the given Network ID.
- * Persists the updated list and refreshes the panel.
+ * Toggle the pinned state of a signal.
  * @param {string} networkId
+ * @returns {boolean} True if the signal is now pinned, false if unpinned.
  */
 export function togglePin(networkId) {
     const idx = _pins.indexOf(networkId);
-    if (idx >= 0) {
+    const pinned = idx === -1; // If not found, we are about to pin it
+
+    if (!pinned) {
         _pins.splice(idx, 1);
     } else {
         _pins.push(networkId);
     }
+
     savePins(_pins);
     _renderPanel();
     _onPinsChange?.();
-}
 
-/**
- * Show a brief status message using the progress overlay.
- * Auto-hides after 1.5 s.
- * @param {string} msg
- */
-export function flashPinned(msg) {
-    showFlash(msg);
+    return pinned;
 }
 
 

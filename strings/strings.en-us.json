@@ -15,7 +15,8 @@
   },
   "buttons": {
     "addFilter": "+ Add filter",
-    "reset": "Reset"
+    "reset": "Reset",
+    "confirmReset": "Reset all active filters?"
   },
   "toggle": {
     "supported": "Supported types only",
@@ -24,7 +25,8 @@
     "rememberPosition": "Restore last map position on startup"
   },
   "legend": {
-    "title": "Legend"
+    "title": "Legend",
+    "clickToFilter": "Click to filter by this category"
   },
   "fields": {
     "signalType": "Signal type",
@@ -134,7 +136,8 @@
       "port": "Port",
       "checking": "…",
       "notDetected": "Not detected",
-      "notAllowed": "Not allowed yet"
+      "notAllowed": "Not allowed yet",
+      "website": "JOSM website"
     }
   },
   "cat": {
@@ -191,6 +194,7 @@
   "filter": {
     "none": "No active filters.",
     "clear": "Clear filter values",
+    "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
     "close": "Remove filter"
   }
 }

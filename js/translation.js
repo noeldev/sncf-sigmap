@@ -21,7 +21,7 @@
  *   data-i18n-aria="key"   → el.aria-label
  *
  * Internal tab links are styled via the CSS selector a[data-switch-tab] and
- * activated by a delegated click listener registered with initTabLinks().
+ * activated by a delegated click listener registered in sidebar.js.
  *
  * Public API:
  *   loadStrings(locale)    — fetch and install strings for a locale (en-US fallback)
@@ -32,7 +32,6 @@
  *   translateAll()         — apply translations to the full live document
  *   onLangChange(fn)       — register a listener called after lang change
  *   buildLangOptions(el)   — populate a dropdown <ul> from _LANG_INFO
- *   initTabLinks(fn)       — register delegated click handler for [label](#tab) links
  */
 
 
@@ -42,6 +41,8 @@
  * Locale codes use BCP 47 casing (e.g. 'en-US', 'fr-FR').
  * String file names are derived by lowercasing the code (strings.en-us.json).
  */
+import { getLangPref, setLangPref } from './prefs.js';
+
 const _LANG_INFO = {
     default: 'en-US',
     supported: {
@@ -105,7 +106,7 @@ export async function loadStrings(locale) {
     try {
         _strings = await _load(locale);
         _lang = locale;
-        try { localStorage.setItem('lang', locale); } catch { /* storage blocked */ }
+        setLangPref(locale);
     } catch (err) {
         console.warn(`[i18n] Failed to load strings.${locale}.json: ${err.message}`);
         if (locale !== _LANG_INFO.default) {
@@ -113,7 +114,7 @@ export async function loadStrings(locale) {
             try {
                 _strings = await _load(_LANG_INFO.default);
                 _lang = _LANG_INFO.default;
-                try { localStorage.setItem('lang', _LANG_INFO.default); } catch { /* noop */ }
+                setLangPref(_LANG_INFO.default);
             } catch {
                 console.error('[i18n] Fallback also failed — UI strings will show as keys.');
             }
@@ -183,7 +184,7 @@ function _markupToHtml(str) {
         // [label](url) -> <a...>label</a>
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
             if (url.startsWith('#')) {
-                // Internal tab link — activation handled by initTabLinks().
+                // Internal tab link — activation handled by sidebar.js delegated listener.
                 return `<a href="#" data-switch-tab="${url.slice(1)}">${label}</a>`;
             }
             return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
@@ -227,33 +228,6 @@ export function t(key, ...args) {
     return str.replace(/\{(\d+)\}/g, (_, i) => {
         const v = args[+i];
         return typeof v === 'number' ? v.toLocaleString() : (v ?? '');
-    });
-}
-
-
-/* ===== Markup helpers ===== */
-
-/**
- * Register a delegated click handler for [label](#tab-id) links.
- *
- * Attaches a single listener on document that intercepts clicks on any element
- * carrying a data-switch-tab attribute and forwards the tab ID to the callback.
- * Delegation is required because the links are created dynamically by
- * translateAll() and do not exist in the DOM when initSidebar() runs.
- *
- * Must be called once from sidebar.js during initSidebar().
- *
- * @param {function(string): void} onSwitch
- *   Called with the tab panel ID (e.g. 'tab-settings') to activate.
- */
-export function initTabLinks(onSwitch) {
-    document.addEventListener('click', e => {
-        const link = e.target.closest('[data-switch-tab]');
-        if (!link) {
-            return;
-        }
-        e.preventDefault();
-        onSwitch(link.dataset.switchTab);
     });
 }
 
@@ -319,12 +293,8 @@ export function onLangChange(fn) {
 
 function _resolveInitialLang() {
     const _supported = Object.keys(_LANG_INFO.supported);
-    try {
-        const stored = localStorage.getItem('lang');
-        if (stored && _supported.includes(stored)) return stored;
-    } catch {
-        /* storage blocked */
-    }
+    const stored = getLangPref();
+    if (stored && _supported.includes(stored)) return stored;
     const browser = navigator.language.toLowerCase();
     return _supported.find(code => browser.startsWith(code.split('-')[0]))
         ?? _LANG_INFO.default;

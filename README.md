@@ -50,6 +50,37 @@ https://sncf-sigmap.netlify.app
 
 Tiles are committed to GitHub and deployed by Netlify alongside the source code.
 
+### Module dependency boundaries
+
+```
+app.js
+  ├── map.js           (initMap → marker layer + controls + basemap label rebuild)
+  ├── map-layer.js     (refresh, isSampled)
+  ├── sidebar.js       (initSidebar → all sidebar UI)
+  ├── statusbar.js     (updateZoomStatus, setRecordCount, updateFilterCount)
+  └── progress.js      (showProgress, hideProgress)
+
+map.js
+  ├── map-controls.js  (initMapControls — wired inside initMap)
+  ├── map-layer.js     (initLayer — wired inside initMap)
+  └── translation.js   (onLangChange → basemap label rebuild)
+
+sidebar.js
+  ├── collapsible-panel.js
+  ├── lang-picker.js   (language dropdown)
+  ├── legend.js        (category buttons → filterByGroup)
+  ├── filters.js       (initFilters, loadFilterIndex, initFilterToolbar)
+  └── pins.js          (initPins — after index load)
+
+filters.js
+  ├── filter-toolbar.js  (Add filter button — IoC: getAvailableFields, onFieldSelect)
+  ├── map-layer.js       (isSampled, getSignalLatlng)
+  └── map.js             (flyToLocationWithMarker)
+
+prefs.js               (single source of truth for all localStorage access)
+translation.js         (uses getLangPref / setLangPref from prefs.js)
+```
+
 Tiles are stored as `.json.gz` files but requested by the app as `.json` URLs:
 - **Netlify**: `netlify.toml` redirects `.json` → `.json.gz` and sets `Content-Encoding: gzip`
 - **Caddy (local)**: a `handle @tiles` block rewrites `.json` requests to `.json.gz` and sets `Content-Encoding: gzip`
@@ -215,7 +246,7 @@ Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 
 ### `data/tiles/index.json`
 
-Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` and `block-system.js`.
+Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` (which also initialises `block-system.js` from the same data).
 
 ```json
 {
@@ -273,32 +304,36 @@ sncf-sigmap/
 │   ├── manifest.json
 │   └── *.json.gz
 ├── js/
-│   ├── app.js                    ← boot sequencer, map event wiring
-│   ├── block-system.js           ← line label and block signaling type lookup from index.json
-│   ├── cat-mapping.js            ← application signal categories, colors, and legend
+│   ├── app.js                    ← boot sequencer; knows only map, sidebar, statusbar, progress
+│   ├── block-system.js           ← line label and block signaling type lookup (called from filters.js)
+│   ├── cat-mapping.js            ← application signal categories and colors (no DOM)
 │   ├── collapsible-panel.js      ← cp-panel open/close state, localStorage persistence, ARIA
 │   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
 │   ├── config.local.js           ← JAWG_API_KEY — git-ignored, never committed
 │   ├── config.local.example.js   ← template, safe to commit
 │   ├── filter-panel.js           ← per-filter DOM panel (label, pills, combo, list)
+│   ├── filter-toolbar.js         ← "Add filter" button and dropdown menu (IoC, no state)
 │   ├── filters.js                ← filter state, value index, dropdown orchestration
 │   ├── josm.js                   ← JOSM Remote Control connection management
-│   ├── map.js                    ← Leaflet initialisation, basemap tile layers, position persistence, location marker
+│   ├── lang-picker.js            ← language picker dropdown (extracted from sidebar.js)
+│   ├── legend.js                 ← legend panel DOM builder and category filter shortcuts
+│   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker;
+│   │                                calls initLayer() and initMapControls() internally
 │   ├── map-controls.js           ← zoom, geolocate, fullscreen, sidebar toggle, basemap picker, collapsible toolbar
-│   ├── map-layer.js              ← signal marker pipeline (worker → render)
+│   ├── map-layer.js              ← signal marker pipeline (worker → render); owns isSampled state
 │   ├── overpass.js               ← Overpass API existence check (batch)
 │   ├── pins.js                   ← pinned signals management, panel, navigation
-│   ├── prefs.js                  ← persistent user preferences (localStorage)
+│   ├── prefs.js                  ← single source of truth for all localStorage access
 │   ├── progress.js               ← progress overlay and flash messages
-│   ├── sidebar.js                ← sidebar tabs, language picker, JOSM detection panel, tab links
+│   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel
 │   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
 │   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
-│   ├── sncf-convert.js           ← SNCF raw data normalization (single boundary: SNCF → app field names and OSM values)
+│   ├── sncf-convert.js           ← SNCF raw data normalization
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
 │   ├── tiles.worker.js           ← tile fetch, normalization, spatial/attribute filtering (Web Worker)
 │   ├── tooltip.js                ← hover tooltip builder
-│   ├── translation.js            ← i18n: strings.{locale}.json loader, t(), markup precompilation (**bold**, [link](url))
+│   ├── translation.js            ← i18n: strings loader, t(), markup precompilation; uses prefs.js for lang persistence
 │   ├── worker-contract.js        ← worker message types and postMessage helpers
 │   └── ui/
 │       ├── combobox.js           ← search input behavior for filter dropdowns
@@ -309,22 +344,22 @@ sncf-sigmap/
 │   └── strings.fr-fr.json        ← French UI strings
 └── tools/
     └── TileBuilder/              ← C# tile generator
-        ├── AcronymEntry.cs         ← block label abbreviation entry record
-        ├── BuildConfig.cs          ← deserialized tilebuilder.config.json
-        ├── BlockProcessor.cs       ← reads block system GeoJSON, builds index tables
-        ├── BlockResult.cs          ← output record of BlockProcessor
-        ├── CliOptions.cs           ← CLI argument parsing
-        ├── ConfigLoader.cs         ← loads tilebuilder.config.json
-        ├── Constants.cs            ← shared constants (TileDeg, default filenames)
-        ├── CrossCheck.cs           ← DEBUG-only cross-check between datasets
-        ├── IndexWriter.cs          ← writes index.json
-        ├── LineInfo.cs             ← merged line entry (signal count + label)
-        ├── Program.cs              ← entry point and orchestration
-        ├── Signal.cs               ← signal point record (tile serialisation)
-        ├── SignalData.cs           ← output record of SignalReader
-        ├── SignalReader.cs         ← reads signal GeoJSON, groups into tiles
-        ├── TileWriter.cs           ← writes .json.gz tiles and manifest.json
-        ├── tilebuilder.config.json ← SNCF filenames + block acronym table
+        ├── AcronymEntry.cs
+        ├── BuildConfig.cs
+        ├── BlockProcessor.cs
+        ├── BlockResult.cs
+        ├── CliOptions.cs
+        ├── ConfigLoader.cs
+        ├── Constants.cs
+        ├── CrossCheck.cs
+        ├── IndexWriter.cs
+        ├── LineInfo.cs
+        ├── Program.cs
+        ├── Signal.cs
+        ├── SignalData.cs
+        ├── SignalReader.cs
+        ├── TileWriter.cs
+        ├── tilebuilder.config.json
         └── TileBuilder.csproj
 ```
 

@@ -2,71 +2,58 @@
  * app.js — Application entry point and boot sequencer.
  *
  * Responsibilities:
- *   - Sequence the initialization of every module in the correct order.
- *   - Wire Leaflet map events (moveend/zoomend) to map-layer.refresh().
+ *   - Sequence module initialisation in the correct order.
+ *   - Provide the map refresh callback to sidebar.js.
+ *   - Wire Leaflet map events to the map-layer pipeline.
  *   - Update the record-count display after the manifest loads.
- *   - Track the zoom threshold crossing for overview↔detail mode transitions.
  *
- * All UI, rendering, and data pipeline logic is delegated:
- *   progress.js        — progress overlay
- *   sidebar.js           — language picker, tabs, JOSM detection panel
- *   collapsible-panel.js — cp-panel open/close state and keyboard nav
- *   map.js             — Leaflet infrastructure (basemaps, basemap selector)
- *   map-controls.js    — map toolbar button wiring (zoom, geolocate, fullscreen)
- *   map-layer.js       — signal marker pipeline (worker, filter, render)
- *   signal-mapping.js  — OSM tag data and category colors
- *   filters.js         — filter state and panel UI
- *   statusbar.js       — status bar DOM updates
+ * Knows about:
+ *   map.js       — Leaflet infrastructure + marker layer + toolbar (via initMap).
+ *   map-layer.js — signal marker pipeline (refresh).
+ *   sidebar.js   — all sidebar UI (legend, filters, pins, language, tabs, JOSM).
+ *   statusbar.js — status bar DOM updates.
+ *   progress.js  — loading overlay.
  */
 
 import { TILES_BASE } from './config.js';
 import { initMap, map, initMapEvents } from './map.js';
-import { initMapControls } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
-import { initFilters, loadFilterIndex, resetFilters, initAddFilterButton } from './filters.js';
-import { buildLegend } from './cat-mapping.js';
-import { loadStrings, t, translateAll, getLang } from './translation.js';
-import { initLayer, setManifest, refresh } from './map-layer.js';
+import { loadStrings, translateAll, getLang, t } from './translation.js';
+import { setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
-import { initCollapsiblePanels } from './collapsible-panel.js';
-import { initStatusBar, updateZoomStatus, setRecordCount } from './statusbar.js';
-import { initBlockSystem } from './block-system.js';
-import { initPins } from './pins.js';
-import { getNetworkIdToTile } from './filters.js';
+import { initStatusBar, updateZoomStatus, setRecordCount, updateFilterCount } from './statusbar.js';
 
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
 /**
  * Application entry point.
- * Sequences all module initialization and wires map events.
+ * Sequences all module initialisation and wires map events.
  */
 async function _boot() {
     await loadStrings(getLang());
-    await initMap('map');
-    _initUI();
-    await _loadData();
-    translateAll();
-}
-
-/** Initialize all UI components after the map is ready. */
-function _initUI() {
-    initProgress();
-    initMapControls();
+    await initMap();
+    initSidebar({ onRefresh: _onSidebarRefresh });
     initStatusBar();
-    initLayer();
-    initCollapsiblePanels();
-    initSidebar();
-    buildLegend();
-    initFilters(() => refresh(true));
-    initAddFilterButton(document.getElementById('btn-add-filter'));
-    document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
-        resetFilters();
-        refresh(true);
-    });
+    initProgress();
+    translateAll();
+    await _loadData();
 }
 
-/** Fetch manifest and filter index, then start the map pipeline. */
+/**
+ * Called by sidebar.js after any filter change that needs a map refresh.
+ * @param {object}  event
+ * @param {number} [event.filterCount]  Active filter count, when provided.
+ */
+function _onSidebarRefresh({ filterCount }) {
+    refresh(true);
+    if (filterCount !== undefined) updateFilterCount(filterCount);
+}
+
+
+/* ===== Data loading ===== */
+
+/** Fetch the tile manifest, then start the map pipeline. */
 async function _loadData() {
     console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
@@ -83,21 +70,6 @@ async function _loadData() {
     hideProgress();
     setManifest(manifest);
     _startMapPipeline();
-
-    // Load filter index and network ID index lazily — the user needs several
-    // interactions before reaching the filter panel, giving time to download.
-    _loadFilterIndexLazy();
-}
-
-/** Fetch index.json after the map pipeline has started. */
-async function _loadFilterIndexLazy() {
-    const index = await loadFilterIndex(TILES_BASE);
-    if (index) initBlockSystem(index);
-    // Init pins after filter index so networkId → tileKey map is populated.
-    initPins({
-        container: document.getElementById('pinned-container'),
-        networkIdToTile: getNetworkIdToTile(),
-    });
 }
 
 /** Wire map events and trigger the initial render. */
@@ -111,7 +83,7 @@ function _startMapPipeline() {
 }
 
 /**
- * Update the record-count display and status bar after the manifest loads.
+ * Update the record-count display after the manifest loads.
  * @param {object} manifest
  */
 function _updateRecordCount(manifest) {

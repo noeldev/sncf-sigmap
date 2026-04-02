@@ -21,7 +21,7 @@
  */
 
 import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
-import { map } from './map.js';
+import { map, dismissLocationMarker } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab } from './signal-popup.js';
@@ -29,8 +29,8 @@ import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './worker-contract.js';
-import { showProgress, hideProgress } from './progress.js';
-import { isPinned, togglePin, flashPinned } from './pins.js';
+import { showFlash, showProgress, hideProgress } from './progress.js';
+import { togglePin } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 
 
@@ -42,6 +42,14 @@ let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
 let _lastGroups = [];   // last rendered groups — used by getSignalLatlng()
+let _sampled = false;   // true when the current view is a spatial overview sample
+
+/**
+ * Returns true when the current view is a spatial overview sample.
+ * Exported so filters.js (via initFilters injection) can use accurate counts.
+ * @returns {boolean}
+ */
+export function isSampled() { return _sampled; }
 
 
 /* ===== Language change handling ===== */
@@ -230,7 +238,8 @@ function _terminateLoad() {
 function _onWorkerDone(groups, sampled, total) {
     _lastGroups = groups;
     resetCounts();
-    setSampledBadge(sampled, total);    // must precede indexSignals so isSampled() is current
+    _sampled = sampled;             // must precede indexSignals so isSampled() is current
+    setSampledBadge(sampled, total);
     indexSignals(groups.flatMap(g => g.all));
     _renderGroups(groups);
     _terminateLoad();
@@ -285,15 +294,17 @@ function _makeMarker(lat, lng, all, display) {
             sticky: false,
         })
         .on('click', e => {
+            dismissLocationMarker();
+
             const orig = e.originalEvent;
-            const ctrl = orig?.ctrlKey || orig?.metaKey;
+            const ctrl = orig?.ctrlKey || orig?.metaKey; // Ctrl/Cmd shortcuts
             const shift = orig?.shiftKey;
+
             if (ctrl && !shift) {
                 // Ctrl+click: pin the first signal at this location.
                 const networkId = all[0]?.p?.networkId;
                 if (networkId) {
-                    togglePin(networkId);
-                    flashPinned(isPinned(networkId) ? t('pinned.flash') : t('pinned.unflash'));
+                    showFlash(togglePin(networkId) ? t('pinned.flash') : t('pinned.unflash'));
                 }
             } else {
                 // Normal click or Shift+click: open popup (Shift flips default tab).
