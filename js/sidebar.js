@@ -29,7 +29,7 @@ import { initLangPicker } from './lang-picker.js';
 import { initLegend, updateLegendIndicator } from './legend.js';
 import {
     initFilters, resetFilters, loadFilterIndex,
-    hasAnyFilters, getActiveFilterCount 
+    hasAnyFilters, getActiveFilterCount
 } from './filters.js';
 import { initFilterToolbar, updateFilterToolbar } from './filter-toolbar.js';
 import { initPins } from './pins.js';
@@ -129,23 +129,24 @@ function _onResetFilters() {
 
 /* ===== Behavior toggles ===== */
 
-function _initBehaviorToggles() {
-    _initToggle('chk-auto-tags-tab', getAutoTagsTab, setAutoTagsTab);
-    _initToggle('chk-skip-josm-confirm', getSkipJosmConfirm, setSkipJosmConfirm);
-    _initToggle('chk-remember-position', getRememberPosition, setRememberPosition);
-}
+// Checkbox id → [getter, setter] — single source of truth for behavior toggle wiring.
+const _TOGGLE_PREFS = {
+    'chk-auto-tags-tab': [getAutoTagsTab, setAutoTagsTab],
+    'chk-skip-josm-confirm': [getSkipJosmConfirm, setSkipJosmConfirm],
+    'chk-remember-position': [getRememberPosition, setRememberPosition],
+};
 
-/**
- * Bind a checkbox to a preference getter/setter.
- * @param {string}               id      Element ID of the checkbox.
- * @param {function(): boolean}  getter  Returns the current stored value.
- * @param {function(boolean): void} setter  Persists the new value.
- */
-function _initToggle(id, getter, setter) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = getter();
-    el.addEventListener('change', () => setter(el.checked));
+function _initBehaviorToggles() {
+    // Initialize checked states.
+    for (const [id, [getter]] of Object.entries(_TOGGLE_PREFS)) {
+        const el = document.getElementById(id);
+        if (el) el.checked = getter();
+    }
+    // Single delegated change listener on the behavior panel body.
+    document.getElementById('settings-behavior-panel-body')?.addEventListener('change', e => {
+        const pair = _TOGGLE_PREFS[e.target.id];
+        if (pair) pair[1](e.target.checked);
+    });
 }
 
 
@@ -175,11 +176,11 @@ function _switchToTab(tabId) {
 }
 
 function _initTabs() {
-    document.querySelectorAll('.stab').forEach(tab =>
-        tab.addEventListener('click', () =>
-            _switchToTab(tab.getAttribute('aria-controls'))
-        )
-    );
+    // Single delegated click on #sidebar-tabs handles all tab buttons.
+    document.getElementById('sidebar-tabs')?.addEventListener('click', e => {
+        const tab = e.target.closest('.stab');
+        if (tab) _switchToTab(tab.getAttribute('aria-controls'));
+    });
 }
 
 /**

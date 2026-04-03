@@ -80,8 +80,24 @@ async function _initMap(containerId) {
     _createTileLayers(jawgKey);
     _tileLayers[_current].addTo(map);
     _buildBasemapButtons();
+    _initBasemapEvents();
     onLangChange(_buildBasemapButtons);
     return map;
+}
+
+/**
+ * Wire the single delegated click listener on #basemap-list.
+ * Called once from _initMap — survives _buildBasemapButtons() rebuilds
+ * because the listener is on the container, not on each button.
+ */
+function _initBasemapEvents() {
+    document.getElementById('basemap-list')?.addEventListener('click', e => {
+        const btn = e.target.closest('.basemap-btn');
+        if (!btn) return;
+        _setBasemap(btn.dataset.map);
+        document.getElementById('basemap-panel')?.classList.add('is-hidden');
+        document.getElementById('btn-basemap')?.classList.remove('active');
+    });
 }
 
 /** Attempt to load the Jawg API key from the git-ignored config.local.js. */
@@ -202,12 +218,7 @@ function _makeBasemapBtn(key, def, tpl) {
     thumb.src = def.thumb;
     thumb.onerror = function () { this.style.display = 'none'; };
     btn.querySelector('.basemap-label').textContent = t(def.labelKey);
-    btn.addEventListener('click', () => {
-        _setBasemap(key);
-        // Close the floating basemap panel after selection.
-        document.getElementById('basemap-panel')?.classList.add('is-hidden');
-        document.getElementById('btn-basemap')?.classList.remove('active');
-    });
+    // Click is handled by the delegated listener on #basemap-list in _initMap.
     return btn;
 }
 

@@ -13,7 +13,6 @@
 import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
 import { flyToSignal } from './filters.js';
-import { showFlash } from './progress.js';
 import { PillList } from './ui/pill-list.js';
 
 
@@ -44,15 +43,18 @@ let _onPinsChange = null;
  * @param {Function} [opts.onChange]       — Called after any pin change.
  */
 export function initPins({ container, onChange }) {
-    _onPinsChange    = onChange ?? null;
-    _pins            = loadPins();
+    _onPinsChange = onChange ?? null;
+    _pins = loadPins();
 
     _buildPanel(container);
     // Wire the clear button inside the pinned panel header.
     // Use event delegation on the panel's summary rather than a static id.
     document.getElementById('pinned-panel')
         ?.querySelector('[data-action="clear-pins"]')
-        ?.addEventListener('click', e => { e.stopPropagation(); _onClearAll(); });
+        ?.addEventListener('click', e => {
+            e.stopPropagation();
+            _onClearAll();
+        });
     onLangChange(() => _renderPanel());
 }
 

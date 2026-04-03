@@ -93,7 +93,8 @@
                         <div class="panel-summary" role="button" tabindex="0"
                              aria-expanded="true" aria-controls="legend-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                            <span data-i18n="legend.title"></span>
+                            <span class="summary-flex-title" data-i18n="legend.title"></span>
+                            <button class="legend-summary-dot is-hidden" disabled aria-hidden="true"></button>
                         </div>
                         <div class="cp-body" id="legend-panel-body">
                             <div class="panel-body legend-panel-body" id="legend-body"></div>
@@ -223,17 +224,50 @@
                             <span data-i18n="about.usage.title"></span>
                         </div>
                         <div class="cp-body" id="about-usage-panel-body">
-                            <div class="panel-body">
-                                <dl class="about-shortcuts-grid">
-                                    <dt><kbd data-i18n="about.usage.scroll"></kbd></dt>
-                                    <dd data-i18n="about.usage.scrollDesc"></dd>
-                                    <dt><kbd data-i18n="about.usage.click"></kbd></dt>
-                                    <dd data-i18n="about.usage.clickDesc"></dd>
-                                    <dt><kbd data-i18n="about.usage.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.click"></kbd></dt>
-                                    <dd data-i18n-html="about.usage.shiftDesc"></dd>
-                                    <dt><kbd data-i18n="about.usage.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.click"></kbd></dt>
-                                    <dd data-i18n-html="about.usage.ctrlDesc"></dd>
-                                </dl>
+                            <div class="panel-body about-usage-body">
+
+                                <!-- Map sub-panel -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="about-usage-map-panel">
+                                    <div class="panel-summary" role="button" tabindex="0"
+                                         aria-expanded="true" aria-controls="about-usage-map-body">
+                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                                        <span data-i18n="about.usage.map.title"></span>
+                                    </div>
+                                    <div class="cp-body" id="about-usage-map-body">
+                                        <dl class="about-shortcuts-grid">
+                                            <dt><kbd data-i18n="about.usage.map.scroll"></kbd></dt>
+                                            <dd data-i18n="about.usage.map.scrollDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.map.click"></kbd></dt>
+                                            <dd data-i18n="about.usage.map.clickDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.map.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
+                                            <dd data-i18n-html="about.usage.map.shiftDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.map.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
+                                            <dd data-i18n-html="about.usage.map.ctrlDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.map.alt"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
+                                            <dd data-i18n="about.usage.map.altDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.map.rightClick"></kbd></dt>
+                                            <dd data-i18n="about.usage.map.rightClickDesc"></dd>
+                                        </dl>
+                                    </div>
+                                </div>
+
+                                <!-- Filters sub-panel -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="about-usage-filters-panel">
+                                    <div class="panel-summary" role="button" tabindex="0"
+                                         aria-expanded="true" aria-controls="about-usage-filters-body">
+                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                                        <span data-i18n="about.usage.filters.title"></span>
+                                    </div>
+                                    <div class="cp-body" id="about-usage-filters-body">
+                                        <dl class="about-shortcuts-grid">
+                                            <dt><kbd data-i18n="about.usage.filters.click"></kbd></dt>
+                                            <dd data-i18n="about.usage.filters.clickDesc"></dd>
+                                            <dt><kbd data-i18n="about.usage.filters.shift"></kbd>&thinsp;+&thinsp;<kbd>×</kbd></dt>
+                                            <dd data-i18n="about.usage.filters.shiftDesc"></dd>
+                                        </dl>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -677,7 +711,7 @@
     </template>
 
     <template id="tpl-add-filter-option">
-        <div class="afm-option"></div>
+        <div class="afm-option" tabindex="0" role="menuitem"></div>
     </template>
 
     <!-- Pinned signals panel body — injected into #pinned-container by pins.js -->
@@ -706,6 +740,22 @@
                  onerror="this.style.display='none'">
             <span class="basemap-label"></span>
         </button>
+    </template>
+
+    <!-- Context menu — cloned by ui/context-menu.js -->
+    <template id="tpl-ctx-menu">
+        <div class="ctx-menu" role="menu"></div>
+    </template>
+
+    <template id="tpl-ctx-item">
+        <div class="ctx-item" tabindex="0" role="menuitem">
+            <span class="ctx-label"></span>
+            <span class="ctx-shortcut"></span>
+        </div>
+    </template>
+
+    <template id="tpl-ctx-sep">
+        <div class="ctx-sep" role="separator"></div>
     </template>
 
     <!--

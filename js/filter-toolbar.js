@@ -20,7 +20,7 @@ let _btn = null;
 
 // Templates accessed lazily from the live DOM.
 const _tpl = {
-    get menu()   { return document.getElementById('tpl-add-filter-menu'); },
+    get menu() { return document.getElementById('tpl-add-filter-menu'); },
     get option() { return document.getElementById('tpl-add-filter-option'); },
 };
 
@@ -60,7 +60,11 @@ export function updateFilterToolbar() {
 function _onBtnClick(e) {
     e.stopPropagation();
     const existing = document.querySelector('.add-filter-menu');
-    if (existing) { existing.remove(); _btn.focus(); return; }
+    if (existing) {
+        existing.remove();
+        _btn.focus();
+        return;
+    }
     const menu = _buildMenu();
     if (menu) {
         (document.fullscreenElement ?? document.body).appendChild(menu);
@@ -96,47 +100,57 @@ function _buildMenu() {
     for (const f of available) {
         const opt = _tpl.option.content.cloneNode(true).querySelector('.afm-option');
         opt.textContent = t(f.labelKey);
-        opt.tabIndex = 0;
-        opt.setAttribute('role', 'menuitem');
-        opt.addEventListener('mousedown', e => { e.preventDefault(); _activateOption(f, menu); });
-        opt.addEventListener('keydown', e => _onOptionKeydown(e, f, opt, menu));
+        opt.dataset.key = f.key;
         menu.appendChild(opt);
     }
     menu.setAttribute('role', 'menu');
+
+    // Delegated mousedown — activates the option under the pointer.
+    menu.addEventListener('mousedown', e => {
+        const opt = e.target.closest('.afm-option');
+        if (!opt) return;
+        e.preventDefault();
+        _activateKey(opt.dataset.key, menu);
+    });
+
+    // Delegated keydown — activates or navigates all options.
+    menu.addEventListener('keydown', e => {
+        const opt = e.target.closest('.afm-option');
+        switch (e.key) {
+            case 'Enter':
+            case ' ':
+                if (!opt) return;
+                e.preventDefault();
+                _activateKey(opt.dataset.key, menu);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                (opt?.nextElementSibling ?? menu.firstElementChild)?.focus();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                if (!opt?.previousElementSibling) {
+                    menu.remove();
+                    _btn.focus();
+                }
+                else {
+                    opt.previousElementSibling?.focus();
+                }
+                break;
+            case 'Escape':
+            case 'Tab':
+                e.preventDefault();
+                menu.remove();
+                _btn.focus();
+                break;
+        }
+    });
+
     return menu;
 }
 
-function _activateOption(f, menu) {
-    addFilterField(f.key);
+function _activateKey(key, menu) {
+    addFilterField(key);
     menu.remove();
     _btn.focus();
-}
-
-function _onOptionKeydown(e, f, opt, menu) {
-    switch (e.key) {
-        case 'Enter':
-        case ' ':
-            e.preventDefault();
-            _activateOption(f, menu);
-            break;
-        case 'ArrowDown':
-            e.preventDefault();
-            (opt.nextElementSibling ?? menu.firstElementChild)?.focus();
-            break;
-        case 'ArrowUp':
-            e.preventDefault();
-            if (!opt.previousElementSibling) {
-                menu.remove();
-                _btn.focus();
-            } else {
-                opt.previousElementSibling?.focus();
-            }
-            break;
-        case 'Escape':
-        case 'Tab':
-            e.preventDefault();
-            menu.remove();
-            _btn.focus();
-            break;
-    }
 }

@@ -17,7 +17,7 @@
 import { getCategoryEntries } from './cat-mapping.js';
 import { getTypesByGroup } from './signal-mapping.js';
 import { filterByGroup, getActiveGroup } from './filters.js';
-import { onLangChange, translateElement } from './translation.js';
+import { t, onLangChange } from './translation.js';
 
 /**
  * Build the legend DOM and wire category buttons.
@@ -25,19 +25,53 @@ import { onLangChange, translateElement } from './translation.js';
  */
 export function initLegend() {
     _buildLegend();
-    // Rebuild on language change so data-i18n-title attributes are re-applied.
-    onLangChange(_buildLegend);
+
+    // Single delegated click on the container — survives replaceChildren() in _buildLegend.
+    // Disabled buttons carry the HTML disabled attribute and never reach this handler
+    // because Leaflet / browsers do not fire click on disabled <button> elements.
+    document.getElementById('legend-body')?.addEventListener('click', e => {
+        const btn = e.target.closest('.legend-item[data-type]:not([disabled])');
+        if (btn) filterByGroup(btn.dataset.type);
+    });
+
+    // Rebuild on language change and re-sync the active-group indicator.
+    onLangChange(() => {
+        _buildLegend();
+        updateLegendIndicator();
+    });
 }
 
 /**
- * Sync the .is-active class on legend buttons with the current group preset.
- * Called by sidebar.js after every filter change.
+ * Sync the .is-active class on legend buttons with the current group preset,
+ * and update the summary color dot shown when the legend panel is collapsed.
+ * Called by sidebar.js after every filter change and after lang-change rebuild.
  */
 export function updateLegendIndicator() {
     const group = getActiveGroup();
+    let activeColor = null;
+    let activeLabel = null;
+
     document.querySelectorAll('.legend-item[data-type]').forEach(item => {
-        item.classList.toggle('is-active', item.dataset.type === group);
+        const isActive = item.dataset.type === group;
+        item.classList.toggle('is-active', isActive);
+        if (isActive) {
+            activeColor = item.querySelector('.legend-dot')?.style.backgroundColor ?? null;
+            activeLabel = item.querySelector('.legend-label')?.textContent ?? null;
+        }
     });
+
+    // Show a color dot in the panel summary when a category is active.
+    const dot = document.querySelector('#legend-panel .legend-summary-dot');
+    if (!dot) return;
+    if (activeColor) {
+        dot.style.setProperty('--legend-dot-color', activeColor);
+        dot.title = activeLabel ?? '';
+        dot.classList.remove('is-hidden');
+    } else {
+        dot.style.removeProperty('--legend-dot-color');
+        dot.title = '';
+        dot.classList.add('is-hidden');
+    }
 }
 
 
@@ -58,17 +92,14 @@ function _buildLegend() {
         const btn = tpl.content.cloneNode(true).querySelector('.legend-item');
         btn.dataset.type = key;
         btn.querySelector('.legend-dot').style.backgroundColor = color;
-        btn.querySelector('.legend-label').dataset.i18n = `cat.${key}`;
+        btn.querySelector('.legend-label').textContent = t(`cat.${key}`);
 
         if (getTypesByGroup(key).length === 0) {
             btn.disabled = true;
         } else {
-            // data-i18n-title is translated by translateAll on lang change.
-            btn.dataset.i18nTitle = 'legend.clickToFilter';
-            btn.addEventListener('click', () => filterByGroup(key));
+            btn.title = t('legend.clickToFilter');
         }
 
         container.appendChild(btn);
-        translateElement(btn);
     }
 }

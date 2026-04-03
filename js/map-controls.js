@@ -23,32 +23,44 @@ import { map, flyToLocation } from './map.js';
  * Wire all map toolbar buttons.
  * Must be called after initMap() so that the Leaflet map instance exists.
  */
+// Map button id → action — single source of truth for toolbar wiring.
+const _BTN_ACTIONS = {
+    'btn-zoom-in': () => map.zoomIn(),
+    'btn-zoom-out': () => map.zoomOut(),
+    'btn-reset-view': _resetView,
+    'btn-geolocate': _geolocate,
+    'btn-fullscreen': _toggleFullscreen,
+    'btn-basemap': _toggleBasemapPanel,
+    'btn-controls-toggle': _toggleControls,
+    'btn-sidebar-toggle': _toggleSidebar,
+};
+
 export function initMapControls() {
-    document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
-    document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
-    document.getElementById('btn-reset-view')?.addEventListener('click', _resetView);
-    document.getElementById('btn-geolocate')?.addEventListener('click', _geolocate);
-    document.getElementById('btn-fullscreen')?.addEventListener('click', _toggleFullscreen);
-    document.getElementById('btn-basemap')?.addEventListener('click', _toggleBasemapPanel);
-    document.getElementById('btn-controls-toggle')?.addEventListener('click', _toggleControls);
     _applyCollapsed(getControlsCollapsed(), false);
+
+    // Single delegated click on #map-controls handles every toolbar button.
+    document.getElementById('map-controls')?.addEventListener('click', e => {
+        const btn = e.target.closest('button[id]');
+        if (btn) _BTN_ACTIONS[btn.id]?.();
+    });
 
     // Close basemap panel when clicking outside it.
     document.addEventListener('click', e => {
-        if (!e.target.closest('#basemap-panel') && !e.target.closest('#btn-basemap')) {
+        if (!e.target.closest('#basemap-panel') && !e.target.closest('#btn-basemap'))
             _closeBasemapPanel();
-        }
     });
-    document.getElementById('btn-sidebar-toggle')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
-        setTimeout(() => map.invalidateSize(), 210);
-    });
+
     document.addEventListener('fullscreenchange', () =>
         document.getElementById('btn-fullscreen')?.classList.toggle('active', !!document.fullscreenElement)
     );
 }
 
 /* ===== Private helpers ===== */
+
+function _toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
+    setTimeout(() => map.invalidateSize(), 210);
+}
 
 /** Return to the initial map extent. */
 function _resetView() {

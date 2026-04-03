@@ -92,7 +92,7 @@ export function initFilters(onChange) {
 
     onLangChange(() => {
         _buildPanels();
-        _defs.forEach((_, idx) => _refreshTags(idx));
+        _refreshAllTags();
     });
 
     _restoreFilters();
@@ -110,10 +110,10 @@ export async function loadFilterIndex() {
         const res = await fetch(TILES_BASE + 'index.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        initBlockSystem(data);
         _parseFieldIndex(data);
         _parseNetworkIdIndex(data);
-        initBlockSystem(data);
-        _defs.forEach((_, i) => _refreshDropdown(i));
+        _refreshAllDropdowns();
         return data;
     } catch (err) {
         console.warn('[Filters] index.json:', err.message);
@@ -146,7 +146,7 @@ export function indexSignals(signals) {
             }
         });
     }
-    if (changed) _defs.forEach((_, i) => _refreshDropdown(i));
+    if (changed) _refreshAllDropdowns();
 }
 
 /**
@@ -206,11 +206,11 @@ export function filterByGroup(group) {
 
     const current = _activeFilters['signalType'];
     const isAlreadyActive = current?.size === types.length && types.every(v => current.has(v));
-    const signalDef = _defs.find(d => d.field === 'signalType');
+    const signalDef = _defs.find(d => _isSignalType(d.field));
 
     // Toggle off: current state is exactly this legend group — nothing else, no search.
     if (isAlreadyActive && _defs.length === 1 && signalDef && !signalDef.search && _mappedOnly) {
-        if (!confirm(t('filter.confirmClear'))) return;
+        if (!_confirmClear()) return;
         resetFilters();
         return;
     }
@@ -219,11 +219,11 @@ export function filterByGroup(group) {
     if (isAlreadyActive && _defs.length === 0) return;
 
     // Confirm only when meaningful filters (values or searches) would be overwritten.
-    if (hasAnyFilters() && !confirm(t('filter.confirmClear'))) return;
+    if (hasAnyFilters() && !_confirmClear()) return;
 
     // Destroy and remove all non-signalType panels.
     _defs = _defs.filter(d => {
-        if (d.field === 'signalType') return true;
+        if (_isSignalType(d.field)) return true;
         d.panel?.destroy();
         delete _activeFilters[d.field];
         return false;
@@ -328,6 +328,11 @@ export function getAvailableFields() {
 export function addFilterField(key) {
     _defs.push({ field: key, search: '' });
     _buildPanels();
+    // Focus the first interactive element of the new panel so the user can type immediately.
+    queueMicrotask(() => {
+        const newDef = _defs.find(d => d.field === key);
+        newDef?.panel?.focusInput();
+    });
 }
 
 function _fieldDef(key) {
@@ -356,10 +361,29 @@ function _translateFilterValue(field, val) {
 }
 
 
+/**
+ * Ask the user to confirm clearing filter values.
+ * Centralised to avoid duplicating the confirm(t(...)) call at every site.
+ * @returns {boolean} True when the user confirmed.
+ */
+function _confirmClear() {
+    return confirm(t('filter.confirmClear'));
+}
+
 /* ===== Group preset state ===== */
 
+/**
+ * Return true when the given field key is 'signalType'.
+ * Centralises the comparison so field-specific logic is easy to find and adjust.
+ * @param {string} field
+ * @returns {boolean}
+ */
+function _isSignalType(field) {
+    return field === 'signalType';
+}
+
 function _syncActiveGroup(field) {
-    if (field === 'signalType') _clearActiveGroup();
+    if (_isSignalType(field)) _clearActiveGroup();
 }
 
 /**
@@ -432,7 +456,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
  * @param {Function} callback
  */
 function _confirmIfActive(field, callback) {
-    if (_activeFilters[field]?.size > 0 && !confirm(t('filter.confirmClear'))) return;
+    if (_activeFilters[field]?.size > 0 && !_confirmClear()) return;
     callback();
 }
 
@@ -443,8 +467,8 @@ function _confirmIfActive(field, callback) {
  * @param {number} idx
  */
 function _clearFilter(def, idx) {
-    _syncActiveGroup(def.field);
     delete _activeFilters[def.field];
+    _syncActiveGroup(def.field);
     _refreshTags(idx);
     _refreshDropdown(idx);
     _commit();
@@ -473,10 +497,10 @@ function _onPillRemove(def, val) {
  */
 function _onRemove(def, idx) {
     _confirmIfActive(def.field, () => {
-        _syncActiveGroup(def.field); 
         def.panel.destroy();
         delete _activeFilters[def.field];
         _defs.splice(idx, 1);
+        _syncActiveGroup(def.field);
         _buildPanels();
         _commit();
     });
@@ -491,10 +515,10 @@ function _onRemove(def, idx) {
  */
 function _onToggleMappedOnly(def, checked) {
     _confirmIfActive(def.field, () => {
-        _clearActiveGroup();
         _mappedOnly = checked;
         delete _activeFilters['signalType'];
         _resetSearch('signalType');
+        _clearActiveGroup();
         _buildPanels();
         _commit();
     });
@@ -554,6 +578,10 @@ function _refreshTags(idx) {
     def.panel.toggleClearBtn(activeVals.length > 0);
 }
 
+function _refreshAllTags() {
+    _defs.forEach((_, idx) => _refreshTags(idx));
+}
+
 /**
  * Prepare the filtered, sorted item list and hand it to the panel for rendering.
  * All data logic (merging index + counts, filtering, sorting) stays here;
@@ -573,6 +601,10 @@ function _refreshDropdown(idx) {
     } else {
         _refreshStandardDropdown(def, fieldMeta, sel, q);
     }
+}
+
+function _refreshAllDropdowns() {
+    _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
 /** Render the networkId dropdown — searches the full _networkIdToTile index. */
@@ -600,7 +632,7 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
 /** Render a standard dropdown from local counts and the global index. */
 function _refreshStandardDropdown(def, fieldMeta, sel, q) {
     const all = _candidateValues(def);
-    const isSignalType = def.field === 'signalType';
+    const isSignalType = _isSignalType(def.field);
     const numericSort = def.field === 'lineCode';
     const isMappedOnly = _mappedOnly && isSignalType;
     // In overview sampling mode use global counts — the spatial sample is not
@@ -639,7 +671,7 @@ function _candidateValues(def) {
     const base = fromIndex.length > 0
         ? [...new Set([...fromIndex, ...fromCounts])]
         : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
-    if (_mappedOnly && def.field === 'signalType') return base.filter(v => _mappedTypes.has(v));
+    if (_mappedOnly && _isSignalType(def.field)) return base.filter(v => _mappedTypes.has(v));
     return base;
 }
 
@@ -674,7 +706,6 @@ function _itemSorter(fieldMeta, isSignalType, numericSort) {
  * Recreates panels and re-activates values without triggering _onChange.
  */
 function _restoreFilters() {
-    debugger;
     const saved = loadFilters();
     if (!saved.length) return;
     for (const { field, values, mappedOnly } of saved) {
@@ -713,7 +744,7 @@ function _persistFilters() {
     const state = _defs.map(d => ({
         field: d.field,
         values: [...(_activeFilters[d.field] || [])],
-        mappedOnly: d.field === 'signalType' ? _mappedOnly : undefined,
+        mappedOnly: _isSignalType(d.field) ? _mappedOnly : undefined,
     }));
     saveFilters(state);
 }
@@ -753,12 +784,14 @@ function _selectFirst(idx) {
 
 function _openDropdown(idx) {
     // Close all sibling filter dropdowns first (only one open at a time).
-    _defs.forEach((d, i) => { if (i !== idx) d.panel?.closeDropdown(); });
+    _defs.forEach((d, i) => {
+        if (i !== idx) d.panel?.closeDropdown();
+    });
     _defs[idx]?.panel?.openDropdown();
 }
 
 function _toggle(field, val) {
-    _syncActiveGroup(field); 
+    _syncActiveGroup(field);
     if (!_activeFilters[field]) _activeFilters[field] = new Set();
     const wasActive = _activeFilters[field].has(val);
     wasActive

@@ -23,6 +23,8 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - Active filters persist across sessions and are restored on next visit
 - `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
 - **Pinned signals**: Ctrl+click any signal to bookmark it; pinned signals appear in the Filters tab and can be used to fly back to any signal
+- **Context menu**: right-click any signal for quick access to Zoom to, Pin/Unpin, and Properties
+- Alt+click any signal to zoom and center without opening the popup
 - Three basemaps: Jawg Transport, OpenStreetMap, Satellite — switchable from a floating panel on the map toolbar
 - Collapsible map toolbar
 - Persistent user preferences: default popup tab, JOSM confirmation, last map position, active filters, last basemap, pinned signals, collapsible panel states
@@ -63,17 +65,22 @@ app.js
 map.js
   ├── map-controls.js  (initMapControls — wired inside initMap)
   ├── map-layer.js     (initLayer — wired inside initMap)
-  └── translation.js   (onLangChange → basemap label rebuild)
+  └── translation.js   (translateElement, onLangChange → basemap label rebuild)
+
+map-layer.js
+  ├── ui/context-menu.js  (showContextMenu, closeContextMenu)
+  └── pins.js             (togglePin, isPinned)
 
 sidebar.js
   ├── collapsible-panel.js
-  ├── lang-picker.js   (language dropdown)
-  ├── legend.js        (category buttons → filterByGroup)
-  ├── filters.js       (initFilters, loadFilterIndex, initFilterToolbar)
-  └── pins.js          (initPins — after index load)
+  ├── lang-picker.js      (language dropdown)
+  ├── legend.js           (category buttons → filterByGroup)
+  ├── filters.js          (initFilters, loadFilterIndex)
+  ├── filter-toolbar.js   (initFilterToolbar, updateFilterToolbar)
+  └── pins.js             (initPins — after index load)
 
 filters.js
-  ├── filter-toolbar.js  (Add filter button — IoC: getAvailableFields, onFieldSelect)
+  ├── cat-mapping.js     (getCategoryEntries — for _detectActiveGroup)
   ├── map-layer.js       (isSampled, getSignalLatlng)
   └── map.js             (flyToLocationWithMarker)
 
@@ -151,7 +158,15 @@ Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.g
 
 ## Signal popup
 
-Click a signal marker to open a two-tab popup. Hold **Shift** while clicking to flip the default tab (see the Settings tab to configure which tab opens by default). Hold **Ctrl** to pin or unpin the signal instead of opening the popup.
+Click a signal marker to open a two-tab popup.
+
+| Shortcut | Action |
+|----------|--------|
+| Click | Open signal popup |
+| Shift+Click | Open popup on the alternate tab (configurable in Settings) |
+| Ctrl+Click | Pin / unpin the signal |
+| Alt+Click | Zoom to and center on the signal |
+| Right-click | Open context menu (Zoom to, Pin/Unpin, Properties) |
 
 ### Signals tab
 
@@ -315,12 +330,11 @@ sncf-sigmap/
 │   ├── filter-toolbar.js         ← "Add filter" button and dropdown menu (IoC, no state)
 │   ├── filters.js                ← filter state, value index, dropdown orchestration
 │   ├── josm.js                   ← JOSM Remote Control connection management
-│   ├── lang-picker.js            ← language picker dropdown (extracted from sidebar.js)
+│   ├── lang-picker.js            ← language picker dropdown
 │   ├── legend.js                 ← legend panel DOM builder and category filter shortcuts
-│   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker;
-│   │                                calls initLayer() and initMapControls() internally
-│   ├── map-controls.js           ← zoom, geolocate, fullscreen, sidebar toggle, basemap picker, collapsible toolbar
-│   ├── map-layer.js              ← signal marker pipeline (worker → render); owns isSampled state
+│   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker
+│   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, collapse
+│   ├── map-layer.js              ← signal marker pipeline (worker → render); Alt/Ctrl/right-click handling
 │   ├── overpass.js               ← Overpass API existence check (batch)
 │   ├── pins.js                   ← pinned signals management, panel, navigation
 │   ├── prefs.js                  ← single source of truth for all localStorage access
@@ -337,8 +351,9 @@ sncf-sigmap/
 │   ├── worker-contract.js        ← worker message types and postMessage helpers
 │   └── ui/
 │       ├── combobox.js           ← search input behavior for filter dropdowns
+│       ├── context-menu.js       ← floating context menu with event delegation and keyboard navigation
 │       ├── dropdown.js           ← generic accessible dropdown / listbox controller
-│       └── pill-list.js          ← selected-value pill container
+│       └── pill-list.js          ← selected-value pill container (event delegation, Shift+remove)
 ├── strings/
 │   ├── strings.en-us.json        ← English UI strings
 │   └── strings.fr-fr.json        ← French UI strings

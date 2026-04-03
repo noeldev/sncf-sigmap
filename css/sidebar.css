@@ -450,6 +450,45 @@
     border: 1.5px solid rgba(0,0,0,.3);
 }
 
+/* Color indicator shown in the legend panel-summary when a category is active.
+ *
+ * Implemented as <button disabled> matching summary-action-btn height exactly
+ * (same display:inline-flex + padding from the shared selector).
+ * The circle is drawn by ::before — its dimensions are independent of the
+ * button box model, no conflict with the shared padding.
+ * Color is passed via --legend-dot-color (set by legend.js).
+ *
+ * Hidden by JS (.is-hidden) when no group is active.
+ * Hidden by CSS when the panel is open — only needed in the collapsed state. */
+.legend-summary-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 4px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: default;
+}
+
+    .legend-summary-dot::before {
+        content: '';
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(0,0,0,.3);
+        background-color: var(--legend-dot-color, transparent);
+    }
+
+    .legend-summary-dot.is-hidden {
+        display: none;
+    }
+
+#legend-panel.cp-panel--open .legend-summary-dot {
+    display: none;
+}
+
 
 /* ===== Settings tab =====
  *
@@ -858,6 +897,75 @@ a[data-switch-tab] {
         .about-shortcuts-grid dt:not(:first-of-type) + dd {
             border-top: 1px solid var(--border);
         }
+
+
+/* ===== Usage sub-panels (.cp-panel--sub) =====
+ *
+ * Lightweight collapsible sections inside "How to use" — reuse the cp-panel /
+ * collapsible-panel.js system with visual overrides:
+ *   — no background box or border, just a ruled header underline
+ *   — smaller title font (same mono style, less prominent than main panels)
+ *   — compact body padding
+ *
+ * The header underline (border-bottom on .panel-summary) is only visible when
+ * the sub-panel is open; transparent default makes it invisible when closed.
+ */
+
+.cp-panel--sub {
+    border: none;
+    background: none;
+    box-shadow: none;
+}
+
+    /* Override the generic cp-panel + cp-panel border-top between siblings */
+    .cp-panel--sub + .cp-panel--sub {
+        border-top: none;
+        margin-top: 14px;
+    }
+
+    .cp-panel--sub > .panel-summary {
+        background: none;
+        padding: 0 0 5px;
+        font-size: 10px;
+        letter-spacing: .6px;
+        gap: 5px;
+        border-bottom: 1px solid transparent;
+    }
+
+/* Underline only when open */
+.cp-panel--open.cp-panel--sub > .panel-summary {
+    border-bottom-color: var(--border);
+}
+
+.cp-panel--sub > .panel-summary[role="button"]:hover {
+    background: none;
+    color: var(--text);
+}
+
+.cp-panel--sub > .panel-summary .panel-arrow {
+    color: var(--text3);
+}
+
+.cp-panel--sub > .cp-body {
+    padding-top: 4px;
+}
+
+/* Force all dt cells in .about-usage-body grids to the same minimum width so
+ * the description columns align across the Map and Filters sub-panels.
+ * min-width accommodates the widest dt content ("Alt + Click"). */
+.about-usage-body .about-shortcuts-grid {
+    grid-template-columns: auto 1fr;
+    width: 100%;
+}
+
+    .about-usage-body .about-shortcuts-grid dt {
+        min-width: 100px;
+    }
+
+    /* Slightly lighter description text inside sub-panel grids */
+    .about-usage-body .about-shortcuts-grid dd {
+        color: var(--text2);
+    }
 
 
 /* ===== Credits footer (About tab) =====

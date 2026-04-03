@@ -162,14 +162,28 @@
     "less": "Less…",
     "usage": {
       "title": "How to use",
-      "scroll": "Wheel",
-      "scrollDesc": "Zoom in / out",
-      "click": "Click",
-      "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
-      "shift": "Shift",
-      "ctrl": "Ctrl",
-      "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
-      "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab"
+      "map": {
+        "title": "Map",
+        "scroll": "Wheel",
+        "scrollDesc": "Zoom in / out",
+        "click": "Click",
+        "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
+        "shift": "Shift",
+        "ctrl": "Ctrl",
+        "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
+        "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab",
+        "alt": "Alt",
+        "altDesc": "Zoom to and center on the signal",
+        "rightClick": "Right-click",
+        "rightClickDesc": "Open context menu"
+      },
+      "filters": {
+        "title": "Filters",
+        "click": "Click",
+        "clickDesc": "Network ID pill — fly to the signal on the map",
+        "shift": "Shift",
+        "shiftDesc": "Remove (×) — close all other pills, keep this one"
+      }
     },
     "links": {
       "title": "Links"
@@ -196,5 +210,11 @@
     "clear": "Clear filter values",
     "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
     "close": "Remove filter"
+  },
+  "ctx": {
+    "zoomCenter": "Zoom to",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "properties": "Properties"
   }
 }

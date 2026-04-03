@@ -401,3 +401,51 @@
 #map-controls.no-transition * {
     transition: none !important;
 }
+
+
+/* ===== Context menu ===== */
+
+.ctx-menu {
+    position: fixed;
+    z-index: 10000;
+    background: rgba(13, 17, 23, .94);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .6);
+    min-width: 180px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    outline: none;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    outline: none;
+}
+
+    .ctx-item:hover,
+    .ctx-item:focus-visible {
+        background: rgba(255, 255, 255, .08);
+    }
+
+.ctx-shortcut {
+    font-size: 10px;
+    color: var(--text3);
+    flex-shrink: 0;
+}
+
+.ctx-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 3px 4px;
+}

@@ -162,14 +162,28 @@
     "less": "Réduire…",
     "usage": {
       "title": "Utilisation",
-      "scroll": "Molette",
-      "scrollDesc": "Zoom avant / arrière",
-      "click": "Clic",
-      "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
-      "shift": "Maj",
-      "ctrl": "Ctrl",
-      "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
-      "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)"
+      "map": {
+        "title": "Carte",
+        "scroll": "Molette",
+        "scrollDesc": "Zoom avant / arrière",
+        "click": "Clic",
+        "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
+        "shift": "Maj",
+        "ctrl": "Ctrl",
+        "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
+        "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)",
+        "alt": "Alt",
+        "altDesc": "Zoome et centre sur le signal",
+        "rightClick": "Clic droit",
+        "rightClickDesc": "Ouvre le menu contextuel"
+      },
+      "filters": {
+        "title": "Filtres",
+        "click": "Clic",
+        "clickDesc": "Pastille ID Réseau — zoome la carte sur le signal",
+        "shift": "Maj",
+        "shiftDesc": "Supprimer (×) — supprime toutes les autres pastilles"
+      }
     },
     "links": {
       "title": "Liens"
@@ -196,5 +210,11 @@
     "clear": "Effacer les valeurs",
     "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
     "close": "Supprimer le filtre"
+  },
+  "ctx": {
+    "zoomCenter": "Zoomer",
+    "pin": "Épingler",
+    "unpin": "Désépingler",
+    "properties": "Propriétés"
   }
 }

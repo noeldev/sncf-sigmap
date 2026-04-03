@@ -21,7 +21,7 @@
  */
 
 import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
-import { map, dismissLocationMarker } from './map.js';
+import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab } from './signal-popup.js';
@@ -30,8 +30,9 @@ import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './worker-contract.js';
 import { showFlash, showProgress, hideProgress } from './progress.js';
-import { togglePin } from './pins.js';
+import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
+import { showContextMenu, closeContextMenu } from './ui/context-menu.js';
 
 
 // ===== Module state =====
@@ -86,6 +87,8 @@ function _getDotSize(count) {
  */
 export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
+    // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
+    map.on('movestart', closeContextMenu);
 }
 
 /**
@@ -127,7 +130,6 @@ export function refresh(force = false) {
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom);
 }
-
 
 
 /**
@@ -282,6 +284,70 @@ function _makeDotIcon(color, size, multi) {
  * @param {object[]} display  filtered signals (for icon colour and tooltip)
  * @returns {L.Marker}
  */
+/**
+ * Alt+Click handler: zoom to and center on the signal.
+ * No location marker — the signal dot is already visible at the click position.
+ */
+function _onMarkerAltClick(lat, lng) {
+    flyToLocationWithMarker([lat, lng]);
+}
+
+/**
+ * Ctrl+Click handler: pin or unpin the first signal in the group.
+ * @param {object[]} all
+ */
+function _onMarkerCtrlClick(all) {
+    const networkId = all[0]?.p?.networkId;
+    if (networkId) {
+        showFlash(togglePin(networkId)
+            ? t('pinned.flash')
+            : t('pinned.unflash'));
+    }
+}
+
+/**
+ * Normal/Shift+Click handler: open the signal popup.
+ * Shift flips the default starting tab.
+ * @param {[number, number]} latlng
+ * @param {object[]}         all
+ * @param {boolean}          shift
+ */
+function _onMarkerClick(latlng, all, shift) {
+    openSignalPopup(latlng, all, 0, resolveStartTab(shift));
+}
+
+/**
+ * Build and show the context menu for a signal marker.
+ * Pin/Unpin label is resolved dynamically from the current pinned state.
+ * @param {number}   x    clientX of the triggering event.
+ * @param {number}   y    clientY of the triggering event.
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all  All co-located signals in the group.
+ */
+function _showSignalContextMenu(x, y, lat, lng, all) {
+    const networkId = all[0]?.p?.networkId ?? null;
+    const pinned = networkId ? isPinned(networkId) : false;
+    showContextMenu(x, y, [
+        {
+            labelKey: 'ctx.zoomCenter',
+            shortcut: 'Alt+Click',
+            action: () => _onMarkerAltClick(lat, lng),
+        },
+        {
+            labelKey: pinned ? 'ctx.unpin' : 'ctx.pin',
+            shortcut: 'Ctrl+Click',
+            action: () => _onMarkerCtrlClick(all),
+        },
+        'separator',
+        {
+            labelKey: 'ctx.properties',
+            shortcut: 'Click',
+            action: () => _onMarkerClick([lat, lng], all, false),
+        },
+    ]);
+}
+
 function _makeMarker(lat, lng, all, display) {
     const color = getTypeColor(display[0].p.signalType);
     const count = display.length;
@@ -295,21 +361,25 @@ function _makeMarker(lat, lng, all, display) {
         })
         .on('click', e => {
             dismissLocationMarker();
+            closeContextMenu();
 
             const orig = e.originalEvent;
-            const ctrl = orig?.ctrlKey || orig?.metaKey; // Ctrl/Cmd shortcuts
+            const ctrl = orig?.ctrlKey || orig?.metaKey;
             const shift = orig?.shiftKey;
+            const alt = orig?.altKey;
 
-            if (ctrl && !shift) {
-                // Ctrl+click: pin the first signal at this location.
-                const networkId = all[0]?.p?.networkId;
-                if (networkId) {
-                    showFlash(togglePin(networkId) ? t('pinned.flash') : t('pinned.unflash'));
-                }
+            if (alt && !ctrl && !shift) {
+                _onMarkerAltClick(lat, lng);
+            } else if (ctrl && !shift) {
+                _onMarkerCtrlClick(all);
             } else {
-                // Normal click or Shift+click: open popup (Shift flips default tab).
-                openSignalPopup([lat, lng], all, 0, resolveStartTab(shift));
+                _onMarkerClick([lat, lng], all, shift);
             }
+        })
+        .on('contextmenu', e => {
+            L.DomEvent.preventDefault(e);
+            dismissLocationMarker();
+            _showSignalContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
 }
 

@@ -5,3 +5,4 @@ Disallow: /assets/
 Disallow: /data/
 Disallow: /strings/
 Disallow: /tools/
+Disallow: /js/config.local.js
