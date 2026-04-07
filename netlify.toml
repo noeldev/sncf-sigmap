@@ -31,18 +31,22 @@
   [headers.values]
     Cache-Control = "no-cache"
 
+[[headers]]
+  for = "/data/tiles/*.json"
+  [headers.values]
+    Content-Type = "application/json"
+    X-Content-Type-Options = "nosniff"
+    Content-Encoding = "gzip"
+    Cache-Control = '''
+    public, 
+    max-age=86400, 
+    must-revalidate'''
+
 # Tile files are stored as .json.gz on disk.
 # JS requests .json — Netlify rewrites to .json.gz and adds decompression headers
 # so fetch().json() works transparently, identical to Caddy local dev.
 [[redirects]]
-  from = "/data/tiles/*.json"
-  to   = "/data/tiles/:splat.json.gz"
+  from = "/data/tiles/*"
+  to = "/data/tiles/:splat.gz"
   status = 200
-
-[[headers]]
-  for = "/data/tiles/*.json.gz"
-  [headers.values]
-    Cache-Control = "public, max-age=86400, must-revalidate"
-    Content-Type = "application/json"
-    Content-Encoding = "gzip"
-    Access-Control-Allow-Origin = "*"
+  force = false
