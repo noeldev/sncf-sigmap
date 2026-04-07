@@ -5,11 +5,35 @@
 
 /* ===== Map controls ===== */
 
-#map-controls {
+/* ===== Map UI left group =====
+ *
+ * Flex column container that holds #basemap-panel and #map-controls side by side.
+ * align-items:flex-end bottom-aligns both — the panel's bottom edge always
+ * matches the toolbar's bottom edge regardless of height.
+ * pointer-events:none on the container avoids blocking map interaction in the
+ * empty space between the two elements; restored on each direct child.
+ */
+
+.map-ui-left {
     position: absolute;
     top: 10px;
     left: 10px;
     z-index: 500;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 3px;
+    pointer-events: none;
+}
+
+    .map-ui-left > * {
+        pointer-events: auto;
+    }
+
+
+/* .map-ui-left positions both #map-controls and #basemap-panel.
+   #map-controls itself needs no position:absolute — it is a flex child. */
+#map-controls {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -76,6 +100,10 @@
         display: none;
     }
 
+    #progress-overlay.no-spinner .progress-spinner {
+        display: none;
+    }
+
 .progress-spinner {
     width: 12px;
     height: 12px;
@@ -97,6 +125,7 @@
 :root {
     --sb-h: 26px;
 }
+
 #statusbar {
     position: absolute;
     bottom: 0;
@@ -171,6 +200,182 @@
         transform: scale(1.5);
     }
 
+
+/* ===== Geolocalization marker ===== */
+
+.gps-pulse-icon {
+    position: relative;
+    background: none;
+    border: none;
+}
+
+.gps-pulse-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    background-color: #2589c7;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    z-index: 2;
+}
+
+.gps-pulse-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    background-color: #2589c7;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    animation: pulse-ring 2s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(4);
+        opacity: 0;
+    }
+}
+
+.gps-accuracy-circle {
+    animation: pulse-accuracy 3s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-accuracy {
+    0% {
+        opacity: 0.4;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* ===== Leaflet overrides ===== */
+
+.leaflet-control-attribution {
+    line-height: var(--sb-h) !important;
+    padding: 0 10px !important;
+    background: none !important;
+    color: var(--text2) !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}
+
+    .leaflet-control-attribution a {
+        color: #90d5f0 !important;
+    }
+
+
+/* ===== Collapsible map controls toolbar =====
+ *
+ * When #map-controls carries .is-collapsed, every button and separator
+ * is hidden except #btn-sidebar-toggle (top) and #btn-controls-toggle
+ * (bottom). The chevron rotates 180° to indicate the expand action.
+ *
+ * .no-transition suppresses the animation on the initial state restore
+ * so there is no flash on page load.
+ */
+
+#map-controls.is-collapsed .mc-btn:not(#btn-sidebar-toggle):not(#btn-controls-toggle),
+#map-controls.is-collapsed .mc-sep:not(.mc-sep-collapse) {
+    display: none;
+}
+
+/* Keep the separator above the collapse button visible but tighter */
+#map-controls.is-collapsed .mc-sep-collapse {
+    display: block;
+}
+
+.mc-chevron {
+    /* icon-chevron points right (>); rotate -90deg to point up ∧ = "click to collapse". */
+    transform: rotate(-90deg);
+    transition: transform .2s ease;
+}
+
+#map-controls.is-collapsed .mc-chevron {
+    /* Collapsed state: rotate 90deg to point down ∨ = "click to expand". */
+    transform: rotate(90deg);
+}
+
+#map-controls.no-transition,
+#map-controls.no-transition * {
+    transition: none !important;
+}
+
+
+/* ===== Basemap picker panel =====
+ *
+ * Sits to the right of #map-controls inside .map-ui-left.
+ * align-items:flex-end on the container bottom-aligns the two elements
+ * automatically — no JS measurement needed.
+ */
+
+.basemap-panel {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(0,0,0,.5);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+}
+
+    .basemap-panel.is-hidden {
+        display: none;
+    }
+
+
+/* ===== Basemap selector ===== */
+
+.basemap-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 4px;
+    transition: border-color .15s, color .15s;
+}
+
+    .basemap-btn:hover {
+        border-color: var(--border2);
+        color: var(--text);
+    }
+
+    .basemap-btn.active {
+        border-color: var(--accent2);
+        color: var(--text);
+    }
+
+.basemap-thumb {
+    border-radius: 5px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,.18);
+    object-fit: cover;
+}
+
+
 /* ===== Tooltip ===== */
 
 .leaflet-tooltip.sig-tooltip {
@@ -197,7 +402,7 @@
     padding: 1px 0;
 }
 
-/* Type label in tooltip: colour comes from --tt-type-color set by tooltip.js
+/* Type label in tooltip: color comes from --tt-type-color set by tooltip.js
    via getTypeColor(). Falls back to --text if not set. */
 .tt-type {
     font-weight: 700;
@@ -230,16 +435,57 @@
     margin: 4px 0 3px;
 }
 
-/* ===== Leaflet overrides ===== */
 
-.leaflet-control-attribution {
-    line-height: var(--sb-h) !important;
-    padding: 0 10px !important;
-    background: none !important;
-    color: var(--text2) !important;
-    text-shadow: 0 1px 3px rgba(0,0,0,.8);
+/* ===== Context menu ===== */
+
+.ctx-menu {
+    position: fixed;
+    z-index: 10000;
+    background: rgba(13, 17, 23, .94);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .6);
+    min-width: 180px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    outline: none;
 }
 
-    .leaflet-control-attribution a {
-        color: #90d5f0 !important;
+.ctx-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    outline: none;
+}
+
+    .ctx-item:hover,
+    .ctx-item:focus-visible {
+        background: rgba(255, 255, 255, .08);
     }
+
+/* When a different item is hovered, suppress the keyboard focus ring so
+     * only the hovered item is highlighted — no dual highlight.
+     * :not(:hover) preserves the highlight when the mouse is on the focused item. */
+.ctx-menu:has(.ctx-item:hover) .ctx-item:focus-visible:not(:hover) {
+    background: none;
+}
+
+.ctx-shortcut {
+    font-size: 10px;
+    color: var(--text3);
+    flex-shrink: 0;
+}
+
+.ctx-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 3px 4px;
+}

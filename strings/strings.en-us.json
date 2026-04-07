@@ -1,0 +1,266 @@
+{
+  "page": {
+    "title": "SNCF Fixed Signaling"
+  },
+  "header": {
+    "subtitle1": "Fixed",
+    "subtitle2": "Signaling",
+    "loading": "Loading…",
+    "beta": "Beta"
+  },
+  "tabs": {
+    "filters": "Filters",
+    "settings": "Settings",
+    "about": "About",
+    "help": "Help"
+  },
+  "buttons": {
+    "addFilter": "+ Add filter",
+    "reset": "Reset",
+    "confirmReset": "Reset all active filters?"
+  },
+  "toggle": {
+    "supported": "Supported types only",
+    "autoTagsTab": "Open OSM Tags tab by default",
+    "skipJosmConfirm": "Skip JOSM export confirmation",
+    "rememberPosition": "Restore last map position on startup"
+  },
+  "legend": {
+    "title": "Legend",
+    "clickToFilter": "Click to filter by this category"
+  },
+  "fields": {
+    "signalType": "Signal type",
+    "lineCode": "Line code",
+    "lineName": "Line name",
+    "blockType": "Block system",
+    "trackCode": "Track code",
+    "trackName": "Track name",
+    "direction": "Direction",
+    "placement": "Placement",
+    "milepost": "Milepost",
+    "networkId": "Network ID"
+  },
+  "values": {
+    "direction": {
+      "forward": "Increasing",
+      "backward": "Decreasing",
+      "both": "Both",
+      "unknown": "N/A"
+    },
+    "placement": {
+      "right": "Right",
+      "left": "Left",
+      "bridge": "Gantry",
+      "unknown": "N/A"
+    }
+  },
+  "filters": {
+    "indexError": "Filter index unavailable — suggestions may be incomplete."
+  },
+  "dropdown": {
+    "search": "Search among {0} values…",
+    "noMatch": "No matching values",
+    "remove": "Remove filter",
+    "searchNetworkId": "Type some digits to search…",
+    "clickToSelect": "Click to select…"
+  },
+  "settings": {
+    "basemap": "Base Map",
+    "language": "Language",
+    "behavior": "Behavior"
+  },
+  "basemap": {
+    "jawg": "Jawg Transport",
+    "osm": "OpenStreetMap",
+    "satellite": "Satellite"
+  },
+  "ctrl": {
+    "resetView": "Reset view (Home)",
+    "toggle": "Toggle sidebar (S)",
+    "zoomIn": "Zoom in (+)",
+    "zoomOut": "Zoom out (-)",
+    "locate": "Show My Location (L)",
+    "fullscreen": "Fullscreen (F11)",
+    "basemap": "Base map (B)",
+    "collapse": "Collapse toolbar (T)",
+    "expand": "Expand toolbar (T)",
+    "geolocateUnavailable": "Geolocation not available.",
+    "geolocateError": "Location error: {0}"
+  },
+  "status": {
+    "signals": "Signals",
+    "filters": "Filters",
+    "zoom": "Zoom",
+    "sampledTitle": "Overview sample — {0} matching signals. Zoom ≥{1} for full detail.",
+    "recordCount": "{0} signals — {1} tiles"
+  },
+  "progress": {
+    "index": "Loading index…",
+    "tiles": "Loading {0} tile(s)…",
+    "filtering": "Filtering…"
+  },
+  "popup": {
+    "navLabel": "{0} / {1}",
+    "nodeNA": "N/A",
+    "signalNode": "Signal Node",
+    "previewTags": "Preview OSM tags",
+    "osmTags": "OSM Tags",
+    "copy": "Copy tags",
+    "josm": "Open in JOSM",
+    "copied": "Copied!",
+    "josmSent": "Sent to JOSM",
+    "prev": "Previous signal",
+    "next": "Next signal",
+    "close": "Close",
+    "copyPrompt": "Copy OSM tags",
+    "tabSignals": "Signals",
+    "tabTags": "OSM Tags",
+    "captionSignal": "Signal",
+    "captionNode": "Node"
+  },
+  "osm": {
+    "locateOnOsm": "Locate on OpenStreetMap",
+    "checking": "Checking in OpenStreetMap…",
+    "inOsm": "Already in OpenStreetMap — Node #{0}",
+    "error": "OSM check failed",
+    "retry": "Retry OSM check",
+    "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
+    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?"
+  },
+  "josm": {
+    "notReachable": "JOSM not reachable",
+    "detect": {
+      "title": "JOSM",
+      "version": "Version",
+      "protocol": "Protocol",
+      "port": "Port",
+      "checking": "…",
+      "notDetected": "Not detected",
+      "notAllowed": "Not allowed yet",
+      "website": "JOSM website"
+    }
+  },
+  "cat": {
+    "main": "Main signals",
+    "distant": "Distant signals",
+    "speedLimit": "Speed limits",
+    "route": "Route indicators",
+    "stop": "Stop signs",
+    "shunting": "Shunting",
+    "crossing": "Level crossings",
+    "electricity": "Traction electricity",
+    "trainProtection": "Cab signaling / ETCS",
+    "wrongRoad": "Wrong-road (IPCS)",
+    "station": "Station and facilities",
+    "miscellaneous": "Miscellaneous",
+    "unsupported": "Unsupported types"
+  },
+  "help": {
+    "intro": "Discover how to navigate the map and find signals using filters, the legend, and available [Controls](#panel:help-control-panel).",
+    "getStarted": {
+      "title": "Getting started",
+      "finding": {
+        "title": "Finding signals",
+        "content": [
+          "* **Filters:** In the [Filters](#tab-filters) tab, use **Add filter** (e.g., *SignalType*, *Line Code*).",
+          "* **Legend:** Click a category to isolate matching signals.",
+          "* **Network ID:** Filter by a specific ID, then click the **pill** label to zoom to the signal on the map."
+        ]
+      },
+      "interaction": {
+        "title": "Map interaction",
+        "content": [
+          "* **Controls:** Right-click a signal for the context menu or use keyboard shortcuts.",
+          "* **Visibility:** All signals appear at zoom 10+. Below this, a spatial sample is used to maintain readability (active filters still apply).",
+          "* **Persistence:** Filters, pinned signals, map position, and settings are saved across sessions."
+        ]
+      },
+      "properties": {
+        "title": "Signal Properties",
+        "content": [
+          "The popup presents two tabs:",
+          "* **Signals:** Infrastructure data. Use the arrows to navigate between co-located signals.",
+          "  Beside the **Network ID**, click the **OSM logo** for [OpenStreetMap](https://www.openstreetmap.org/) node info, or **Locate on OpenStreetMap** if not yet mapped.",
+          "* **OSM Tags:** View, copy, or open tags in the [JOSM editor](https://josm.openstreetmap.de/). Tags follow [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France) specs.  ",
+          "  *Note: Experimental feature (specifications are a work in progress).*",
+          "The **Pin** button (at the top of the window) keeps a signal for later reference."
+        ]
+      }
+    },
+    "control": {
+      "title": "Controls",
+      "mouse": {
+        "title": "Mouse",
+        "scroll": "Wheel",
+        "scrollDesc": "Zoom in / out",
+        "click": "Click",
+        "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
+        "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
+        "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab",
+        "altDesc": "Zoom to and center on the signal",
+        "rightClick": "Right-click",
+        "rightClickDesc": "Open context menu",
+        "filterClickDesc": "Network ID pill / pinned signal — fly to the signal on the map",
+        "filterShiftDesc": "Remove (×) on a pill — close all the other pills"
+      },
+      "keyboard": {
+        "title": "Keyboard",
+        "alt": "Alt",
+        "ctrl": "Ctrl",
+        "enter": "Enter",
+        "home": "Home",
+        "shift": "Shift",
+        "keyZoomInDesc": "Zoom in",
+        "keyZoomOutDesc": "Zoom out",
+        "keyResetDesc": "Reset to initial map extent",
+        "keyFullscreenDesc": "Toggle fullscreen",
+        "keyBasemapDesc": "Open / close basemap picker",
+        "keyGeolocateDesc": "Show my location",
+        "keySidebarDesc": "Toggle sidebar",
+        "keyToolbarDesc": "Collapse / expand map toolbar",
+        "keyContextMenuDesc": "Open context menu on focused signal",
+        "keyPropertiesDesc": "Open signal popup (Properties)"
+      }
+    }
+  },
+  "about": {
+    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Fixed Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "links": {
+      "title": "Links"
+    },
+    "disclaimer": {
+      "title": "Disclaimer",
+      "trademark": "SNCF Réseau and the SNCF Réseau logo are trademarks of **SNCF Réseau** and are used here for identification and illustration purposes only. This site is not affiliated with, endorsed by, or sponsored by SNCF Réseau. See the [official legal notices](https://www.sncf-reseau.com/fr/mentions-legales) for more information.",
+      "experimental": "This site is provided **free of charge** on an experimental basis. Data, maps, and services are provided \"as is\", without warranty of any kind. Use at your own risk."
+    },
+    "credits": {
+      "title": "Credits",
+      "site": "Site © 2026 Noël Danjou",
+      "data": "Data © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
+      "maps": "Maps © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)"
+    }
+  },
+  "pinned": {
+    "title": "Pinned Signals",
+    "empty": "No pinned signals.",
+    "clear": "Clear all pinned signals",
+    "confirmClear": "Remove all pinned signals?",
+    "pin": "Pin this signal",
+    "unpin": "Unpin this signal",
+    "flash": "Pinned!",
+    "unflash": "Unpinned"
+  },
+  "filter": {
+    "none": "No active filters.",
+    "clear": "Clear filter values",
+    "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
+    "close": "Remove filter"
+  },
+  "context": {
+    "zoomCenter": "Zoom to",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "properties": "Properties"
+  }
+}

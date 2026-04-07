@@ -33,8 +33,8 @@ const _pending = new Map();   // batchKey  → Promise
 // sparing the Overpass server from stale in-flight requests.
 let _batchAbort = null;
 
-// Cache key: "<refTag>:<idreseau>"
-function _cacheKey(refTag, idreseau) { return `${refTag}:${idreseau}`; }
+// Cache key: "<refTag>:<networkId>"
+function _cacheKey(refTag, networkId) { return `${refTag}:${networkId}`; }
 
 
 /* ===== Private helpers ===== */
@@ -63,11 +63,11 @@ async function _fetchOverpass(query, signal) {
  */
 function _buildEntries(feats) {
     return feats.map(f => {
-        const refTag = getSignalId(f.p.type_if);
-        if (!refTag || !f.p.idreseau) {
-            return { key: null, refTag: null, idreseau: null };
+        const refTag = getSignalId(f.p.signalType);
+        if (!refTag || !f.p.networkId) {
+            return { key: null, refTag: null, networkId: null };
         }
-        return { key: _cacheKey(refTag, f.p.idreseau), refTag, idreseau: f.p.idreseau };
+        return { key: _cacheKey(refTag, f.p.networkId), refTag, networkId: f.p.networkId };
     });
 }
 
@@ -76,9 +76,9 @@ function _buildEntries(feats) {
  */
 function _buildBatchQuery(unique, bbox) {
     const unions = unique.map(e =>
-        `node["${e.refTag}"="${e.idreseau}"](${bbox});`
+        `node["${e.refTag}"="${e.networkId}"](${bbox});`
     ).join('');
-    return `[out:json][timeout:15];(${unions});out ids tags;`;
+    return `[out:json][timeout:45];(${unions});out ids tags;`;
 }
 
 /**
@@ -89,7 +89,7 @@ function _updateCacheFromResponse(data, unique) {
     for (const el of (data.elements || [])) {
         for (const e of unique) {
             if (_cache.has(e.key)) continue;
-            if (el.tags?.[e.refTag] === e.idreseau) {
+            if (el.tags?.[e.refTag] === e.networkId) {
                 _cache.set(e.key, { status: 'in-osm', nodeId: el.id });
             }
         }
@@ -125,9 +125,9 @@ function _resolveStatuses(entries, hadError) {
  */
 export function invalidateSignalGroup(feats) {
     for (const f of feats) {
-        const refTag = getSignalId(f.p.type_if);
-        if (!refTag || !f.p.idreseau) continue;
-        const key = _cacheKey(refTag, f.p.idreseau);
+        const refTag = getSignalId(f.p.signalType);
+        if (!refTag || !f.p.networkId) continue;
+        const key = _cacheKey(refTag, f.p.networkId);
         if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
     }
 }

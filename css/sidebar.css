@@ -9,13 +9,6 @@
     color: var(--text2);
 }
 
-#tab-settings .section-title {
-    margin-bottom: 8px;
-}
-
-#tab-about .section-title {
-    margin-bottom: 6px;
-}
 
 /* ===== Header ===== */
 
@@ -53,10 +46,75 @@
     color: var(--text);
 }
 
+.logo-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.beta-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.8);
+    background: #7c2270;
+    border-radius: 3px;
+    padding: 1px 5px;
+    vertical-align: middle;
+    line-height: 1.6;
+    user-select: none;
+    text-transform: uppercase;
+}
+
 .record-count {
     font-size: 11px;
     color: var(--text2);
 }
+
+
+/* ===== Shared dropdown primitives =====
+ * Used by filter combos (filters.css) and the language picker.
+ */
+
+.dd-trigger {
+    display: flex;
+    align-items: center;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color .15s;
+    font-size: 11px;
+    color: var(--text);
+}
+
+    .dd-trigger:hover,
+    .dd-trigger:focus-within {
+        border-color: var(--accent);
+    }
+
+.dd-chevron {
+    color: var(--text2);
+    pointer-events: none;
+}
+
+    /* icon-chevron points right by default — rotate 90deg to point down for dropdowns */
+    .dd-chevron svg {
+        transform: rotate(90deg);
+    }
+
+.dd-panel {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,.6);
+}
+
 
 /* ===== Tabs ===== */
 
@@ -88,19 +146,10 @@
         border-bottom-color: var(--accent2);
     }
 
-.tab-panel {
-    display: none;
-    flex: 1;
-    overflow-y: auto;
-    flex-direction: column;
-}
 
-    .tab-panel.active {
-        display: flex;
-    }
+/* ===== Filters tab ===== */
 
-/* ===== Filter toolbar ===== */
-
+/* Sticky at the very top of #tab-filters */
 .panel-toolbar {
     display: flex;
     align-items: center;
@@ -139,108 +188,144 @@
         color: var(--text);
     }
 
-/* ===== Shared dropdown primitives =====
- * Used by both the filter combo boxes (filters.css) and the language picker
- * below, so they live here as sidebar-level shared components. */
 
-.dd-trigger {
-    display: flex;
-    align-items: center;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    transition: border-color .15s;
+/* ===== Interactive legend items =====
+ *
+ * Each legend row is a <button> — keyboard focus, Enter/Space, and :disabled
+ * are handled natively. No role or tabindex management needed in JS.
+ * Unsupported categories receive the disabled attribute: no cursor, no hover.
+ *
+ * border-left: 3px solid transparent reserves space so the is-active indicator
+ * does not cause a layout shift when the border becomes visible. */
+
+.legend-item {
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    width: 100%;
+    padding: 5px 5px 5px 12px;
+    text-align: left;
+    font-family: var(--ff-sans);
     font-size: 11px;
-    color: var(--text);
-}
-
-    .dd-trigger:hover,
-    .dd-trigger:focus-within {
-        border-color: var(--accent);
-    }
-
-.dd-chevron {
     color: var(--text2);
-    pointer-events: none;
-}
-
-.dd-panel {
-    position: absolute;
-    top: calc(100% + 2px);
-    left: 0;
-    right: 0;
-    background: var(--panel2);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    z-index: 1000;
-    box-shadow: 0 8px 24px rgba(0,0,0,.6);
-}
-
-/* ===== Collapsible info panels (Legend + JOSM detect) ===== */
-
-.info-panel {
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    overflow: hidden;
-    flex-shrink: 0;
-}
-
-.panel-summary {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 10px;
+    gap: 10px;
+    border-radius: 3px;
     cursor: pointer;
-    list-style: none;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: var(--ff-mono);
-    text-transform: uppercase;
-    letter-spacing: .7px;
-    color: var(--text2);
-    background: var(--panel2);
-    user-select: none;
+    transition: all 0.2s ease;
 }
 
-    .panel-summary::-webkit-details-marker {
-        display: none;
+    .legend-item:not(:disabled):hover {
+        background: rgba(255, 255, 255, .05);
+        color: var(--text);
     }
 
-.panel-arrow {
+    .legend-item:not(:disabled):focus-visible {
+        outline: 2px solid var(--accent2);
+        outline-offset: 1px;
+    }
+
+    .legend-item:not(:disabled):active {
+        background: rgba(255, 255, 255, .09);
+    }
+
+    .legend-item:disabled {
+        cursor: default;
+    }
+
+    /* Active legend group: left accent bar using the dot color via currentColor
+     * would require an extra wrapper; use accent2 as a neutral indicator instead. */
+    .legend-item.is-active {
+        background: rgba(255, 255, 255, .07);
+        border-left-color: var(--accent2);
+        color: var(--text);
+    }
+
+/* Dim siblings on hover to draw attention to the hovered category. */
+.legend-panel-body:hover .legend-item:not(:disabled):not(:hover) {
+    opacity: .5;
+    transition: opacity .15s, background .15s, color .15s;
+}
+
+/* ===== Summary panel-level buttons =====
+ *
+ * Shared base for all icon buttons that appear inside a .panel-summary:
+ * action buttons (clear, remove), link buttons, and the legend dot indicator.
+ * All share the same box model so they align identically in the flex row.
+ *
+ * Modifiers (hover colour) vary by semantic:
+ *   default / action → warn (amber)
+ *   link / navigation → accent2 (blue)
+ *   .legend-summary-dot → no hover (disabled button, decorative only)
+ */
+
+.summary-action-btn,
+.summary-link-btn,
+.legend-summary-dot {
+    background: none;
+    border: none;
     color: var(--text3);
-    transition: transform .15s;
-    flex-shrink: 0;
-    transform: rotate(-90deg);
-}
-
-details.info-panel[open] .panel-arrow {
-    transform: rotate(0deg);
-}
-
-.panel-body {
-    padding: 8px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.panel-row {
-    display: flex;
+    padding: 3px 4px;
+    cursor: pointer;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--text2);
+    justify-content: center;
+    border-radius: 3px;
+    transition: color .15s, background .15s;
+    flex-shrink: 0;
+    text-decoration: none;
 }
+
+    .summary-action-btn:hover {
+        color: var(--warn);
+        background: rgba(210, 153, 34, .08);
+    }
+
+    .summary-link-btn:hover {
+        color: var(--accent2);
+        background: rgba(37, 137, 199, .08);
+    }
+
+/* Legend dot — decorative, non-interactive */
+.legend-summary-dot {
+    cursor: default;
+}
+
+/* Title that fills available space, pushing action buttons to the right */
+.summary-flex-title {
+    flex: 1;
+}
+
+
+/* ===== Tab-specific cp-panel =====
+ * Filters, Settings, and Info variants all tile flush (no side/bottom borders,
+ * no radius, overflow:visible). This ensures a single border line between
+ * adjacent panels rather than a double border from two separate boxes.
+ */
+
+.filters-panel,
+.settings-panel,
+.info-panel {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    overflow: visible;
+    flex-shrink: 0;
+}
+
 
 /* ===== Legend panel ===== */
 
-.legend-spacer {
-    flex: 1;
-    min-height: 12px;
-}
-
 #legend {
     margin: 0 12px 12px;
+}
+
+.legend-panel-body {
+    padding: 10px 14px 14px 11px; /* 11px left: 3px border + 8px gap = 14px visual alignment */
+    line-height: 2;
+    border-bottom: 1px solid var(--border);
 }
 
 .legend-dot {
@@ -249,84 +334,48 @@ details.info-panel[open] .panel-arrow {
     border-radius: 50%;
     flex-shrink: 0;
     border: 1.5px solid rgba(0,0,0,.3);
-    /* Default fallback colour; overridden per category by signal-mapping.js. */
-    background: var(--cat-unsupported);
 }
 
-/* ===== JOSM detect panel ===== */
+/* Color indicator shown in the legend panel-summary when a category is active.
+ *
+ * Base layout (display:inline-flex, padding, flex-shrink, border:none, cursor:default)
+ * is inherited from the shared .summary-action-btn / .legend-summary-dot selector above.
+ * The circle is drawn by ::before so its dimensions are independent of the button box model.
+ * Color is passed via --legend-dot-color (set by legend.js).
+ *
+ * Hidden by JS (.is-hidden) when no group is active.
+ * Hidden by CSS when the panel is open — only needed in the collapsed state. */
 
-.josm-detect-body {
-    gap: 5px;
+.legend-summary-dot::before {
+    content: '';
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,0,0,.3);
+    background-color: var(--legend-dot-color, transparent);
 }
 
-.josm-detect-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text2);
+.legend-summary-dot.is-hidden {
+    display: none;
 }
 
-.josm-detect-label {
-    color: var(--text3);
-    font-size: 11px;
+#legend-panel.cp-panel--open .legend-summary-dot {
+    display: none;
 }
 
-.josm-detect-val {
-    font-size: 11px;
-}
-
-.josm-val-ok {
-    color: var(--text);
-}
-
-.josm-val-dim {
-    color: var(--text3);
-    font-style: italic;
-}
-
-/* State-driven visibility for JOSM version rows.
-   [data-josm-state] elements are hidden by default.
-   Setting data-josm-status on #josm-detect-body reveals the matching elements. */
-[data-josm-state] {
-    display: none !important;
-}
-
-#josm-detect-body[data-josm-status="checking"] span[data-josm-state="checking"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="ok"] span[data-josm-state="ok"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="forbidden"] span[data-josm-state="forbidden"] {
-    display: inline !important;
-}
-
-#josm-detect-body[data-josm-status="error"] span[data-josm-state="error"] {
-    display: inline !important;
-}
-
-/* Protocol and Port rows are divs — need flex restoration when visible. */
-#josm-detect-body[data-josm-status="ok"] div[data-josm-state="ok"] {
-    display: flex !important;
-}
-
-#josm-detect {
-    margin: 0 0 14px;
-}
 
 /* ===== Settings tab ===== */
 
-#tab-settings {
-    padding: 14px 12px;
+/* Language — plain section, sticky at top */
+.settings-plain-section {
+    padding: 12px 12px 20px;
 }
 
-.settings-section {
-    margin-bottom: 20px;
-}
+    .settings-plain-section .section-title {
+        margin-bottom: 8px;
+    }
+
 
 /* ===== Language picker ===== */
 
@@ -368,6 +417,7 @@ details.info-panel[open] .panel-arrow {
     cursor: pointer;
     color: var(--text2);
     transition: background .1s;
+    outline-offset: -2px;
 }
 
     .lang-option:hover {
@@ -379,69 +429,201 @@ details.info-panel[open] .panel-arrow {
         color: var(--text);
     }
 
-/* ===== Basemap selector buttons =====
- * Group 3 — unique style, wider, includes a thumbnail image. */
 
-.basemap-btn {
+/* ===== Settings behavior toggles ===== */
+
+.settings-toggle-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    width: 100%;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    color: var(--text2);
-    font-family: var(--ff-sans);
-    font-size: 12px;
-    padding: 6px 10px;
-    border-radius: var(--radius);
+    padding: 5px 0;
     cursor: pointer;
-    text-align: left;
-    margin-bottom: 4px;
-    transition: border-color .15s, color .15s;
-}
-
-    .basemap-btn:hover {
-        border-color: var(--border2);
-        color: var(--text);
-    }
-
-    .basemap-btn.active {
-        border-color: var(--accent2);
-        color: var(--text);
-    }
-
-.basemap-thumb {
-    border-radius: 5px;
-    flex-shrink: 0;
-    border: 2px solid rgba(255,255,255,.18);
-    object-fit: cover;
-}
-
-/* ===== About tab ===== */
-
-#tab-about {
-    padding: 14px;
-}
-
-.about-content {
     font-size: 11px;
-    color: var(--text3);
-    line-height: 1.7;
+    color: var(--text2);
+    user-select: none;
 }
 
-.about-intro {
-    margin-bottom: 14px;
-    color: var(--text3);
+.settings-toggle-label {
+    flex: 1;
+    line-height: 1.3;
 }
 
-    .about-intro strong {
+/* Show a focus ring on the track when the visually-hidden checkbox receives
+ * keyboard focus — the track is the adjacent sibling of the input. */
+.toggle-input:focus-visible + .toggle-track {
+    outline: 2px solid var(--accent2);
+    outline-offset: 2px;
+}
+
+
+/* ===== JOSM footer (Settings tab) ===== */
+
+/* footer summary gap to accommodate the JOSM icon */
+.settings-josm-footer > .panel-summary {
+    gap: 8px;
+}
+
+/* JOSM icon in the footer panel summary */
+.josm-header-icon {
+    flex-shrink: 0;
+    opacity: .85;
+}
+
+.josm-detect-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+    padding: 4px 0;
+}
+
+    /* Thin separator between JOSM detail rows (same treatment as "How to use" grid) */
+    .josm-detect-row + .josm-detect-row {
+        border-top: 1px solid var(--border);
+    }
+
+.josm-detect-label {
+    color: var(--text3);
+    font-size: 11px;
+}
+
+.josm-detect-val {
+    font-size: 11px;
+}
+
+.josm-val-ok {
+    color: var(--text);
+}
+
+.josm-val-dim {
+    color: var(--text3);
+    font-style: italic;
+}
+
+/* State-driven JOSM row visibility.
+   [data-josm-state] rows are hidden by default.
+   Setting data-josm-status on #josm-detect-body reveals the matching ones. */
+[data-josm-state] {
+    display: none !important;
+}
+
+#josm-detect-body[data-josm-status="checking"] span[data-josm-state="checking"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="ok"] span[data-josm-state="ok"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="forbidden"] span[data-josm-state="forbidden"] {
+    display: inline !important;
+}
+
+#josm-detect-body[data-josm-status="error"] span[data-josm-state="error"] {
+    display: inline !important;
+}
+
+/* Protocol and Port rows are divs — need flex restoration when visible */
+#josm-detect-body[data-josm-status="ok"] div[data-josm-state="ok"] {
+    display: flex !important;
+}
+
+
+/* ===== Help tab ===== */
+
+/* Help sticky headers */
+#help-gs-panel > .panel-summary,
+#help-control-panel > .panel-summary {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+
+/* Shortcut grid (dl/dt/dd) */
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 12px;
+    row-gap: 0;
+    align-items: start;
+    padding: 0 2px 16px;
+}
+
+    .shortcuts-grid dt {
+        white-space: nowrap;
+        padding: 6px 0;
+    }
+
+    .shortcuts-grid dd {
+        font-size: 11px;
+        color: var(--text3);
+        line-height: 1.5;
+        padding: 6px 0;
+    }
+
+    /* Thin separator between shortcut rows (all rows except the first) */
+    .shortcuts-grid dt:not(:first-of-type) {
+        border-top: 1px solid var(--border);
+    }
+
+        .shortcuts-grid dt:not(:first-of-type) + dd {
+            border-top: 1px solid var(--border);
+        }
+
+
+/* Force all dt cells in a grid to the same minimum width */
+.shortcuts-body .shortcuts-grid {
+    grid-template-columns: auto 1fr;
+    width: 100%;
+}
+
+    .shortcuts-body .shortcuts-grid dt {
+        min-width: 100px;
+    }
+
+    /* Slightly lighter description text inside sub-panel grids */
+    .shortcuts-body .shortcuts-grid dd {
         color: var(--text2);
     }
 
-.about-section {
-    margin-bottom: 14px;
+
+/* Internal tab links — attribute selector keeps class name out of JS */
+a[data-switch-tab] {
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--accent2);
 }
 
+    a[data-switch-tab]:hover {
+        text-decoration: underline;
+    }
+
+
+/* ===== kbd ===== */
+
+kbd {
+    display: inline-block;
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-style: normal;
+    line-height: 1.4;
+    padding: 1px 5px;
+    background: var(--panel3);
+    border: 1px solid var(--border2);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+
+/* ===== About tab ===== */
+
+/* Links list */
 .about-links {
     list-style: none;
     display: flex;
@@ -454,8 +636,19 @@ details.info-panel[open] .panel-arrow {
         color: var(--text3);
     }
 
-.about-credits {
-    font-size: 11px;
-    color: var(--text3);
-    line-height: 1.8;
+
+/* ===== Footers =====
+ *
+ * Collapsible cp-panel fixed at the bottom of the tabs,
+ * outside of the contents.
+ */
+
+.settings-josm-footer,
+.about-credits-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
 }

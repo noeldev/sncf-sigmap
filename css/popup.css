@@ -72,7 +72,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 8px 0 8px;
+    padding: 0 8px;
 }
 
 .pu-brand-link {
@@ -136,6 +136,7 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    gap: 4px;
     padding-right: 6px;
 }
 
@@ -159,6 +160,12 @@
         color: var(--text);
         background: rgba(255,255,255,.06);
     }
+
+
+/* Popup nav "previous" chevron — flip horizontally to point left */
+.icon-prev {
+    transform: rotate(180deg);
+}
 
 
 /* ===== SNCF data rows + Signal Node badge — shared base =====
@@ -440,7 +447,7 @@ span.btn-flash-label {
 
 /* Signals body — fixed height */
 .pu-body {
-    height: 245px;
+    height: 246px;
 }
 
 /* Badge zone — flex:1 fills remaining space  */
@@ -485,4 +492,31 @@ span.btn-flash-label {
     .pu-tab-btn.active {
         color: var(--accent2);
         border-top-color: var(--accent2);
+    }
+
+/* Pin button — 2-state toggle in the popup nav bar */
+.pu-pin-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text3);
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .2s, background .2s, border-color .2s;
+    flex-shrink: 0;
+}
+
+    .pu-pin-btn:hover {
+        color: var(--text);
+        background: rgba(255,255,255,.06);
+    }
+
+    /* Pinned state: blue border + blue icon */
+    .pu-pin-btn.is-pinned {
+        color: var(--accent2);
+        border-color: var(--accent2);
     }

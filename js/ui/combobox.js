@@ -3,7 +3,7 @@
  *
  * Wires four event listeners that would otherwise be attached individually
  * for every combo filter:
- *   • <input> "input"            — live search → onSearch callback
+ *   • <input> "input"            — live search → onSearch callback (debounced SEARCH_DEBOUNCE_MS)
  *   • <input> "keydown"          — ArrowDown / Enter / Escape / Tab
  *   • <input> "focus"            — open dropdown on user focus
  *   • comboWrapEl "mousedown"    — arrow-button toggles open/close
@@ -15,6 +15,10 @@
  * from reopening the dropdown when focus is restored programmatically after
  * Escape, ArrowUp, pill removal, or _selectFirst.
  */
+/** Debounce delay in ms for the search input — avoids scanning large indexes on every keystroke. */
+const SEARCH_DEBOUNCE_MS = 200;
+
+
 export class ComboBox {
     /**
      * @param {object}   opts
@@ -25,18 +29,22 @@ export class ComboBox {
      * @param {Function} [opts.onSearch]  — Called with the uppercased query string
      *                                      on every input event.
      * @param {Function} [opts.onEnter]   — Called when Enter is pressed in the input.
-     * @param {Function} [opts.onOpen]    — Called to open the dropdown.  Use this to
-     *                                      close sibling dropdowns first.
-     *                                      Falls back to dropdown.open() if absent.
+     * @param {Function} [opts.onOpen]    — Called to open the dropdown.
+     * @param {boolean} [opts.numericOnly] — When true, only digit input is accepted.
+     *                                       Sets a keydown guard and a paste/IME safety net.
      */
-    constructor({ inputEl, comboWrapEl, dropdown, onSearch, onEnter, onOpen }) {
+    constructor({ inputEl, comboWrapEl, dropdown, onSearch, onEnter, onOpen, numericOnly }) {
         // Normalise onOpen so the rest of the code never needs to branch.
         const _open = onOpen ?? (() => dropdown.open());
 
-        inputEl.addEventListener('input', () =>
-            onSearch?.(inputEl.value.toUpperCase()));
-
+        // Single keydown handler: numeric guard (numericOnly) + navigation keys.
         inputEl.addEventListener('keydown', e => {
+            // Block non-digit printable characters for numericOnly fields.
+            // Allow Ctrl/Cmd shortcuts (copy, paste, select-all, etc.).
+            if (numericOnly && e.key.length === 1 && !/[0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                return;
+            }
             switch (e.key) {
                 case 'ArrowDown':
                     e.preventDefault();
@@ -44,6 +52,7 @@ export class ComboBox {
                     dropdown.focusFirst();
                     break;
                 case 'Enter':
+                case ' ':
                     e.preventDefault();
                     onEnter?.();
                     break;
@@ -56,6 +65,22 @@ export class ComboBox {
                     break;
             }
         });
+
+        if (!inputEl.readOnly) {
+            let _searchTimer = null;
+            inputEl.addEventListener('input', () => {
+                // Safety net for paste/autofill/IME: if the value contains
+                // any non-digit character, clear it entirely.
+                if (numericOnly && !/^\d*$/.test(inputEl.value)) {
+                    inputEl.value = '';
+                }
+                clearTimeout(_searchTimer);
+                _searchTimer = setTimeout(
+                    () => onSearch?.(inputEl.value.toUpperCase()),
+                    SEARCH_DEBOUNCE_MS
+                );
+            });
+        }
 
         inputEl.addEventListener('focus', () => {
             // Guard: skip programmatic focus calls (after Escape, ArrowUp, pill

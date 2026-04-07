@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *   - Manage the Leaflet marker layer for signal dots.
- *   - Drive the geojson.worker.js pipeline: fetch tiles, filter, sample.
+ *   - Drive the tiles.worker.js pipeline: fetch tiles, normalize, filter, sample.
  *   - Render worker results as Leaflet markers with tooltips and popups.
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
  *
@@ -21,16 +21,18 @@
  */
 
 import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
-import { map } from './map.js';
+import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
-import { openSignalPopup } from './signal-popup.js';
+import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
 import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
-import { t } from './i18n.js';
+import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './worker-contract.js';
-import { showProgress, hideProgress } from './progress.js';
+import { showFlash, showProgress, hideProgress } from './progress.js';
+import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
+import { showContextMenu, closeContextMenu } from './ui/context-menu.js';
 
 
 // ===== Module state =====
@@ -40,6 +42,22 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
+let _lastGroups = [];   // last rendered groups — used by getSignalLatlng()
+let _sampled = false;   // true when the current view is a spatial overview sample
+
+/**
+ * Returns true when the current view is a spatial overview sample.
+ * Exported so filters.js (via initFilters injection) can use accurate counts.
+ * @returns {boolean}
+ */
+export function isSampled() { return _sampled; }
+
+
+/* ===== Language change handling ===== */
+
+// Leaflet caches tooltip DOM nodes at marker-creation time.
+// Rebuild all markers when the language changes so tooltips use the new locale.
+onLangChange(() => refresh(true));
 
 
 // ===== Dot size scale =====
@@ -69,6 +87,8 @@ function _getDotSize(count) {
  */
 export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
+    // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
+    map.on('movestart', closeContextMenu);
 }
 
 /**
@@ -89,7 +109,10 @@ export function setManifest(manifest) {
  * @param {boolean} [force=false]
  */
 export function refresh(force = false) {
-    if (_loadRunning) { _loadPending = true; return; }
+    if (_loadRunning) {
+        _loadPending = true;
+        return;
+    }
 
     if (!_manifest) return;
 
@@ -108,6 +131,20 @@ export function refresh(force = false) {
     _runWorker(bounds, fetchUrls, zoom);
 }
 
+
+/**
+ * Return the [lat, lng] of a signal by networkId from the last rendered groups.
+ * Returns null when the signal is not currently in the viewport.
+ * Used by filters.js to fly to a selected networkId pill without a tile fetch.
+ * @param {string} networkId
+ * @returns {[number, number] | null}
+ */
+export function getSignalLatlng(networkId) {
+    for (const { lat, lng, all } of _lastGroups) {
+        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
+    }
+    return null;
+}
 
 
 // ===== Worker lifecycle =====
@@ -128,7 +165,7 @@ function _runWorker(bounds, tileUrls, zoom) {
     _loadRunning = true;
     showProgress(t('progress.tiles', tileUrls.length));
 
-    _worker = new Worker(new URL('geojson.worker.js', import.meta.url), { type: 'module' });
+    _worker = new Worker(new URL('tiles.worker.js', import.meta.url), { type: 'module' });
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
@@ -137,27 +174,7 @@ function _runWorker(bounds, tileUrls, zoom) {
     // Key: "lat,lng" — value: Leaflet marker instance.
     const _markerMap = new Map();
 
-    _worker.onmessage = e => {
-        if (!isOwnWorkerMessage(e)) return;
-        const { status, msg, groups, loaded, total, sampled } = e.data;
-
-        if (status === 'progress') { showProgress(msg); return; }
-        if (status === 'error') { _terminateLoad(); console.error('[Worker]', e.data.error); return; }
-
-        if (status === 'partial') {
-            // In overview mode, skip incremental rendering — the final 'done'
-            // message will apply spatial sampling and render the stable result.
-            if (isOverview) return;
-            _renderGroupsIncremental(groups, _markerMap);
-            updateVisibleCount(_markerMap.size);
-            showProgress(`Loading ${loaded} / ${total} tile(s)…`);
-            return;
-        }
-
-        if (status === 'done') {
-            _onWorkerDone(groups, sampled, e.data.total);
-        }
-    };
+    _worker.onmessage = e => _handleWorkerMessage(e, isOverview, _markerMap);
 
     _worker.onerror = err => {
         console.error('[Worker error]', err.message);
@@ -173,6 +190,40 @@ function _runWorker(bounds, tileUrls, zoom) {
     });
 }
 
+/**
+ * Dispatch a single worker message to the appropriate handler.
+ * Extracted from _runWorker to keep that function focused on setup.
+ */
+function _handleWorkerMessage(e, isOverview, markerMap) {
+    if (!isOwnWorkerMessage(e)) return;
+    const { status, msg, groups, loaded, total, sampled } = e.data;
+
+    if (status === 'progress') {
+        showProgress(t(e.data.key, ...e.data.args));
+        return;
+    }
+
+    if (status === 'error') {
+        _terminateLoad();
+        console.error('[Worker]', e.data.error);
+        return;
+    }
+
+    if (status === 'partial') {
+        // Overview mode waits for 'done' (spatial sampling requires the full set).
+        if (isOverview) return;
+        _renderGroupsIncremental(groups, markerMap);
+        updateVisibleCount(markerMap.size);
+        showProgress(t('progress.tiles', `${loaded} / ${total}`));
+        return;
+    }
+
+    if (status === 'done') {
+        _onWorkerDone(groups, sampled, e.data.total);
+    }
+}
+
+
 /** Release the worker and clear the running flag. */
 function _terminateLoad() {
     _terminateWorker();
@@ -187,10 +238,12 @@ function _terminateLoad() {
  * if a refresh() arrives during indexSignals().
  */
 function _onWorkerDone(groups, sampled, total) {
+    _lastGroups = groups;
     resetCounts();
+    _sampled = sampled;             // must precede indexSignals so isSampled() is current
+    setSampledBadge(sampled, total);
     indexSignals(groups.flatMap(g => g.all));
     _renderGroups(groups);
-    setSampledBadge(sampled, total);
     _terminateLoad();
     if (_loadPending) {
         _loadPending = false;
@@ -231,22 +284,132 @@ function _makeDotIcon(color, size, multi) {
  * @param {object[]} display  filtered signals (for icon colour and tooltip)
  * @returns {L.Marker}
  */
+/**
+ * Alt+Click handler: zoom to and center on the signal.
+ * No location marker — the signal dot is already visible at the click position.
+ */
+function _onMarkerAltClick(lat, lng) {
+    flyToLocationWithMarker([lat, lng]);
+}
+
+/**
+ * Ctrl+Click handler: pin or unpin the first signal in the group.
+ * @param {object[]} all
+ */
+function _onMarkerCtrlClick(all) {
+    const networkId = all[0]?.p?.networkId;
+    if (networkId) {
+        showFlash(togglePin(networkId)
+            ? t('pinned.flash')
+            : t('pinned.unflash'));
+    }
+}
+
+/**
+ * Normal/Shift+Click handler: open the signal popup.
+ * Shift flips the default starting tab.
+ * @param {[number, number]} latlng
+ * @param {object[]}         all
+ * @param {boolean}          shift
+ */
+function _onMarkerClick(latlng, all, shift) {
+    openSignalPopup(latlng, all, 0, resolveStartTab(shift));
+}
+
+/**
+ * Build and show the context menu for a signal marker.
+ * Pin/Unpin label is resolved dynamically from the current pinned state.
+ * @param {number}   x    clientX of the triggering event.
+ * @param {number}   y    clientY of the triggering event.
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all  All co-located signals in the group.
+ */
+function _showSignalContextMenu(x, y, lat, lng, all) {
+    const networkId = all[0]?.p?.networkId ?? null;
+    const pinned = networkId ? isPinned(networkId) : false;
+    // Close the signal popup before showing the context menu — the two UIs
+    // are mutually exclusive and the popup would obscure the menu on small viewports.
+    closeSignalPopup();
+    showContextMenu(x, y, [
+        {
+            labelKey: 'context.zoomCenter',
+            shortcut: 'Alt+Click',
+            action: () => _onMarkerAltClick(lat, lng),
+        },
+        {
+            labelKey: pinned ? 'context.unpin' : 'context.pin',
+            shortcut: 'Ctrl+Click',
+            action: () => _onMarkerCtrlClick(all),
+        },
+        'separator',
+        {
+            labelKey: 'context.properties',
+            shortcut: 'Click',
+            // shift (passed from the menu's Shift+click/Enter) flips the tab,
+            // matching the behaviour of Shift+Click directly on the marker.
+            action: (shift) => openSignalPopup([lat, lng], all, 0, resolveStartTab(shift)),
+        },
+    ]);
+}
+
 function _makeMarker(lat, lng, all, display) {
-    const color = getTypeColor(display[0].p.type_if);
+    const color = getTypeColor(display[0].p.signalType);
     const count = display.length;
     const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
-    return L.marker([lat, lng], { icon })
+    const marker = L.marker([lat, lng], { icon })
         .bindTooltip(buildTooltip(display), {
             direction: 'top',
             offset: [0, -6],
             className: 'sig-tooltip',
             sticky: false,
         })
+        .on('add', function () {
+            // Store signal data on the marker DOM element so keyboard shortcuts
+            // (ContextMenu key, Enter) can access it without a synthetic contextmenu event.
+            const el = this.getElement();
+            if (el) el._sigData = { lat, lng, all };
+        })
         .on('click', e => {
-            const startTab = (e.originalEvent?.shiftKey || e.originalEvent?.ctrlKey)
-                ? 'tags' : 'signals';
-            openSignalPopup([lat, lng], all, 0, startTab);
+            dismissLocationMarker();
+            closeContextMenu();
+
+            const orig = e.originalEvent;
+            const ctrl = orig?.ctrlKey || orig?.metaKey;
+            const shift = orig?.shiftKey;
+            const alt = orig?.altKey;
+
+            if (alt && !ctrl && !shift) {
+                _onMarkerAltClick(lat, lng);
+            } else if (ctrl && !shift) {
+                _onMarkerCtrlClick(all);
+            } else {
+                _onMarkerClick([lat, lng], all, shift);
+            }
+        })
+        .on('contextmenu', e => {
+            L.DomEvent.preventDefault(e);
+            dismissLocationMarker();
+            _showSignalContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
+    return marker;
+}
+
+/**
+ * Show the signal context menu for the currently focused marker (keyboard access).
+ * Reads signal data stored on the marker DOM element by _makeMarker's 'add' handler.
+ * Called by map-controls.js keyboard shortcuts — avoids synthetic contextmenu events
+ * which would also trigger the browser's native context menu on some platforms.
+ */
+export function triggerContextMenuOnFocusedMarker() {
+    const data = document.activeElement?._sigData ?? null;
+    if (!data) return;
+    const rect = document.activeElement.getBoundingClientRect();
+    _showSignalContextMenu(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        data.lat, data.lng, data.all
+    );
 }
 
 /**
@@ -276,4 +439,3 @@ function _renderGroupsIncremental(groups, markerMap) {
         markerMap.set(key, marker);
     }
 }
-

@@ -1,4 +1,8 @@
-# Railway signalling data — internal use only
-# Exclude this project from all search engines
 User-agent: *
-Disallow: /
+Allow: /js/*.js
+Allow: /css/*.css
+Disallow: /assets/
+Disallow: /data/
+Disallow: /strings/
+Disallow: /tools/
+Disallow: /js/config.local.js

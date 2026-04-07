@@ -1,5 +1,5 @@
 /**
- * geojson.worker.js — Fetch and filter tile data off the main thread.
+ * tiles.worker.js — Fetch, normalize and filter tile data off the main thread.
  *
  * Incoming message:
  *   { type, urls, activeFilters, bounds, maxSignals }
@@ -12,8 +12,8 @@
  *
  * Overview mode (maxSignals set):
  *   All tiles are fetched in parallel with Promise.all, then filtered and
- *   spatially sampled before a single 'done' message is sent. This matches
- *   the original behaviour and keeps the overview stable.
+ *   spatially sampled before a single 'done' message is sent.
+ *   This keeps the overview stable.
  *
  * Detail mode (maxSignals null):
  *   Tiles are fetched sequentially. A 'partial' message is sent after each
@@ -29,6 +29,8 @@
  */
 
 import { workerPost } from './worker-contract.js';
+import { normalizeSignal } from './sncf-convert.js';
+import { fetchTile } from './tiles.js';
 
 self.onmessage = async function (e) {
     const { type, urls, activeFilters, bounds, maxSignals } = e.data;
@@ -41,10 +43,10 @@ self.onmessage = async function (e) {
         const filterSets = _buildFilterSets(activeFilters);
 
         if (maxSignals) {
-            // Overview mode — original parallel strategy, unchanged.
-            workerPost.progress(`Loading ${urls.length} tile(s)…`);
-            const tiles = await Promise.all(urls.map(_fetchTile));
-            workerPost.progress('Filtering…');
+            // Overview mode
+            workerPost.progress('progress.tiles', urls.length);
+            const tiles = await Promise.all(urls.map(fetchTile));
+            workerPost.progress('progress.filtering');
             const byKey = _groupByLocation(tiles, bounds);
             const groups = _buildGroups(byKey, filterSets);
             const total = groups.length;
@@ -58,9 +60,9 @@ self.onmessage = async function (e) {
             const byKey = new Map();
             const count = urls.length;
             for (let i = 0; i < count; i++) {
-                const tile = await _fetchTile(urls[i]);
+                const tile = await fetchTile(urls[i]);
                 const newGroups = _mergeTile(tile, byKey, bounds, filterSets);
-                workerPost.progress(`Loading ${i + 1} / ${count} tile(s)…`);
+                workerPost.progress('progress.tiles', `${i + 1} / ${count}`);
                 if (newGroups.length > 0) workerPost.partial(newGroups, i + 1, count);
             }
             const groups = _buildGroups(byKey, filterSets);
@@ -71,7 +73,6 @@ self.onmessage = async function (e) {
         workerPost.error(err.message);
     }
 };
-
 
 /* ===== Private helpers ===== */
 
@@ -95,7 +96,7 @@ function _groupByLocation(tiles, bounds) {
         if (!Array.isArray(tile)) continue;
         for (const s of tile) {
             if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
-            const p = _normaliseProps(s);
+            const p = normalizeSignal(s);
             const key = _groupKey(p, s);
             if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
             byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
@@ -117,7 +118,7 @@ function _mergeTile(tile, byKey, bounds, filterSets) {
 
     for (const s of tile) {
         if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
-        const p = _normaliseProps(s);
+        const p = normalizeSignal(s);
         const key = _groupKey(p, s);
         if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
         byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
@@ -144,49 +145,13 @@ function _buildGroups(byKey, filterSets) {
     return groups;
 }
 
-/** Normalise raw tile signal properties. */
-function _normaliseProps(s) {
-    return {
-        type_if: s.type_if || '',
-        code_ligne: s.code_ligne || '',
-        nom_voie: s.nom_voie || '',
-        sens: s.sens || '',
-        position: s.position || '',
-        pk: s.pk || '',
-        idreseau: s.idreseau || '',
-        code_voie: s.code_voie || '',
-    };
-}
+// Field normalization is handled by normalizeSignal() from sncf-convert.js.
 
 /** Derive the location key used to group co-located signals. */
 function _groupKey(p, s) {
-    return (p.code_voie && p.pk)
-        ? `${p.code_voie}|${p.pk}`
+    return (p.trackCode && p.milepost)
+        ? `${p.trackCode}|${p.milepost}`
         : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
-}
-
-async function _fetchTile(url) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) {
-            if (r.status !== 404) console.warn(`[Worker] ${url} → ${r.status}`);
-            return [];
-        }
-        const clone = r.clone();
-        try {
-            const d = await r.json();
-            if (Array.isArray(d)) return d;
-            if (d?.features && Array.isArray(d.features)) return d.features;
-        } catch (_) { /* fallthrough to DecompressionStream */ }
-        try {
-            const body = clone.body.pipeThrough(new DecompressionStream('gzip'));
-            return JSON.parse(await new Response(body).text());
-        } catch (_) { /* fallthrough */ }
-        return [];
-    } catch (err) {
-        console.warn('[Worker] fetch failed:', url, err.message);
-        return [];
-    }
 }
 
 /**

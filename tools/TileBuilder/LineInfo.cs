@@ -6,6 +6,6 @@ using System.Text.Json.Serialization;
 /// line display name (from the cantonment dataset, absent when the line
 /// does not appear there).
 /// </summary>
-record LigneInfo(
+record LineInfo(
     [property: JsonPropertyName("count")] int Count,
     [property: JsonPropertyName("label")] string? Label);

@@ -45,7 +45,9 @@ static class ConfigLoader
                 Environment.Exit(1);
             }
             Console.WriteLine($"Config         : {path}");
-            Console.WriteLine($"  Acronyms     : {config.Acronyms.Length}");
+            Console.WriteLine($"Acronyms       : {config.Acronyms.Length}");
+            Console.WriteLine($"Signal GeoJSON : {config.SignalGeojson}");
+            Console.WriteLine($"Block GeoJSON  : {config.BlockGeojson}");
             return config;
         }
         catch (JsonException ex)

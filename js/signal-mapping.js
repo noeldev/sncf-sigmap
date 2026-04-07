@@ -1,6 +1,6 @@
 /**
  * signal-mapping.js
- * SNCF type_if → display category + OpenRailwayMap node/tag computation.
+ * Signal type mapping: signalType → display category + OpenRailwayMap node/tag computation.
  *
  * _SIGNAL_MAPPING entry fields:
  *   group      — application display category key (defined in cat-mapping.js)
@@ -11,10 +11,10 @@
  *
  * Tags added automatically for every node:
  *   railway=signal
- *   railway:position:exact    — PK converted to decimal km (e.g. "077+305" → "77.305")
- *   railway:signal:direction  — forward | backward (one per node)
+ *   railway:position:exact    — milepost converted to decimal km (e.g. "077+305" → "77.305")
+ *   railway:signal:direction  — forward | backward | both (one per node)
  *   railway:signal:position   — bridge | right | left
- *   railway:signal:<cat>:ref  — idreseau (suffixed when a forward partner exists in same cat)
+ *   railway:signal:<cat>:ref  — networkId (suffixed when a forward partner exists in same cat)
  *   source=SNCF - 03/2022     — always written last
  *
  *   Each physical signal gets its own node when directions differ.
@@ -22,11 +22,7 @@
  * Reference: https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
 
-import {
-    pkToDecimalKm,
-    sensToOsmDirection,
-    positionToOsmValue,
-} from './sncf-convert.js';
+import { milepostToDecimalKm } from './sncf-convert.js';
 import { getColorForCategory } from './cat-mapping.js';
 
 // Signal type definitions ordered by priority (highest first).
@@ -137,7 +133,7 @@ const _SIGNAL_MAPPING = {
 
     // Speed limits
     "TIV D MOB": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D_MOB",
         properties: {
@@ -145,7 +141,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIV R MOB": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_reminder",
         type: "FR:TIV-R_MOB",
         properties: {
@@ -153,7 +149,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIV D FIXE": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D_FIXE",
         properties: {
@@ -162,7 +158,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIVD B FIX": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D_B_FIXE",
         properties: {
@@ -171,7 +167,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIVD C FIX": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D_C_FIXE",
         properties: {
@@ -180,7 +176,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "P": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:P",
         properties: {
@@ -188,7 +184,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "Z": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:Z",
         properties: {
@@ -197,7 +193,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "R": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:R",
         properties: {
@@ -206,7 +202,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "CHEVRON": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:CHEVRON",
         properties: {
@@ -215,7 +211,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIV PENDIS": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D",
         properties: {
@@ -224,7 +220,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIV PENEXE": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:TIV",
         properties: {
@@ -234,7 +230,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TIV PENREP": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:TIV",
         properties: {
@@ -244,7 +240,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "REPER VIT": {
-        group: "speed_limit",
+        group: "speedLimit",
         cat: "speed_limit",
         type: "FR:KM",
         properties: {
@@ -415,7 +411,7 @@ const _SIGNAL_MAPPING = {
 
     // Cab signalling (TVM)
     "CAB E": {
-        group: "train_protection",
+        group: "trainProtection",
         cat: "train_protection",
         type: "FR:CAB_E",
         properties: {
@@ -423,7 +419,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "CAB R": {
-        group: "train_protection",
+        group: "trainProtection",
         cat: "train_protection",
         type: "FR:CAB_R",
         properties: {
@@ -432,7 +428,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "CAB S": {
-        group: "train_protection",
+        group: "trainProtection",
         cat: "train_protection",
         type: "FR:CAB_S",
         properties: {
@@ -441,7 +437,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "REP TVM": {
-        group: "train_protection",
+        group: "trainProtection",
         cat: "train_protection",
         type: "FR:TVM",
         properties: {
@@ -450,7 +446,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "REP TGV": {
-        group: "train_protection",
+        group: "trainProtection",
         cat: "train_protection",
         type: "FR:ETCS",
         properties: {
@@ -461,7 +457,7 @@ const _SIGNAL_MAPPING = {
 
     // Wrong-road (IPCS)
     "TECS": {
-        group: "wrong_road",
+        group: "wrongRoad",
         cat: "wrong_road",
         type: "FR:TECS",
         properties: {
@@ -470,7 +466,7 @@ const _SIGNAL_MAPPING = {
         }
     },
     "TSCS": {
-        group: "wrong_road",
+        group: "wrongRoad",
         cat: "wrong_road",
         type: "FR:TSCS",
         properties: {
@@ -685,11 +681,11 @@ const _PRIORITY = Object.keys(_SIGNAL_MAPPING);
  *      node would overwrite each other.
  */
 function _canFit(feat, group) {
-    const cat1 = _SIGNAL_MAPPING[feat.p.type_if].cat;
-    const dir1 = feat.p.sens;
+    const cat1 = _SIGNAL_MAPPING[feat.p.signalType].cat;
+    const dir1 = feat.p.direction;
     return group.every(other =>
-        other.p.sens === dir1 &&
-        _SIGNAL_MAPPING[other.p.type_if].cat !== cat1
+        other.p.direction === dir1 &&
+        _SIGNAL_MAPPING[other.p.signalType].cat !== cat1
     );
 }
 
@@ -701,15 +697,15 @@ function _canFit(feat, group) {
  *
  *   railway:signal:<cat>           = <type>
  *   railway:signal:<cat>:<propKey> = <propVal>  (all properties)
- *   railway:signal:<cat>:ref       = <idreseau>
+ *   railway:signal:<cat>:ref       = <networkId>
  */
 function _writeSignalTags(prefix, feat, tags) {
-    const e = _SIGNAL_MAPPING[feat.p.type_if];
+    const e = _SIGNAL_MAPPING[feat.p.signalType];
     tags.set(prefix, e.type);
     for (const [k, v] of Object.entries(e.properties || {})) {
         tags.set(`${prefix}:${k}`, v);
     }
-    if (feat.p.idreseau) tags.set(`${prefix}:ref`, feat.p.idreseau);
+    if (feat.p.networkId) tags.set(`${prefix}:ref`, feat.p.networkId);
 }
 
 /**
@@ -726,12 +722,13 @@ function _buildNodeTags(group) {
     const tags = new Map();
 
     tags.set("railway", "signal");
-    tags.set("railway:position:exact", pkToDecimalKm(group[0].p.pk));
-    tags.set("railway:signal:direction", sensToOsmDirection(group[0].p.sens));
-    tags.set("railway:signal:position", positionToOsmValue(group[0].p.position));
+    tags.set("railway:position:exact", milepostToDecimalKm(group[0].p.milepost));
+    // direction and placement are already in OSM notation after normalizeSignal.
+    if (group[0].p.direction !== "unknown") tags.set("railway:signal:direction", group[0].p.direction);
+    if (group[0].p.placement !== "unknown") tags.set("railway:signal:position", group[0].p.placement);
 
     for (const feat of group) {
-        const prefix = `railway:signal:${_SIGNAL_MAPPING[feat.p.type_if].cat}`;
+        const prefix = `railway:signal:${_SIGNAL_MAPPING[feat.p.signalType].cat}`;
         _writeSignalTags(prefix, feat, tags);
     }
 
@@ -741,40 +738,52 @@ function _buildNodeTags(group) {
 
 /* ===== Public query functions ===== */
 
-/** Return the display colour for any type_if. */
-export function getTypeColor(type_if) {
-    const group = _SIGNAL_MAPPING[type_if]?.group ?? 'unsupported';
+/** Return the display color for any signalType. */
+export function getTypeColor(signalType) {
+    const group = _SIGNAL_MAPPING[signalType]?.group ?? 'unsupported';
     return getColorForCategory(group);
 }
 
-/** Return true when this type_if has an OSM mapping. */
-export function isSupported(type_if) {
-    return !!_SIGNAL_MAPPING[type_if];
+/** Return true when this signalType has an OSM mapping. */
+export function isSupported(signalType) {
+    return !!_SIGNAL_MAPPING[signalType];
 }
 
 /**
- * Return the OSM :ref tag key for a given type_if, or null if unsupported.
+ * Return all signalType keys belonging to the given display group.
+ * Used by filters.js to populate a signalType filter from a legend category click.
+ * @param {string} group  Group name (e.g. 'main', 'shunting').
+ * @returns {string[]}
+ */
+export function getTypesByGroup(group) {
+    return Object.entries(_SIGNAL_MAPPING)
+        .filter(([, def]) => def.group === group)
+        .map(([type]) => type);
+}
+
+/**
+ * Return the OSM :ref tag key for a given signalType, or null if unsupported.
  * Example: "CARRE" -> "railway:signal:main:ref"
  */
-export function getSignalId(type_if) {
-    const entry = _SIGNAL_MAPPING[type_if];
+export function getSignalId(signalType) {
+    const entry = _SIGNAL_MAPPING[signalType];
     return entry ? `railway:signal:${entry.cat}:ref` : null;
 }
 
-/** Set of all type_if values that have a mapping. Exported for filters.js. */
+/** Set of all signalType values that have a mapping. Exported for filters.js. */
 const _supportedTypes = new Set(Object.keys(_SIGNAL_MAPPING));
 export function getSupportedTypes() { return _supportedTypes; }
 
 /* ===== OSM node computation ===== */
 
 /**
- * Returns the first 4 digits of an idreseau string as a cluster key.
+ * Returns the first 4 digits of a networkId string as a cluster key.
  * Signals with the same 4-digit prefix are considered numerically related
  * and are sorted together before the node-grouping pass.
- * Signals without an idreseau use an empty string so they sort last.
+ * Signals without a networkId use an empty string so they sort last.
  */
-function _idrCluster(idreseau) {
-    return idreseau ? String(idreseau).slice(0, 4) : '';
+function _idrCluster(networkId) {
+    return networkId ? String(networkId).slice(0, 4) : '';
 }
 
 /**
@@ -797,20 +806,20 @@ function _idrCluster(idreseau) {
  * nodes is empty when all features at this location are unsupported types.
  */
 export function getOsmNodes(feats) {
-    const supported = feats.filter(f => isSupported(f.p.type_if));
+    const supported = feats.filter(f => isSupported(f.p.signalType));
 
     if (!supported.length) return { nodes: [], featToNodeIdx: new Map() };
 
-    // Sort so signals with similar idreseau prefixes are processed consecutively.
+    // Sort so signals with similar networkId prefixes are processed consecutively.
     // This increases the chance that numerically close signals (e.g. 94560-94563)
     // share a node when their cats allow it, while unrelated clusters (e.g. 118480+)
     // naturally go to separate nodes. Within a cluster, _SIGNAL_MAPPING priority
     // order is preserved so higher-priority types still claim the best node first.
     supported.sort((a, b) => {
-        const clA = _idrCluster(a.p.idreseau);
-        const clB = _idrCluster(b.p.idreseau);
+        const clA = _idrCluster(a.p.networkId);
+        const clB = _idrCluster(b.p.networkId);
         if (clA !== clB) return clA < clB ? -1 : 1;
-        return _PRIORITY.indexOf(a.p.type_if) - _PRIORITY.indexOf(b.p.type_if);
+        return _PRIORITY.indexOf(a.p.signalType) - _PRIORITY.indexOf(b.p.signalType);
     });
 
     const nodeGroups = [];
@@ -838,7 +847,7 @@ export function getOsmNodes(feats) {
     const nodes = new Array(nodeGroups.length);
     for (const [oldIdx, newIdx] of indexRemap) {
         const group = nodeGroups[oldIdx];
-        const id = group.map(f => f.p.idreseau || f.p.type_if).sort().join('|');
+        const id = group.map(f => f.p.networkId || f.p.signalType).sort().join('|');
         nodes[newIdx] = {
             id,
             index: newIdx,

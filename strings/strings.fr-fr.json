@@ -1,0 +1,266 @@
+{
+  "page": {
+    "title": "SNCF Signalisation Permanente"
+  },
+  "header": {
+    "subtitle1": "Signalisation",
+    "subtitle2": "Permanente",
+    "loading": "Chargement…",
+    "beta": "Bêta"
+  },
+  "tabs": {
+    "filters": "Filtres",
+    "settings": "Paramètres",
+    "about": "À propos",
+    "help": "Aide"
+  },
+  "buttons": {
+    "addFilter": "+ Ajouter",
+    "reset": "Réinitialiser",
+    "confirmReset": "Réinitialiser tous les filtres actifs ?"
+  },
+  "toggle": {
+    "supported": "Types supportés uniquement",
+    "autoTagsTab": "Ouvrir l'onglet Tags OSM par défaut",
+    "skipJosmConfirm": "Ignorer la confirmation d'export JOSM",
+    "rememberPosition": "Restaurer la dernière position de la carte au démarrage"
+  },
+  "legend": {
+    "title": "Légende",
+    "clickToFilter": "Cliquer pour filtrer par cette catégorie"
+  },
+  "fields": {
+    "signalType": "Type IF",
+    "lineCode": "Code ligne",
+    "lineName": "Libellé ligne",
+    "blockType": "Mode canton",
+    "trackCode": "Code voie",
+    "trackName": "Nom voie",
+    "direction": "Sens",
+    "placement": "Position",
+    "milepost": "PK",
+    "networkId": "ID Réseau"
+  },
+  "values": {
+    "direction": {
+      "forward": "Croissant",
+      "backward": "Décroissant",
+      "both": "Bidirectionnel",
+      "unknown": "N/A"
+    },
+    "placement": {
+      "right": "Droite",
+      "left": "Gauche",
+      "bridge": "Portique",
+      "unknown": "N/A"
+    }
+  },
+  "filters": {
+    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes."
+  },
+  "dropdown": {
+    "search": "Rechercher parmi {0} valeurs…",
+    "noMatch": "Aucune valeur",
+    "remove": "Supprimer le filtre",
+    "searchNetworkId": "Saisissez quelques chiffres pour rechercher…",
+    "clickToSelect": "Cliquer pour sélectionner…"
+  },
+  "settings": {
+    "basemap": "Fond de carte",
+    "language": "Langue",
+    "behavior": "Comportement"
+  },
+  "basemap": {
+    "jawg": "Jawg Transport",
+    "osm": "OpenStreetMap",
+    "satellite": "Satellite"
+  },
+  "ctrl": {
+    "resetView": "Vue initiale (Origine)",
+    "toggle": "Afficher/masquer le panneau (S)",
+    "zoomIn": "Zoom avant (+)",
+    "zoomOut": "Zoom arrière (-)",
+    "locate": "Afficher mon emplacement (L)",
+    "fullscreen": "Plein écran (F11)",
+    "basemap": "Fond de carte (B)",
+    "collapse": "Réduire la barre (T)",
+    "expand": "Développer la barre (T)",
+    "geolocateUnavailable": "Géolocalisation non disponible.",
+    "geolocateError": "Erreur de localisation : {0}"
+  },
+  "status": {
+    "signals": "Signaux",
+    "filters": "Filtres",
+    "zoom": "Zoom",
+    "sampledTitle": "Aperçu — {0} signaux correspondants. Zoom ≥{1} pour le détail complet.",
+    "recordCount": "{0} signaux — {1} tuiles"
+  },
+  "progress": {
+    "index": "Chargement de l'index…",
+    "tiles": "Chargement de {0} tuile(s)…",
+    "filtering": "Filtrage…"
+  },
+  "popup": {
+    "navLabel": "{0} / {1}",
+    "nodeNA": "N/A",
+    "signalNode": "Nœud du signal",
+    "previewTags": "Prévisualiser les tags OSM",
+    "osmTags": "Tags OSM",
+    "copy": "Copier les tags",
+    "josm": "Ouvrir dans JOSM",
+    "copied": "Copié !",
+    "josmSent": "Envoyé à JOSM",
+    "prev": "Signal précédent",
+    "next": "Signal suivant",
+    "close": "Fermer",
+    "copyPrompt": "Copier les tags OSM",
+    "tabSignals": "Signaux",
+    "tabTags": "Tags OSM",
+    "captionSignal": "Signal",
+    "captionNode": "Nœud"
+  },
+  "osm": {
+    "locateOnOsm": "Localiser dans OpenStreetMap",
+    "checking": "Vérification dans OpenStreetMap…",
+    "inOsm": "Déjà présent dans OpenStreetMap — Nœud #{0}",
+    "error": "Échec de la vérification OSM",
+    "retry": "Relancer la vérification OSM",
+    "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
+  },
+  "josm": {
+    "notReachable": "JOSM inaccessible",
+    "detect": {
+      "title": "JOSM",
+      "version": "Version",
+      "protocol": "Protocole",
+      "port": "Port",
+      "checking": "…",
+      "notDetected": "Non détecté",
+      "notAllowed": "Non autorisé",
+      "website": "Site web de JOSM"
+    }
+  },
+  "cat": {
+    "main": "Signaux principaux",
+    "distant": "Signaux distants",
+    "speedLimit": "Limitations de vitesse",
+    "route": "Indicateurs de direction",
+    "stop": "Pancartes d'arrêt",
+    "shunting": "Manœuvres",
+    "crossing": "Passages à niveau",
+    "electricity": "Traction électrique",
+    "trainProtection": "Signalisation cabine / ETCS",
+    "wrongRoad": "Contre-sens (IPCS)",
+    "station": "Gares et établissements",
+    "miscellaneous": "Divers",
+    "unsupported": "Types non supportés"
+  },
+  "help": {
+    "intro": "Découvrez comment naviguer sur la carte et trouver des signaux en utilisant les filtres, la légende et les [Contrôles](#panel:help-control-panel) disponibles.",
+    "getStarted": {
+      "title": "Prise en main",
+      "finding": {
+        "title": "Recherche de signaux",
+        "content": [
+          "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex. : *Type IF*, *Code Ligne*).",
+          "* **Légende :** Cliquez sur une catégorie pour isoler les signaux correspondants.",
+          "* **ID Réseau :** Filtrez par un identifiant spécifique, puis cliquez sur la **pastille** pour zoomer sur le signal sur la carte."
+        ]
+      },
+      "interaction": {
+        "title": "Interaction avec la carte",
+        "content": [
+          "* **Contrôles :** Faites un clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier.",
+          "* **Visibilité :** Tous les signaux apparaissent à partir du niveau de zoom 10. En dessous, un échantillonnage spatial est utilisé pour maintenir la lisibilité (les filtres actifs continuent de s'appliquer).",
+          "* **Persistance :** Les filtres, les signaux épinglés, la position de la carte et les paramètres sont conservés d'une session à l'autre."
+        ]
+      },
+      "properties": {
+        "title": "Propriétés du signal",
+        "content": [
+          "La fenêtre contextuelle présente deux onglets :",
+          "* **Signaux :** Données d'infrastructure. Utilisez les flèches pour naviguer entre les signaux co-localisés.",
+          "  À côté de l'**ID Réseau**, cliquez sur le **logo OSM** pour consulter les informations du nœud [OpenStreetMap](https://www.openstreetmap.org/), ou sur **Localiser sur OpenStreetMap** s'il n'est pas encore cartographié.",
+          "* **Tags OSM :** Affichez, copiez ou ouvrez les tags dans l'[éditeur JOSM](https://josm.openstreetmap.de/). Les tags suivent les spécifications [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France).  ",
+          "  *Note : Fonctionnalité expérimentale (les spécifications sont en cours d'élaboration).* ",
+          "Le bouton **Épingler** (en haut de la fenêtre) permet de conserver un signal pour s'y référer ultérieurement."
+        ]
+      }
+    },
+    "control": {
+      "title": "Contrôles",
+      "mouse": {
+        "title": "Souris",
+        "scroll": "Molette",
+        "scrollDesc": "Zoom avant / arrière",
+        "click": "Clic",
+        "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
+        "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
+        "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)",
+        "altDesc": "Zoome et centre sur le signal",
+        "rightClick": "Clic droit",
+        "rightClickDesc": "Ouvre le menu contextuel",
+        "filterClickDesc": "Pastille ID Réseau / signal épinglé — centre la carte sur le signal",
+        "filterShiftDesc": "Supprimer (×) sur une pastille — ferme toutes les autres pastilles"
+      },
+      "keyboard": {
+        "title": "Clavier",
+        "alt": "Alt",
+        "ctrl": "Ctrl",
+        "enter": "Entrée",
+        "home": "Origine",
+        "shift": "Maj",
+        "keyZoomInDesc": "Zoom avant",
+        "keyZoomOutDesc": "Zoom arrière",
+        "keyResetDesc": "Revient à l'étendue initiale de la carte",
+        "keyFullscreenDesc": "Bascule en plein écran",
+        "keyBasemapDesc": "Ouvre / ferme le sélecteur de fond de carte",
+        "keyGeolocateDesc": "Affiche mon emplacement",
+        "keySidebarDesc": "Affiche / masque le panneau",
+        "keyToolbarDesc": "Réduit / développe la barre d'outils",
+        "keyContextMenuDesc": "Ouvre le menu contextuel sur le signal actif",
+        "keyPropertiesDesc": "Ouvre la fenêtre du signal (Propriétés)"
+      }
+    }
+  },
+  "about": {
+    "intro": "Visualisation cartographique interactive du jeu de données ouvertes **SNCF Signalisation Permanente**, avec intégration [OpenStreetMap](https://www.openstreetmap.org/). Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "links": {
+      "title": "Liens"
+    },
+    "disclaimer": {
+      "title": "Mentions légales",
+      "trademark": "SNCF Réseau et le logo SNCF Réseau sont des marques déposées de **SNCF Réseau** et sont utilisés ici à titre d'identification et d'illustration uniquement. Ce site n'est pas affilié à SNCF Réseau, ni approuvé ou parrainé par SNCF Réseau. Consultez les [mentions légales officielles](https://www.sncf-reseau.com/fr/mentions-legales) pour plus d'informations.",
+      "experimental": "Ce site est mis à disposition **gratuitement** à titre expérimental. Les données, cartes et services sont fournis « en l'état », sans garantie d'aucune sorte. Utilisation aux risques et périls de l'utilisateur."
+    },
+    "credits": {
+      "title": "Crédits",
+      "site": "Site © 2026 Noël Danjou",
+      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
+      "maps": "Cartes © [contributeurs OpenStreetMap](https://www.openstreetmap.org/copyright)"
+    }
+  },
+  "pinned": {
+    "title": "Signaux épinglés",
+    "empty": "Aucun signal épinglé.",
+    "clear": "Supprimer tous les signaux épinglés",
+    "confirmClear": "Supprimer tous les signaux épinglés ?",
+    "pin": "Épingler ce signal",
+    "unpin": "Désépingler ce signal",
+    "flash": "Épinglé !",
+    "unflash": "Désépinglé"
+  },
+  "filter": {
+    "none": "Aucun filtre actif.",
+    "clear": "Effacer les valeurs",
+    "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
+    "close": "Supprimer le filtre"
+  },
+  "context": {
+    "zoomCenter": "Zoomer",
+    "pin": "Épingler",
+    "unpin": "Désépingler",
+    "properties": "Propriétés"
+  }
+}
