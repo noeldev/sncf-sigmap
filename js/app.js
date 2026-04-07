@@ -17,6 +17,7 @@
 
 import { TILES_BASE } from './config.js';
 import { initMap, map, initMapEvents } from './map.js';
+import { initKeyboardShortcuts } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
 import { loadStrings, translateAll, getLang, t } from './translation.js';
 import { setManifest, refresh } from './map-layer.js';
@@ -33,6 +34,7 @@ import { initStatusBar, updateZoomStatus, setRecordCount, updateFilterCount } fr
 async function _boot() {
     await loadStrings(getLang());
     await initMap();
+    initKeyboardShortcuts();
     initSidebar({ onRefresh: _onSidebarRefresh });
     initStatusBar();
     initProgress();

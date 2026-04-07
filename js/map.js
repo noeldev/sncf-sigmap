@@ -40,7 +40,7 @@ const BASEMAPS = {
         url: 'https://tile.jawg.io/jawg-transports/{z}/{x}/{y}{r}.png?access-token={jawg_api_key}',
         opts: {
             attribution: '© <a href="https://jawg.io">Jawg Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-            maxZoom: 22,
+            maxZoom: 20,
         },
     },
     [BASEMAP_OSM]: {
@@ -49,7 +49,7 @@ const BASEMAPS = {
         url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         opts: {
             attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-            maxZoom: 20,
+            maxZoom: 19,
         },
     },
     [BASEMAP_SATELLITE]: {
@@ -58,7 +58,7 @@ const BASEMAPS = {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         opts: {
             attribution: '© Esri, Maxar, Earthstar Geographics',
-            maxZoom: 20,
+            maxZoom: 19,
         },
     },
 };
@@ -289,6 +289,18 @@ function _setBasemap(key) {
     map.removeLayer(_tileLayers[_current]);
     _tileLayers[key].addTo(map);
     _current = key;
+
+    // Synchronize the map zoom limit with the new basemap.
+    const newMaxZoom = BASEMAPS[key].opts.maxZoom;
+    if (map.options.maxZoom !== newMaxZoom) {
+        map.options.maxZoom = newMaxZoom;
+        // Reduce current zoom if it exceeds the
+        // new limit to prevent blank tiles.
+        if (map.getZoom() > newMaxZoom) {
+            map.setZoom(newMaxZoom);
+        }
+    }
+
     setLastBasemap(key);
     document.querySelectorAll('.basemap-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.map === key)

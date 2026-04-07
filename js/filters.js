@@ -30,6 +30,7 @@ import { saveFilters, loadFilters } from './prefs.js';
 import { flyToLocationWithMarker } from './map.js';
 import { isSampled, getSignalLatlng } from './map-layer.js';
 import { initBlockSystem } from './block-system.js';
+import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 const _ALL_FILTER_FIELDS = [
     {
@@ -70,7 +71,7 @@ let _defs = [];             // [{ field: string, search: string, panel: FilterPa
 let _mappedOnly = false;
 let _mappedTypes = getSupportedTypes();
 let _onChange = null;
-let _activeGroup = null;  // active group preset key, or null
+let _activeGroup = null;
 
 // Templates: resolved lazily via getters so they are always read from the live DOM.
 const _tpl = {
@@ -205,38 +206,32 @@ export function filterByGroup(group) {
     if (!types.length) return;
 
     const current = _activeFilters['signalType'];
-    const isAlreadyActive = current?.size === types.length && types.every(v => current.has(v));
     const signalDef = _defs.find(d => _isSignalType(d.field));
 
-    // Toggle off: current state is exactly this legend group — nothing else, no search.
-    if (isAlreadyActive && _defs.length === 1 && signalDef && !signalDef.search && _mappedOnly) {
-        if (!_confirmClear()) return;
-        resetFilters();
+    // If the current filter already contains exactly the types of this group,
+    // just sync the active group indicator — no filter change needed.
+    if (current?.size === types.length && types.every(v => current.has(v))) {
+        _activeGroup = group;
+        _commit();
         return;
     }
 
-    // No-op: applying this group would produce no state change.
-    if (isAlreadyActive && _defs.length === 0) return;
-
-    // Confirm only when meaningful filters (values or searches) would be overwritten.
-    if (hasAnyFilters() && !_confirmClear()) return;
-
-    // Destroy and remove all non-signalType panels.
-    _defs = _defs.filter(d => {
-        if (_isSignalType(d.field)) return true;
-        d.panel?.destroy();
-        delete _activeFilters[d.field];
-        return false;
-    });
-
-    // Reuse the existing signalType panel entry or create one.
-    if (signalDef) {
-        signalDef.search = '';
-    } else {
-        _defs.push({ field: 'signalType', search: '' });
+    // Confirm only if the current filter contains types that would be lost —
+    // i.e. at least one active value is not in the new group.
+    if (current?.size > 0) {
+        const typesSet = new Set(types);
+        const hasOutsiders = [...current].some(v => !typesSet.has(v));
+        if (hasOutsiders && !_confirmClear()) return;
     }
 
-    // Apply the group filter; enable mappedOnly since all returned types are supported.
+    // Apply the group: only adds/replaces the signalType filter.
+    // Other active filters (lineCode, trackName…) are preserved.
+    if (!signalDef) {
+        _defs.unshift({ field: 'signalType', search: '' });
+    } else {
+        signalDef.search = '';
+    }
+
     _mappedOnly = true;
     _activeFilters['signalType'] = new Set(types);
     _activeGroup = group;
@@ -328,11 +323,15 @@ export function getAvailableFields() {
 export function addFilterField(key) {
     _defs.push({ field: key, search: '' });
     _buildPanels();
-    // Focus the first interactive element of the new panel so the user can type immediately.
-    queueMicrotask(() => {
-        const newDef = _defs.find(d => d.field === key);
-        newDef?.panel?.focusInput();
-    });
+    // Notify + persist: triggers _onFiltersChange which calls updateFilterToolbar.
+    _commit();
+    // Guarantee the new panel is open regardless of any stale persisted closed state.
+    // registerPanel (called inside _buildPanels) applies the last known state, which
+    // may be false if the user closed this panel in a previous session without removing
+    // it first. openPanel overrides that and saves the open state.
+    const newDef = _defs.find(d => d.field === key);
+    if (newDef?.panel) openPanel(newDef.panel.panelEl());
+    queueMicrotask(() => newDef?.panel?.focusInput());
 }
 
 function _fieldDef(key) {
@@ -497,6 +496,7 @@ function _onPillRemove(def, val) {
  */
 function _onRemove(def, idx) {
     _confirmIfActive(def.field, () => {
+        unregisterPanel(def.panel.panelEl());
         def.panel.destroy();
         delete _activeFilters[def.field];
         _defs.splice(idx, 1);
@@ -562,6 +562,9 @@ function _buildPanels() {
 
         def.panel = new FilterPanel(_panelOptions(def, idx, fieldMeta, label, activate));
         def.panel.appendTo(container);
+        // Register with collapsible-panel.js — applies persisted state if any,
+        // otherwise falls back to the HTML default (cp-panel--open = open).
+        registerPanel(def.panel.panelEl());
         _refreshTags(idx);
         _refreshDropdown(idx);
     });

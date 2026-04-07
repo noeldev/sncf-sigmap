@@ -11,7 +11,8 @@
   "tabs": {
     "filters": "Filtres",
     "settings": "Paramètres",
-    "about": "À propos"
+    "about": "À propos",
+    "help": "Aide"
   },
   "buttons": {
     "addFilter": "+ Ajouter",
@@ -75,15 +76,15 @@
     "satellite": "Satellite"
   },
   "ctrl": {
-    "resetView": "Vue initiale",
-    "toggle": "Afficher/masquer le panneau",
-    "zoomIn": "Zoom avant",
-    "zoomOut": "Zoom arrière",
-    "locate": "Afficher mon emplacement",
-    "fullscreen": "Plein écran",
-    "basemap": "Fond de carte",
-    "collapse": "Réduire la barre",
-    "expand": "Développer la barre",
+    "resetView": "Vue initiale (Origine)",
+    "toggle": "Afficher/masquer le panneau (S)",
+    "zoomIn": "Zoom avant (+)",
+    "zoomOut": "Zoom arrière (-)",
+    "locate": "Afficher mon emplacement (L)",
+    "fullscreen": "Plein écran (F11)",
+    "basemap": "Fond de carte (B)",
+    "collapse": "Réduire la barre (T)",
+    "expand": "Développer la barre (T)",
     "geolocateUnavailable": "Géolocalisation non disponible.",
     "geolocateError": "Erreur de localisation : {0}"
   },
@@ -155,38 +156,83 @@
     "miscellaneous": "Divers",
     "unsupported": "Types non supportés"
   },
-  "about": {
-    "intro1": "Visualisation cartographique interactive du jeu de données ouvertes **SNCF Signalisation Permanente**, avec intégration [OpenStreetMap](https://www.openstreetmap.org/). Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
-    "intro2": "À partir du zoom 10, tous les signaux du viewport sont affichés. En dessous du zoom 10, un échantillon spatial garde la carte lisible — les filtres actifs s'appliquent toujours. Les filtres actifs, les signaux épinglés, la position de la carte et les paramètres sont restaurés à la prochaine ouverture.",
-    "more": "Suite…",
-    "less": "Réduire…",
-    "usage": {
-      "title": "Utilisation",
-      "map": {
-        "title": "Carte",
+  "help": {
+    "intro": "Découvrez comment naviguer sur la carte et trouver des signaux en utilisant les filtres, la légende et les [Contrôles](#panel:help-control-panel) disponibles.",
+    "getStarted": {
+      "title": "Prise en main",
+      "finding": {
+        "title": "Recherche de signaux",
+        "content": [
+          "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex. : *Type IF*, *Code Ligne*).",
+          "* **Légende :** Cliquez sur une catégorie pour isoler les signaux correspondants.",
+          "* **ID Réseau :** Filtrez par un identifiant spécifique, puis cliquez sur la **pastille** pour zoomer sur le signal sur la carte."
+        ]
+      },
+      "interaction": {
+        "title": "Interaction avec la carte",
+        "content": [
+          "* **Contrôles :** Faites un clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier.",
+          "* **Visibilité :** Tous les signaux apparaissent à partir du niveau de zoom 10. En dessous, un échantillonnage spatial est utilisé pour maintenir la lisibilité (les filtres actifs continuent de s'appliquer).",
+          "* **Persistance :** Les filtres, les signaux épinglés, la position de la carte et les paramètres sont conservés d'une session à l'autre."
+        ]
+      },
+      "properties": {
+        "title": "Propriétés du signal",
+        "content": [
+          "La fenêtre contextuelle présente deux onglets :",
+          "* **Signaux :** Données d'infrastructure. Utilisez les flèches pour naviguer entre les signaux co-localisés.",
+          "  À côté de l'**ID Réseau**, cliquez sur le **logo OSM** pour consulter les informations du nœud [OpenStreetMap](https://www.openstreetmap.org/), ou sur **Localiser sur OpenStreetMap** s'il n'est pas encore cartographié.",
+          "* **Tags OSM :** Affichez, copiez ou ouvrez les tags dans l'[éditeur JOSM](https://josm.openstreetmap.de/). Les tags suivent les spécifications [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France).  ",
+          "  *Note : Fonctionnalité expérimentale (les spécifications sont en cours d'élaboration).* ",
+          "Le bouton **Épingler** (en haut de la fenêtre) permet de conserver un signal pour s'y référer ultérieurement."
+        ]
+      }
+    },
+    "control": {
+      "title": "Contrôles",
+      "mouse": {
+        "title": "Souris",
         "scroll": "Molette",
         "scrollDesc": "Zoom avant / arrière",
         "click": "Clic",
         "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
-        "shift": "Maj",
-        "ctrl": "Ctrl",
         "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
         "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)",
-        "alt": "Alt",
         "altDesc": "Zoome et centre sur le signal",
         "rightClick": "Clic droit",
-        "rightClickDesc": "Ouvre le menu contextuel"
+        "rightClickDesc": "Ouvre le menu contextuel",
+        "filterClickDesc": "Pastille ID Réseau / signal épinglé — centre la carte sur le signal",
+        "filterShiftDesc": "Supprimer (×) sur une pastille — ferme toutes les autres pastilles"
       },
-      "filters": {
-        "title": "Filtres",
-        "click": "Clic",
-        "clickDesc": "Pastille ID Réseau — zoome la carte sur le signal",
+      "keyboard": {
+        "title": "Clavier",
+        "alt": "Alt",
+        "ctrl": "Ctrl",
+        "enter": "Entrée",
+        "home": "Origine",
         "shift": "Maj",
-        "shiftDesc": "Supprimer (×) — supprime toutes les autres pastilles"
+        "keyZoomInDesc": "Zoom avant",
+        "keyZoomOutDesc": "Zoom arrière",
+        "keyResetDesc": "Revient à l'étendue initiale de la carte",
+        "keyFullscreenDesc": "Bascule en plein écran",
+        "keyBasemapDesc": "Ouvre / ferme le sélecteur de fond de carte",
+        "keyGeolocateDesc": "Affiche mon emplacement",
+        "keySidebarDesc": "Affiche / masque le panneau",
+        "keyToolbarDesc": "Réduit / développe la barre d'outils",
+        "keyContextMenuDesc": "Ouvre le menu contextuel sur le signal actif",
+        "keyPropertiesDesc": "Ouvre la fenêtre du signal (Propriétés)"
       }
-    },
+    }
+  },
+  "about": {
+    "intro": "Visualisation cartographique interactive du jeu de données ouvertes **SNCF Signalisation Permanente**, avec intégration [OpenStreetMap](https://www.openstreetmap.org/). Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
     "links": {
       "title": "Liens"
+    },
+    "disclaimer": {
+      "title": "Mentions légales",
+      "trademark": "SNCF Réseau et le logo SNCF Réseau sont des marques déposées de **SNCF Réseau** et sont utilisés ici à titre d'identification et d'illustration uniquement. Ce site n'est pas affilié à SNCF Réseau, ni approuvé ou parrainé par SNCF Réseau. Consultez les [mentions légales officielles](https://www.sncf-reseau.com/fr/mentions-legales) pour plus d'informations.",
+      "experimental": "Ce site est mis à disposition **gratuitement** à titre expérimental. Les données, cartes et services sont fournis « en l'état », sans garantie d'aucune sorte. Utilisation aux risques et périls de l'utilisateur."
     },
     "credits": {
       "title": "Crédits",
@@ -211,7 +257,7 @@
     "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
     "close": "Supprimer le filtre"
   },
-  "ctx": {
+  "context": {
     "zoomCenter": "Zoomer",
     "pin": "Épingler",
     "unpin": "Désépingler",

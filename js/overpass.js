@@ -78,7 +78,7 @@ function _buildBatchQuery(unique, bbox) {
     const unions = unique.map(e =>
         `node["${e.refTag}"="${e.networkId}"](${bbox});`
     ).join('');
-    return `[out:json][timeout:15];(${unions});out ids tags;`;
+    return `[out:json][timeout:45];(${unions});out ids tags;`;
 }
 
 /**

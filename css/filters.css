@@ -14,24 +14,55 @@
  * Border-top between adjacent panels is applied on the header of the
  * second and later panels to avoid a double border at the top. */
 
-.filter-panel {
-    padding-bottom: 14px;
+/* ===== Filter panels as collapsible subpanels =====
+ *
+ * .filter-panel.cp-panel--sub overrides the generic cp-panel--sub styles
+ * (designed for the Usage section in sidebar.css) to restore the original
+ * compact filter panel appearance: original header padding, no underline,
+ * no margin between panels, border-top separator instead.
+ */
+
+/* No outer box — filter panels tile flush inside #filters-container */
+.filter-panel.cp-panel--sub {
+    border: none;
+    background: none;
 }
 
-    .filter-panel + .filter-panel .fg-header {
-        border-top: 1px solid var(--border);
+    /* Restore original header padding; remove sub-panel underline and background */
+    .filter-panel.cp-panel--sub > .panel-summary {
+        padding: 6px 10px;
+        background: none;
+        border-bottom: none;
     }
 
-
-/* ===== Filter panel header ===== */
-
-.fg-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 10px;
-    gap: 6px;
+/* Ensure underline never shows even in open state */
+.cp-panel--open.filter-panel.cp-panel--sub > .panel-summary {
+    border-bottom-color: transparent;
 }
+
+/* Border separator between adjacent filter panels */
+.filter-panel + .filter-panel {
+    border-top: 1px solid var(--border);
+}
+
+/* Override cp-panel--sub sibling margin (0 instead of 14px) */
+.filter-panel.cp-panel--sub + .filter-panel.cp-panel--sub {
+    margin-top: 0;
+}
+
+/* No extra top padding in filter body; bottom padding for open panels */
+.filter-panel.cp-panel--sub > .cp-body {
+    padding-top: 0;
+}
+
+.cp-panel--open.filter-panel.cp-panel--sub > .cp-body {
+    padding-bottom: 16px;
+}
+
+
+/* ===== Filter panel header =====
+ * .fg-header is also .panel-summary — core layout is handled by sidebar.css.
+ * Only filter-specific overrides are here. */
 
 /* Actions container: clear + remove buttons on the right */
 .fg-actions {
@@ -41,30 +72,18 @@
     flex-shrink: 0;
 }
 
-/* Clear (trash) and Remove (×) icon buttons */
-.fg-clear,
-.fg-remove {
-    background: none;
-    border: none;
-    color: var(--text3);
-    padding: 3px 4px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
-    transition: color .15s, background .15s;
+/* Clear (trash) and Remove (×) icon buttons.
+ * Base layout is inherited from .summary-action-btn in sidebar.css.
+ * Only hover colours are overridden here since fg-clear uses warn and fg-remove uses accent2. */
+.fg-clear:hover {
+    color: var(--warn);
+    background: rgba(210, 153, 34, .08);
 }
 
-    .fg-clear:hover {
-        color: var(--warn);
-        background: rgba(210, 153, 34, .08);
-    }
-
-    .fg-remove:hover {
-        color: var(--accent2);
-        background: rgba(37, 137, 199, .08);
-    }
+.fg-remove:hover {
+    color: var(--accent2);
+    background: rgba(37, 137, 199, .08);
+}
 
 
 /* ===== Pills (active value tags) ===== */
@@ -73,7 +92,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 0 10px 6px;
+    padding: 0 0 6px;
 }
 
 .fg-tag {
@@ -134,12 +153,16 @@
 
 /* ===== Combo input =====
  *
- * position:relative on .fg-combo makes .fg-dropdown (position:absolute)
- * align to the combo width, matching the input's left/right edges. */
+ * .fg-combo wraps .fg-combo-input and .fg-dropdown to act as a containing block
+ * (position:relative) for the absolutely positioned dropdown. No padding here —
+ * the horizontal inset is provided by .filter-panel > .cp-body. */
+
+.filter-panel > .cp-body {
+    padding: 0 10px;
+}
 
 .fg-combo {
-    position: relative; /* containing block for .fg-dropdown (position:absolute sibling) */
-    padding: 0 10px;
+    position: relative;
 }
 
 .fg-combo-input {
@@ -191,8 +214,8 @@
 
 .fg-dropdown {
     position: absolute;
-    left: 10px; /* offset .fg-combo's horizontal padding so dropdown aligns with the input */
-    right: 10px;
+    left: 0;
+    right: 0;
     z-index: 200;
     max-height: 220px;
     overflow-y: auto;
@@ -291,7 +314,7 @@
 
 .supported-only-row {
     margin-top: 2px;
-    padding: 4px 10px 0;
+    padding: 4px 0 0;
 }
 
 .supported-only-label {
@@ -317,7 +340,8 @@
     border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 4px;
-    min-width: 160px;
+    width: max-content;
+    min-width: 120px;
     box-shadow: 0 8px 24px rgba(0,0,0,.6);
 }
 

@@ -46,7 +46,6 @@ function _contrastColor(hex) {
 
 
 // ===== Tab identifiers =====
-// Private — external callers use resolveStartTab() to get a tab name.
 const TAB_SIGNALS = 'signals';
 const TAB_TAGS = 'tags';
 
@@ -104,6 +103,18 @@ export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) 
     _initState(latlng, feats, idx, startTab);
     _openPopup();
     _scheduleOsmCheck();
+}
+
+/**
+ * Close the signal popup if one is open.
+ * Safe to call when no popup is open.
+ */
+export function closeSignalPopup() {
+    if (_popup) {
+        _popup.remove();
+        _popup = null;
+        _popupEl = null;
+    }
 }
 
 

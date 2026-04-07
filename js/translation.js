@@ -5,15 +5,6 @@
  * JSON files may be nested objects — they are flattened at load time so that
  * t('values.direction.forward') resolves correctly regardless of structure.
  *
- * After flattening, every string value containing markup patterns is
- * precompiled into an HTML string once via _precompileAllMarkup(), so that
- * no markup detection or conversion happens at translation time.
- *
- * Markup syntax (resolved once at load time, standard Markdown conventions):
- *   **text**             → <strong>text</strong>
- *   [label](https://…)   → external <a target="_blank" rel="noopener noreferrer">
- *   [label](#tab-id)     → internal tab link with data-switch-tab="tab-id"
- *
  * HTML patterns:
  *   data-i18n="key"        → el.textContent (or placeholder for inputs) — plain text only
  *   data-i18n-html="key"   → el.innerHTML — may contain precompiled markup
@@ -42,6 +33,7 @@
  * String file names are derived by lowercasing the code (strings.en-us.json).
  */
 import { getLangPref, setLangPref } from './prefs.js';
+import { isMarkup, toHtml } from './markup.js';
 
 const _LANG_INFO = {
     default: 'en-US',
@@ -134,6 +126,10 @@ function _flatten(obj, prefix = '') {
         const key = prefix ? `${prefix}.${k}` : k;
         if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
             Object.assign(result, _flatten(v, key));
+        } else if (Array.isArray(v)) {
+            // String arrays are joined with newlines so they are handled as a single
+            // multiline markup string by _precompileAllMarkup / markup.js.
+            result[key] = v.join('\n');
         } else {
             result[key] = v;
         }
@@ -143,6 +139,7 @@ function _flatten(obj, prefix = '') {
 
 /**
  * Precompile all markup patterns in a flattened strings object into HTML strings.
+ * Delegates detection and conversion to markup.js.
  * Strings without markup are passed through unchanged.
  * Called once per locale load.
  *
@@ -152,43 +149,9 @@ function _flatten(obj, prefix = '') {
 function _precompileAllMarkup(strings) {
     const result = {};
     for (const [key, val] of Object.entries(strings)) {
-        result[key] = typeof val === 'string' && (val.includes('**') || val.includes(']('))
-            ? _markupToHtml(val)
-            : val;
+        result[key] = typeof val === 'string' && isMarkup(val) ? toHtml(val) : val;
     }
     return result;
-}
-
-/**
- * Convert a string containing **...** and [label](url) patterns to an HTML string.
- *
- * Both patterns are resolved via regex so that any surrounding HTML markup
- * (e.g. <br>) passes through unchanged. Input comes exclusively from trusted
- * string files in this repository — never from user input.
- *
- * Patterns:
- *   **text**           → <strong>text</strong>
- *   [label](https://…) → <a href target="_blank" rel="noopener noreferrer">label</a>
- *   [label](#tab-id)   → <a data-switch-tab="tab-id">label</a>
- *
- * @param {string} str
- * @returns {string}  HTML string with markup patterns replaced.
- */
-function _markupToHtml(str) {
-    if (!str) return '';
-
-    return str
-        // **bold** -> <strong>bold</strong>
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-
-        // [label](url) -> <a...>label</a>
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
-            if (url.startsWith('#')) {
-                // Internal tab link — activation handled by sidebar.js delegated listener.
-                return `<a href="#" data-switch-tab="${url.slice(1)}">${label}</a>`;
-            }
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-        });
 }
 
 

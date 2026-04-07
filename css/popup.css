@@ -162,6 +162,12 @@
     }
 
 
+/* Popup nav "previous" chevron — flip horizontally to point left */
+.icon-prev {
+    transform: rotate(180deg);
+}
+
+
 /* ===== SNCF data rows + Signal Node badge — shared base =====
  *
  * Both are horizontal flex rows with the same label/value alignment.

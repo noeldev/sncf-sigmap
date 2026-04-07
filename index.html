@@ -15,10 +15,12 @@
             integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
             crossorigin="anonymous"></script>
     <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/panel.css">
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/filters.css">
     <link rel="stylesheet" href="css/map.css">
     <link rel="stylesheet" href="css/popup.css">
+    <link rel="stylesheet" href="css/markup.css">
 </head>
 <body>
 
@@ -46,6 +48,7 @@
             <nav id="sidebar-tabs" role="tablist">
                 <button class="stab active" role="tab" aria-selected="true" aria-controls="tab-filters" data-tab="filters" data-i18n="tabs.filters">Filters</button>
                 <button class="stab" role="tab" aria-selected="false" aria-controls="tab-settings" data-tab="settings" data-i18n="tabs.settings">Settings</button>
+                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-help" data-tab="help" data-i18n="tabs.help">Help</button>
                 <button class="stab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about" data-i18n="tabs.about">About</button>
             </nav>
 
@@ -59,7 +62,7 @@
                 </div>
 
                 <!-- Single scroll area: filter panels + Pinned Signals + Legend -->
-                <div class="filters-scroll">
+                <div class="panels-scroll">
 
                     <div id="filters-container"></div>
 
@@ -101,7 +104,7 @@
                         </div>
                     </div>
 
-                </div><!-- /filters-scroll -->
+                </div><!-- /panels-scroll -->
 
                 <template id="tpl-legend-row">
                     <button type="button" class="legend-item">
@@ -128,10 +131,8 @@
                     </div>
                 </div>
 
-                <div class="settings-lang-spacer"></div>
-
                 <!-- Scrollable content: behavior toggles (and future basemap section) -->
-                <div class="settings-scroll">
+                <div class="panels-scroll">
 
                     <!-- Behavior — collapsible, open by default -->
                     <div class="cp-panel cp-panel--open settings-panel" id="settings-behavior-panel">
@@ -161,8 +162,8 @@
                         </div>
                     </div>
 
-                </div><!-- /settings-scroll -->
-                <!-- JOSM — collapsible footer cp-panel, fixed below .settings-scroll -->
+                </div><!-- /panels-scroll -->
+                <!-- JOSM — collapsible footer cp-panel, fixed below .panels-scroll -->
                 <div class="cp-panel cp-panel--open settings-josm-footer" id="settings-josm-panel">
                     <div class="panel-summary" role="button" tabindex="0"
                          aria-expanded="true" aria-controls="settings-josm-panel-body">
@@ -176,7 +177,7 @@
                         </a>
                     </div>
                     <div class="cp-body" id="settings-josm-panel-body">
-                        <div id="josm-detect-body" class="josm-detect-body" data-josm-status="checking">
+                        <div id="josm-detect-body" class="panel-body" data-josm-status="checking">
                             <!-- Version row: one span per state; CSS reveals only the matching one. -->
                             <div class="josm-detect-row">
                                 <span class="josm-detect-label" data-i18n="josm.detect.version">Version</span>
@@ -199,72 +200,57 @@
                 </div>
             </div>
 
-            <!-- About -->
-            <div id="tab-about" class="tab-panel about-tab-panel" role="tabpanel">
-                <div class="about-content">
-
-                    <!-- Intro with progressive disclosure.
-                         .about-intro2 and the More/Less toggle are wired
-                         via the CSS :checked + sibling selector — no JS needed. -->
-                    <div class="about-intro-wrap">
-                        <p class="about-intro1" data-i18n-html="about.intro1"></p>
-                        <input type="checkbox" id="about-more-toggle" class="toggle-input">
-                        <p class="about-intro2" data-i18n-html="about.intro2"></p>
-                        <label for="about-more-toggle" class="about-more-label">
-                            <span class="about-more-show" data-i18n="about.more"></span>
-                            <span class="about-more-hide" data-i18n="about.less"></span>
-                        </label>
+            <!-- Help -->
+            <div id="tab-help" class="tab-panel" role="tabpanel">
+                <div class="panels-scroll">
+                    <!-- Short intro paragraph -->
+                    <div class="panel-body">
+                        <p class="panel-text" data-i18n-html="help.intro"></p>
                     </div>
 
-                    <!-- Usage: collapsible, open by default -->
-                    <div class="cp-panel cp-panel--open about-panel" id="about-usage-panel">
+                    <!-- Getting Started -->
+                    <div class="cp-panel info-panel" id="help-gs-panel">
                         <div class="panel-summary" role="button" tabindex="0"
-                             aria-expanded="true" aria-controls="about-usage-panel-body">
+                             aria-expanded="false" aria-controls="help-gs-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                            <span data-i18n="about.usage.title"></span>
+                            <span data-i18n="help.getStarted.title"></span>
                         </div>
-                        <div class="cp-body" id="about-usage-panel-body">
-                            <div class="panel-body about-usage-body">
+                        <div class="cp-body" id="help-gs-panel-body" hidden>
+                            <div class="panel-body">
 
-                                <!-- Map sub-panel -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="about-usage-map-panel">
+                                <!-- Finding signals -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-finding-panel">
                                     <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="about-usage-map-body">
+                                         aria-expanded="true" aria-controls="help-gs-finding-body">
                                         <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="about.usage.map.title"></span>
+                                        <span data-i18n="help.getStarted.finding.title"></span>
                                     </div>
-                                    <div class="cp-body" id="about-usage-map-body">
-                                        <dl class="about-shortcuts-grid">
-                                            <dt><kbd data-i18n="about.usage.map.scroll"></kbd></dt>
-                                            <dd data-i18n="about.usage.map.scrollDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.map.click"></kbd></dt>
-                                            <dd data-i18n="about.usage.map.clickDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.map.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
-                                            <dd data-i18n-html="about.usage.map.shiftDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.map.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
-                                            <dd data-i18n-html="about.usage.map.ctrlDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.map.alt"></kbd>&thinsp;+&thinsp;<kbd data-i18n="about.usage.map.click"></kbd></dt>
-                                            <dd data-i18n="about.usage.map.altDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.map.rightClick"></kbd></dt>
-                                            <dd data-i18n="about.usage.map.rightClickDesc"></dd>
-                                        </dl>
+                                    <div class="cp-body" id="help-gs-finding-body">
+                                        <div class="markup" data-i18n-html="help.getStarted.finding.content"></div>
                                     </div>
                                 </div>
 
-                                <!-- Filters sub-panel -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="about-usage-filters-panel">
+                                <!-- Map interaction -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-interaction-panel">
                                     <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="about-usage-filters-body">
+                                         aria-expanded="true" aria-controls="help-gs-interaction-body">
                                         <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="about.usage.filters.title"></span>
+                                        <span data-i18n="help.getStarted.interaction.title"></span>
                                     </div>
-                                    <div class="cp-body" id="about-usage-filters-body">
-                                        <dl class="about-shortcuts-grid">
-                                            <dt><kbd data-i18n="about.usage.filters.click"></kbd></dt>
-                                            <dd data-i18n="about.usage.filters.clickDesc"></dd>
-                                            <dt><kbd data-i18n="about.usage.filters.shift"></kbd>&thinsp;+&thinsp;<kbd>×</kbd></dt>
-                                            <dd data-i18n="about.usage.filters.shiftDesc"></dd>
-                                        </dl>
+                                    <div class="cp-body" id="help-gs-interaction-body">
+                                        <div class="markup" data-i18n-html="help.getStarted.interaction.content"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Signal properties -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-properties-panel">
+                                    <div class="panel-summary" role="button" tabindex="0"
+                                         aria-expanded="true" aria-controls="help-gs-properties-body">
+                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                                        <span data-i18n="help.getStarted.properties.title"></span>
+                                    </div>
+                                    <div class="cp-body" id="help-gs-properties-body">
+                                        <div class="markup" data-i18n-html="help.getStarted.properties.content"></div>
                                     </div>
                                 </div>
 
@@ -272,8 +258,94 @@
                         </div>
                     </div>
 
+                    <!-- Controls: keyboard + mouse reference -->
+                    <div class="cp-panel cp-panel--open info-panel" id="help-control-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="true" aria-controls="help-control-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="help.control.title"></span>
+                        </div>
+                        <div class="cp-body" id="help-control-panel-body">
+                            <div class="panel-body shortcuts-body">
+
+                                <!-- Mouse interactions sub-panel -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-control-mouse-panel">
+                                    <div class="panel-summary" role="button" tabindex="0"
+                                         aria-expanded="true" aria-controls="help-control-mouse-body">
+                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                                        <span data-i18n="help.control.mouse.title"></span>
+                                    </div>
+                                    <div class="cp-body" id="help-control-mouse-body">
+                                        <dl class="shortcuts-grid">
+                                            <dt><kbd data-i18n="help.control.mouse.scroll"></kbd></dt>
+                                            <dd data-i18n="help.control.mouse.scrollDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n="help.control.mouse.clickDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n-html="help.control.mouse.shiftDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n-html="help.control.mouse.ctrlDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.alt"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n="help.control.mouse.altDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.mouse.rightClick"></kbd></dt>
+                                            <dd data-i18n="help.control.mouse.rightClickDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n="help.control.mouse.filterClickDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd>×</kbd></dt>
+                                            <dd data-i18n="help.control.mouse.filterShiftDesc"></dd>
+                                        </dl>
+                                    </div>
+                                </div>
+
+                                <!-- Keyboard shortcuts sub-panel -->
+                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-control-keyboard-panel">
+                                    <div class="panel-summary" role="button" tabindex="0"
+                                         aria-expanded="true" aria-controls="help-control-keyboard-body">
+                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                                        <span data-i18n="help.control.keyboard.title"></span>
+                                    </div>
+                                    <div class="cp-body" id="help-control-keyboard-body">
+                                        <dl class="shortcuts-grid">
+                                            <dt><kbd>+</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyZoomInDesc"></dd>
+                                            <dt><kbd>-</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyZoomOutDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.home"></kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyResetDesc"></dd>
+                                            <dt><kbd>F11</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyFullscreenDesc"></dd>
+                                            <dt><kbd>B</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyBasemapDesc"></dd>
+                                            <dt><kbd>L</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyGeolocateDesc"></dd>
+                                            <dt><kbd>S</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keySidebarDesc"></dd>
+                                            <dt><kbd>T</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyToolbarDesc"></dd>
+                                            <dt><kbd>☰</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyContextMenuDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd>F10</kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyContextMenuDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.keyboard.enter"></kbd></dt>
+                                            <dd data-i18n="help.control.keyboard.keyPropertiesDesc"></dd>
+                                        </dl>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="tab-about" class="tab-panel" role="tabpanel">
+                <div class="panels-scroll">
+                    <!-- Short intro paragraph -->
+                    <div class="panel-body">
+                        <p class="panel-text" data-i18n-html="about.intro"></p>
+                    </div>
+
                     <!-- Links: collapsible, closed by default -->
-                    <div class="cp-panel about-panel" id="about-links-panel">
+                    <div class="cp-panel info-panel" id="about-links-panel">
                         <div class="panel-summary" role="button" tabindex="0"
                              aria-expanded="false" aria-controls="about-links-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
@@ -281,7 +353,7 @@
                         </div>
                         <div class="cp-body" id="about-links-panel-body" hidden>
                             <div class="panel-body">
-                                <ul class="about-links">
+                                <ul class="about-links panel-text">
                                     <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
                                     <li><a href="https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/" target="_blank" rel="noopener">SNCF — Mode de cantonnement des lignes</a></li>
                                     <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
@@ -293,9 +365,27 @@
                         </div>
                     </div>
 
+                    <!-- Disclaimer: collapsible, closed by default -->
+                    <div class="cp-panel info-panel" id="about-disclaimer-panel">
+                        <div class="panel-summary" role="button" tabindex="0"
+                             aria-expanded="false" aria-controls="about-disclaimer-panel-body">
+                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                            <span data-i18n="about.disclaimer.title"></span>
+                        </div>
+                        <div class="cp-body" id="about-disclaimer-panel-body" hidden>
+                            <div class="panel-body">
+                                <div class="panel-text">
+                                    <p data-i18n-html="about.disclaimer.trademark"></p>
+                                    <p data-i18n-html="about.disclaimer.experimental"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- Credits — collapsible footer cp-panel, fixed below .about-content -->
+                <!-- Credits — fixed footer outside .about-content so it stays
+                     at the bottom while the intro / links / disclaimer scroll. -->
                 <div class="cp-panel cp-panel--open about-credits-footer" id="about-credits-panel">
                     <div class="panel-summary" role="button" tabindex="0"
                          aria-expanded="true" aria-controls="about-credits-panel-body">
@@ -303,10 +393,12 @@
                         <span data-i18n="about.credits.title">Credits</span>
                     </div>
                     <div class="cp-body" id="about-credits-panel-body">
-                        <div class="credits-body">
-                            <span data-i18n="about.credits.site"></span><br>
-                            <span data-i18n-html="about.credits.data"></span><br>
-                            <span data-i18n-html="about.credits.maps"></span>
+                        <div class="panel-body">
+                            <div class="panel-text">
+                                <span data-i18n="about.credits.site"></span><br>
+                                <span data-i18n-html="about.credits.data"></span><br>
+                                <span data-i18n-html="about.credits.maps"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -642,41 +734,44 @@
         </div>
     </template>
 
-    <!-- Filter group panel.
-         .fg-header holds the field title and the clear/remove action buttons.
-         .fg-tags holds the active value pills (hidden until values are selected).
-         .fg-combo holds the search input and dropdown trigger. -->
+    <!-- Filter group panel — collapsible .cp-panel--sub.
+         The panel-summary (fg-header) acts as the collapsible header.
+         Clear and Remove buttons are placed directly in the header.
+         The cp-body contains tags, combo input, and the optional toggle row. -->
     <template id="tpl-filter-group">
-        <div class="filter-panel">
-            <div class="fg-header">
-                <span class="section-title fg-title"></span>
-                <div class="fg-actions">
-                    <button class="fg-clear" data-i18n-title="filter.clear" data-i18n-aria="filter.clear">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
-                    </button>
-                    <button class="fg-remove" data-i18n-title="filter.close" data-i18n-aria="filter.close">
-                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
-                    </button>
-                </div>
+        <div class="filter-panel cp-panel cp-panel--sub cp-panel--open">
+            <div class="fg-header panel-summary" role="button" tabindex="0">
+                <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                <span class="fg-title summary-flex-title"></span>
+                <button class="fg-clear summary-action-btn is-hidden"
+                        data-i18n-title="filter.clear" data-i18n-aria="filter.clear">
+                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                </button>
+                <button class="fg-remove summary-action-btn"
+                        data-i18n-title="filter.close" data-i18n-aria="filter.close">
+                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
+                </button>
             </div>
-            <div class="fg-tags"></div>
-            <div class="fg-combo">
-                <div class="fg-combo-input dd-trigger">
-                    <input class="fg-search" type="text" autocomplete="off" spellcheck="false">
-                    <span class="fg-combo-arrow dd-chevron">
-                        <svg width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                    </span>
+            <div class="cp-body">
+                <div class="fg-tags"></div>
+                <div class="fg-combo">
+                    <div class="fg-combo-input dd-trigger">
+                        <input class="fg-search" type="text" autocomplete="off" spellcheck="false">
+                        <span class="fg-combo-arrow dd-chevron">
+                            <svg width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+                        </span>
+                    </div>
+                    <div class="fg-dropdown dd-panel is-hidden">
+                        <div class="fg-dropdown-inner"></div>
+                    </div>
                 </div>
-                <div class="fg-dropdown dd-panel is-hidden">
-                    <div class="fg-dropdown-inner"></div>
+                <div class="supported-only-row is-hidden">
+                    <label class="supported-only-label">
+                        <input type="checkbox" class="chk-mapped-only toggle-input">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        <span class="toggle-label" data-i18n="toggle.supported">Supported types only</span>
+                    </label>
                 </div>
-            </div>
-            <div class="supported-only-row is-hidden">
-                <label class="supported-only-label">
-                    <input type="checkbox" class="chk-mapped-only toggle-input">
-                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                    <span class="toggle-label" data-i18n="toggle.supported">Supported types only</span>
-                </label>
             </div>
         </div>
     </template>
@@ -735,7 +830,7 @@
 
     <!-- Settings: basemap selector button — cloned by sidebar.js -->
     <template id="tpl-basemap-btn">
-        <button class="basemap-btn">
+        <button class="basemap-btn" tabindex="0">
             <img class="basemap-thumb" width="36" height="36" alt=""
                  onerror="this.style.display='none'">
             <span class="basemap-label"></span>

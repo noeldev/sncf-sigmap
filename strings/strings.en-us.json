@@ -11,7 +11,8 @@
   "tabs": {
     "filters": "Filters",
     "settings": "Settings",
-    "about": "About"
+    "about": "About",
+    "help": "Help"
   },
   "buttons": {
     "addFilter": "+ Add filter",
@@ -75,15 +76,15 @@
     "satellite": "Satellite"
   },
   "ctrl": {
-    "resetView": "Reset view",
-    "toggle": "Toggle panel",
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "locate": "Show My Location",
-    "fullscreen": "Fullscreen",
-    "basemap": "Base map",
-    "collapse": "Collapse toolbar",
-    "expand": "Expand toolbar",
+    "resetView": "Reset view (Home)",
+    "toggle": "Toggle sidebar (S)",
+    "zoomIn": "Zoom in (+)",
+    "zoomOut": "Zoom out (-)",
+    "locate": "Show My Location (L)",
+    "fullscreen": "Fullscreen (F11)",
+    "basemap": "Base map (B)",
+    "collapse": "Collapse toolbar (T)",
+    "expand": "Expand toolbar (T)",
     "geolocateUnavailable": "Geolocation not available.",
     "geolocateError": "Location error: {0}"
   },
@@ -155,38 +156,83 @@
     "miscellaneous": "Miscellaneous",
     "unsupported": "Unsupported types"
   },
-  "about": {
-    "intro1": "Interactive map viewer for the **SNCF Signalisation Permanente** (Fixed Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
-    "intro2": "At zoom 10 and above, all signals in the viewport are shown. Below zoom 10, a spatial sample keeps the map readable — active filters still apply. Active filters, pinned signals, map position, and settings are saved across sessions.",
-    "more": "More…",
-    "less": "Less…",
-    "usage": {
-      "title": "How to use",
-      "map": {
-        "title": "Map",
+  "help": {
+    "intro": "Discover how to navigate the map and find signals using filters, the legend, and available [Controls](#panel:help-control-panel).",
+    "getStarted": {
+      "title": "Getting started",
+      "finding": {
+        "title": "Finding signals",
+        "content": [
+          "* **Filters:** In the [Filters](#tab-filters) tab, use **Add filter** (e.g., *SignalType*, *Line Code*).",
+          "* **Legend:** Click a category to isolate matching signals.",
+          "* **Network ID:** Filter by a specific ID, then click the **pill** label to zoom to the signal on the map."
+        ]
+      },
+      "interaction": {
+        "title": "Map interaction",
+        "content": [
+          "* **Controls:** Right-click a signal for the context menu or use keyboard shortcuts.",
+          "* **Visibility:** All signals appear at zoom 10+. Below this, a spatial sample is used to maintain readability (active filters still apply).",
+          "* **Persistence:** Filters, pinned signals, map position, and settings are saved across sessions."
+        ]
+      },
+      "properties": {
+        "title": "Signal Properties",
+        "content": [
+          "The popup presents two tabs:",
+          "* **Signals:** Infrastructure data. Use the arrows to navigate between co-located signals.",
+          "  Beside the **Network ID**, click the **OSM logo** for [OpenStreetMap](https://www.openstreetmap.org/) node info, or **Locate on OpenStreetMap** if not yet mapped.",
+          "* **OSM Tags:** View, copy, or open tags in the [JOSM editor](https://josm.openstreetmap.de/). Tags follow [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France) specs.  ",
+          "  *Note: Experimental feature (specifications are a work in progress).*",
+          "The **Pin** button (at the top of the window) keeps a signal for later reference."
+        ]
+      }
+    },
+    "control": {
+      "title": "Controls",
+      "mouse": {
+        "title": "Mouse",
         "scroll": "Wheel",
         "scrollDesc": "Zoom in / out",
         "click": "Click",
         "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
-        "shift": "Shift",
-        "ctrl": "Ctrl",
         "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
         "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab",
-        "alt": "Alt",
         "altDesc": "Zoom to and center on the signal",
         "rightClick": "Right-click",
-        "rightClickDesc": "Open context menu"
+        "rightClickDesc": "Open context menu",
+        "filterClickDesc": "Network ID pill / pinned signal — fly to the signal on the map",
+        "filterShiftDesc": "Remove (×) on a pill — close all the other pills"
       },
-      "filters": {
-        "title": "Filters",
-        "click": "Click",
-        "clickDesc": "Network ID pill — fly to the signal on the map",
+      "keyboard": {
+        "title": "Keyboard",
+        "alt": "Alt",
+        "ctrl": "Ctrl",
+        "enter": "Enter",
+        "home": "Home",
         "shift": "Shift",
-        "shiftDesc": "Remove (×) — close all other pills, keep this one"
+        "keyZoomInDesc": "Zoom in",
+        "keyZoomOutDesc": "Zoom out",
+        "keyResetDesc": "Reset to initial map extent",
+        "keyFullscreenDesc": "Toggle fullscreen",
+        "keyBasemapDesc": "Open / close basemap picker",
+        "keyGeolocateDesc": "Show my location",
+        "keySidebarDesc": "Toggle sidebar",
+        "keyToolbarDesc": "Collapse / expand map toolbar",
+        "keyContextMenuDesc": "Open context menu on focused signal",
+        "keyPropertiesDesc": "Open signal popup (Properties)"
       }
-    },
+    }
+  },
+  "about": {
+    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Fixed Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
     "links": {
       "title": "Links"
+    },
+    "disclaimer": {
+      "title": "Disclaimer",
+      "trademark": "SNCF Réseau and the SNCF Réseau logo are trademarks of **SNCF Réseau** and are used here for identification and illustration purposes only. This site is not affiliated with, endorsed by, or sponsored by SNCF Réseau. See the [official legal notices](https://www.sncf-reseau.com/fr/mentions-legales) for more information.",
+      "experimental": "This site is provided **free of charge** on an experimental basis. Data, maps, and services are provided \"as is\", without warranty of any kind. Use at your own risk."
     },
     "credits": {
       "title": "Credits",
@@ -211,7 +257,7 @@
     "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
     "close": "Remove filter"
   },
-  "ctx": {
+  "context": {
     "zoomCenter": "Zoom to",
     "pin": "Pin",
     "unpin": "Unpin",

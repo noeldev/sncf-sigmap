@@ -24,7 +24,7 @@ import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
 import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
 import { getTileUrlsForBounds } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
-import { openSignalPopup, resolveStartTab } from './signal-popup.js';
+import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
 import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
@@ -328,22 +328,27 @@ function _onMarkerClick(latlng, all, shift) {
 function _showSignalContextMenu(x, y, lat, lng, all) {
     const networkId = all[0]?.p?.networkId ?? null;
     const pinned = networkId ? isPinned(networkId) : false;
+    // Close the signal popup before showing the context menu — the two UIs
+    // are mutually exclusive and the popup would obscure the menu on small viewports.
+    closeSignalPopup();
     showContextMenu(x, y, [
         {
-            labelKey: 'ctx.zoomCenter',
+            labelKey: 'context.zoomCenter',
             shortcut: 'Alt+Click',
             action: () => _onMarkerAltClick(lat, lng),
         },
         {
-            labelKey: pinned ? 'ctx.unpin' : 'ctx.pin',
+            labelKey: pinned ? 'context.unpin' : 'context.pin',
             shortcut: 'Ctrl+Click',
             action: () => _onMarkerCtrlClick(all),
         },
         'separator',
         {
-            labelKey: 'ctx.properties',
+            labelKey: 'context.properties',
             shortcut: 'Click',
-            action: () => _onMarkerClick([lat, lng], all, false),
+            // shift (passed from the menu's Shift+click/Enter) flips the tab,
+            // matching the behaviour of Shift+Click directly on the marker.
+            action: (shift) => openSignalPopup([lat, lng], all, 0, resolveStartTab(shift)),
         },
     ]);
 }
@@ -352,12 +357,18 @@ function _makeMarker(lat, lng, all, display) {
     const color = getTypeColor(display[0].p.signalType);
     const count = display.length;
     const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
-    return L.marker([lat, lng], { icon })
+    const marker = L.marker([lat, lng], { icon })
         .bindTooltip(buildTooltip(display), {
             direction: 'top',
             offset: [0, -6],
             className: 'sig-tooltip',
             sticky: false,
+        })
+        .on('add', function () {
+            // Store signal data on the marker DOM element so keyboard shortcuts
+            // (ContextMenu key, Enter) can access it without a synthetic contextmenu event.
+            const el = this.getElement();
+            if (el) el._sigData = { lat, lng, all };
         })
         .on('click', e => {
             dismissLocationMarker();
@@ -381,6 +392,24 @@ function _makeMarker(lat, lng, all, display) {
             dismissLocationMarker();
             _showSignalContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
+    return marker;
+}
+
+/**
+ * Show the signal context menu for the currently focused marker (keyboard access).
+ * Reads signal data stored on the marker DOM element by _makeMarker's 'add' handler.
+ * Called by map-controls.js keyboard shortcuts — avoids synthetic contextmenu events
+ * which would also trigger the browser's native context menu on some platforms.
+ */
+export function triggerContextMenuOnFocusedMarker() {
+    const data = document.activeElement?._sigData ?? null;
+    if (!data) return;
+    const rect = document.activeElement.getBoundingClientRect();
+    _showSignalContextMenu(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        data.lat, data.lng, data.all
+    );
 }
 
 /**

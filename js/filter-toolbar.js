@@ -5,9 +5,6 @@
  *   getAvailableFields()  — returns [{ key, labelKey }] not yet in use.
  *   addFilterField(key)   — called when the user picks a field to add.
  *
- * filters.js also calls updateFilterToolbar() after every _buildPanels()
- * so the Add button's disabled state stays in sync.
- *
  * Public API:
  *   initFilterToolbar(btn)
  *   updateFilterToolbar()
@@ -27,9 +24,10 @@ const _tpl = {
 
 /**
  * Wire the Add filter button to its dropdown menu.
- * @param {HTMLElement|null} btn
+ * Retrieves #btn-add-filter directly — its location in the DOM is fixed.
  */
-export function initFilterToolbar(btn) {
+export function initFilterToolbar() {
+    const btn = document.getElementById('btn-add-filter');
     if (!btn) return;
     _btn = btn;
 

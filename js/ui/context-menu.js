@@ -12,7 +12,7 @@
  * Separator:  the string 'separator'
  */
 
-import { t } from '../translation.js';
+import { translateElement } from '../translation.js';
 
 let _menuEl = null;
 let _actions = null;   // parallel array to .ctx-item NodeList — action per item
@@ -42,9 +42,12 @@ export function showContextMenu(x, y, items) {
             continue;
         }
         const el = _tpl.item.content.cloneNode(true).querySelector('.ctx-item');
-        el.querySelector('.ctx-label').textContent = t(item.labelKey);
+        el.querySelector('.ctx-label').dataset.i18n = item.labelKey;
         el.querySelector('.ctx-shortcut').textContent = item.shortcut ?? '';
+        // data-idx maps the element back to _actions — set before translateElement
+        // so the attribute is present when event delegation reads it.
         el.dataset.idx = _actions.length;
+        translateElement(el);
         menu.appendChild(el);
         _actions.push(item.action);
     }
@@ -85,17 +88,17 @@ export function closeContextMenu() {
 
 /* ===== Private ===== */
 
-function _activateIdx(idx) {
+function _activateIdx(idx, shiftKey = false) {
     const action = _actions?.[idx];
     closeContextMenu();
-    action?.();
+    action?.(shiftKey);
 }
 
 function _onMenuMousedown(e) {
     const el = e.target.closest('.ctx-item[data-idx]');
     if (!el) return;
     e.preventDefault();
-    _activateIdx(parseInt(el.dataset.idx, 10));
+    _activateIdx(parseInt(el.dataset.idx, 10), e.shiftKey);
 }
 
 function _onMenuKeydown(e) {
@@ -115,7 +118,7 @@ function _onMenuKeydown(e) {
         case ' ': {
             e.preventDefault();
             const idx = document.activeElement?.dataset.idx;
-            if (idx !== undefined) _activateIdx(parseInt(idx, 10));
+            if (idx !== undefined) _activateIdx(parseInt(idx, 10), e.shiftKey);
             break;
         }
         case 'Escape':

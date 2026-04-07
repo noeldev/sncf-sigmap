@@ -262,6 +262,120 @@
     }
 }
 
+/* ===== Leaflet overrides ===== */
+
+.leaflet-control-attribution {
+    line-height: var(--sb-h) !important;
+    padding: 0 10px !important;
+    background: none !important;
+    color: var(--text2) !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}
+
+    .leaflet-control-attribution a {
+        color: #90d5f0 !important;
+    }
+
+
+/* ===== Collapsible map controls toolbar =====
+ *
+ * When #map-controls carries .is-collapsed, every button and separator
+ * is hidden except #btn-sidebar-toggle (top) and #btn-controls-toggle
+ * (bottom). The chevron rotates 180° to indicate the expand action.
+ *
+ * .no-transition suppresses the animation on the initial state restore
+ * so there is no flash on page load.
+ */
+
+#map-controls.is-collapsed .mc-btn:not(#btn-sidebar-toggle):not(#btn-controls-toggle),
+#map-controls.is-collapsed .mc-sep:not(.mc-sep-collapse) {
+    display: none;
+}
+
+/* Keep the separator above the collapse button visible but tighter */
+#map-controls.is-collapsed .mc-sep-collapse {
+    display: block;
+}
+
+.mc-chevron {
+    /* icon-chevron points right (>); rotate -90deg to point up ∧ = "click to collapse". */
+    transform: rotate(-90deg);
+    transition: transform .2s ease;
+}
+
+#map-controls.is-collapsed .mc-chevron {
+    /* Collapsed state: rotate 90deg to point down ∨ = "click to expand". */
+    transform: rotate(90deg);
+}
+
+#map-controls.no-transition,
+#map-controls.no-transition * {
+    transition: none !important;
+}
+
+
+/* ===== Basemap picker panel =====
+ *
+ * Sits to the right of #map-controls inside .map-ui-left.
+ * align-items:flex-end on the container bottom-aligns the two elements
+ * automatically — no JS measurement needed.
+ */
+
+.basemap-panel {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(0,0,0,.5);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+}
+
+    .basemap-panel.is-hidden {
+        display: none;
+    }
+
+
+/* ===== Basemap selector ===== */
+
+.basemap-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 4px;
+    transition: border-color .15s, color .15s;
+}
+
+    .basemap-btn:hover {
+        border-color: var(--border2);
+        color: var(--text);
+    }
+
+    .basemap-btn.active {
+        border-color: var(--accent2);
+        color: var(--text);
+    }
+
+.basemap-thumb {
+    border-radius: 5px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,.18);
+    object-fit: cover;
+}
+
+
 /* ===== Tooltip ===== */
 
 .leaflet-tooltip.sig-tooltip {
@@ -321,87 +435,6 @@
     margin: 4px 0 3px;
 }
 
-/* ===== Leaflet overrides ===== */
-
-.leaflet-control-attribution {
-    line-height: var(--sb-h) !important;
-    padding: 0 10px !important;
-    background: none !important;
-    color: var(--text2) !important;
-    text-shadow: 0 1px 3px rgba(0,0,0,.8);
-}
-
-    .leaflet-control-attribution a {
-        color: #90d5f0 !important;
-    }
-
-
-/* ===== Basemap picker panel =====
- *
- * Sits to the right of #map-controls inside .map-ui-left.
- * align-items:flex-end on the container bottom-aligns the two elements
- * automatically — no JS measurement needed.
- */
-
-.basemap-panel {
-    background: var(--panel);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    box-shadow: 0 6px 24px rgba(0,0,0,.5);
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 140px;
-}
-
-    .basemap-panel.is-hidden {
-        display: none;
-    }
-
-/* Reuse .basemap-btn styles already defined in sidebar.css;
-   no overrides needed — the panel inherits the same dark theme. */
-
-
-/* Settings toggle styles — see sidebar.css + base.css */
-
-
-/* ===== Collapsible map controls toolbar =====
- *
- * When #map-controls carries .is-collapsed, every button and separator
- * is hidden except #btn-sidebar-toggle (top) and #btn-controls-toggle
- * (bottom). The chevron rotates 180° to indicate the expand action.
- *
- * .no-transition suppresses the animation on the initial state restore
- * so there is no flash on page load.
- */
-
-#map-controls.is-collapsed .mc-btn:not(#btn-sidebar-toggle):not(#btn-controls-toggle),
-#map-controls.is-collapsed .mc-sep:not(.mc-sep-collapse) {
-    display: none;
-}
-
-/* Keep the separator above the collapse button visible but tighter */
-#map-controls.is-collapsed .mc-sep-collapse {
-    display: block;
-}
-
-.mc-chevron {
-    /* icon-chevron points right (>); rotate -90deg to point up ∧ = "click to collapse". */
-    transform: rotate(-90deg);
-    transition: transform .2s ease;
-}
-
-#map-controls.is-collapsed .mc-chevron {
-    /* Collapsed state: rotate 90deg to point down ∨ = "click to expand". */
-    transform: rotate(90deg);
-}
-
-#map-controls.no-transition,
-#map-controls.no-transition * {
-    transition: none !important;
-}
-
 
 /* ===== Context menu ===== */
 
@@ -437,6 +470,13 @@
     .ctx-item:focus-visible {
         background: rgba(255, 255, 255, .08);
     }
+
+/* When a different item is hovered, suppress the keyboard focus ring so
+     * only the hovered item is highlighted — no dual highlight.
+     * :not(:hover) preserves the highlight when the mouse is on the focused item. */
+.ctx-menu:has(.ctx-item:hover) .ctx-item:focus-visible:not(:hover) {
+    background: none;
+}
 
 .ctx-shortcut {
     font-size: 10px;

@@ -18,6 +18,7 @@ import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
 import { t } from './translation.js';
 import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
 import { map, flyToLocation } from './map.js';
+import { triggerContextMenuOnFocusedMarker } from './map-layer.js';
 
 /**
  * Wire all map toolbar buttons.
@@ -157,6 +158,9 @@ function _onGeolocateError(err, btn) {
 function _toggleControls() {
     const collapsed = !getControlsCollapsed();
     setControlsCollapsed(collapsed);
+    // Close the basemap panel when collapsing — the btn-basemap button is hidden,
+    // leaving no visible trigger to close the panel otherwise.
+    if (collapsed) _closeBasemapPanel();
     _applyCollapsed(collapsed, true);
 }
 
@@ -185,6 +189,13 @@ function _toggleBasemapPanel() {
     if (!panel) return;
     const opening = panel.classList.toggle('is-hidden');
     btn?.classList.toggle('active', !opening);
+    // Focus the active basemap button when opening so keyboard users can navigate.
+    // requestAnimationFrame ensures the panel is visible (not display:none) before focus.
+    if (!opening) {
+        requestAnimationFrame(() => {
+            (panel.querySelector('.basemap-btn.active') ?? panel.querySelector('.basemap-btn'))?.focus();
+        });
+    }
 }
 
 function _closeBasemapPanel() {
@@ -201,4 +212,89 @@ function _toggleFullscreen() {
     } else {
         document.getElementById('app')?.requestFullscreen().catch(() => { });
     }
+}
+
+/**
+ * Wire keyboard shortcuts for all map toolbar actions.
+ * Ignored when the event originates from a text input or contenteditable.
+ * Must be called after initMapControls() so private functions are defined.
+ */
+export function initKeyboardShortcuts() {
+    window.addEventListener('keydown', e => {
+        // Do not intercept keystrokes while the user is typing.
+        if (e.target.matches('input, textarea, [contenteditable]')) return;
+
+        // Marker-level shortcuts (work on the Tab-focused .sig-dot)
+        // Leaflet's marker icon is div.leaflet-marker-icon; .sig-dot is inside it.
+        // We check querySelector (down) because activeElement is the icon container.
+        const el = document.activeElement;
+        const focusedDot = el?.classList.contains('sig-dot')
+            ? el
+            : (el?.querySelector('.sig-dot') ?? null);
+
+        if (focusedDot) {
+            if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+                // Enter / Alt+Enter → open signal popup (Properties).
+                e.preventDefault();
+                focusedDot.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                return;
+            }
+            if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+                // ContextMenu / Shift+F10 → open context menu at the focused marker.
+                e.preventDefault();
+                // The browser fires a native contextmenu event after the ContextMenu key,
+                // even when keydown is prevented. Swallow it once so only our menu appears.
+                window.addEventListener('contextmenu', evt => evt.preventDefault(),
+                    { once: true, capture: true });
+                triggerContextMenuOnFocusedMarker();
+                return;
+            }
+        }
+
+        // Do not intercept modified shortcuts (Ctrl+S, Alt+Home, etc.) for toolbar.
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        // Toolbar / map-level shortcuts
+        switch (e.key) {
+            case '+':
+                e.preventDefault();
+                map.zoomIn();
+                break;
+            case '-':
+                e.preventDefault();
+                map.zoomOut();
+                break;
+            case 'Home':
+                e.preventDefault();
+                _resetView();
+                break;
+            case 'F11':
+                e.preventDefault();
+                _toggleFullscreen();
+                break;
+            case 'Escape':
+                _closeBasemapPanel();
+                break;
+            case 'b':
+            case 'B':
+                e.preventDefault();
+                _toggleBasemapPanel();
+                break;
+            case 'l':
+            case 'L':
+                e.preventDefault();
+                _geolocate();
+                break;
+            case 's':
+            case 'S':
+                e.preventDefault();
+                _toggleSidebar();
+                break;
+            case 't':
+            case 'T':
+                e.preventDefault();
+                _toggleControls();
+                break;
+        }
+    });
 }

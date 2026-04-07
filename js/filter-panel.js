@@ -83,12 +83,25 @@ export class FilterPanel {
         const panel = tplGroup.content.cloneNode(true).querySelector('.filter-panel');
         translateElement(panel);
 
+        // Assign unique IDs for the cp-panel collapsible system.
+        const panelId = `filter-panel-${fieldKey}`;
+        const bodyId = `filter-body-${fieldKey}`;
+        panel.id = panelId;
+
+        // Wire the summary aria-controls to the cp-body.
+        // The simplified template has no fg-body wrapper — the cp-body is direct child.
+        const summary = panel.querySelector('.fg-header');
+        const body = panel.querySelector('.cp-body');
+        if (summary) summary.setAttribute('aria-controls', bodyId);
+        if (body) body.id = bodyId;
+
         this._el = {
             panel,
             title: panel.querySelector('.fg-title'),
             clearBtn: panel.querySelector('.fg-clear'),
             removeBtn: panel.querySelector('.fg-remove'),
             tags: panel.querySelector('.fg-tags'),
+            // fg-combo-input is now a direct child of cp-body (no .fg-combo wrapper)
             comboInput: panel.querySelector('.fg-combo-input'),
             comboArrow: panel.querySelector('.fg-combo-arrow'),
             input: panel.querySelector('.fg-search'),
@@ -201,6 +214,9 @@ export class FilterPanel {
     appendTo(container) {
         container.appendChild(this._el.panel);
     }
+
+    /** Return the root panel element (for registerPanel in collapsible-panel.js). */
+    panelEl() { return this._el.panel; }
 
     /**
      * Show or hide the clear (trash) button based on whether there are active pills.

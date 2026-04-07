@@ -24,7 +24,7 @@ import {
     getRememberPosition, setRememberPosition,
 } from './prefs.js';
 import { closeAll as closeAllDropdowns } from './ui/dropdown.js';
-import { initCollapsiblePanels } from './collapsible-panel.js';
+import { initCollapsiblePanels, openPanel } from './collapsible-panel.js';
 import { initLangPicker } from './lang-picker.js';
 import { initLegend, updateLegendIndicator } from './legend.js';
 import {
@@ -90,7 +90,7 @@ function _onFilterIndexLoaded() {
 
 function _initFilters() {
     initFilters(_onFiltersChange);
-    initFilterToolbar(document.getElementById('btn-add-filter'));
+    initFilterToolbar();
 }
 
 /**
@@ -193,10 +193,22 @@ function _initTabs() {
  */
 function _initTabLinks() {
     document.addEventListener('click', e => {
-        const link = e.target.closest('[data-switch-tab]');
-        if (!link) return;
-        e.preventDefault();
-        _switchToTab(link.dataset.switchTab);
+        // [label](#tab-id) links — switch to the target tab.
+        const tabLink = e.target.closest('[data-switch-tab]');
+        if (tabLink) {
+            e.preventDefault();
+            _switchToTab(tabLink.dataset.switchTab);
+            return;
+        }
+        // [label](#panel:id) links — open and scroll to a collapsible panel.
+        const panelLink = e.target.closest('[data-scroll-panel]');
+        if (panelLink) {
+            e.preventDefault();
+            const panel = document.getElementById(panelLink.dataset.scrollPanel);
+            if (!panel) return;
+            openPanel(panel);
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     });
 }
 
