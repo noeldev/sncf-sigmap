@@ -40,9 +40,10 @@ sncf-data/
         │
         ▼  TileBuilder  (C# tool)
         │
-data/tiles/
+data/
   manifest.json   ← tile index (~20 KB)
   index.json      ← signal types, line names, block types, block segments, networkId spatial index (~1.2 MB)
+data/tiles/
   -4_97.json.gz   ← one tile per 0.5° cell, 5–30 KB each
         │
         ▼  git commit + push  →  Netlify auto-deploys
