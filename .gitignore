@@ -16,3 +16,6 @@ tools/TileBuilder/obj/
 /js/config.local.js
 /tree.txt
 /tools/TileBuilder/Properties/launchSettings.json
+
+# Local Netlify folder
+.netlify
