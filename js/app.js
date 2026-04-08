@@ -15,6 +15,7 @@
  *   progress.js  — loading overlay.
  */
 
+import { MANIFEST_FILE } from './config.js';
 import { initMap, map, initMapEvents } from './map.js';
 import { initKeyboardShortcuts } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
@@ -62,6 +63,7 @@ async function _loadData() {
 
     if (!manifest) {
         hideProgress();
+        console.error('[App] manifest.json not found at ', MANIFEST_FILE);
         return;
     }
 

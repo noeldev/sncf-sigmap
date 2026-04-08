@@ -55,9 +55,6 @@
       "unknown": "N/A"
     }
   },
-  "filters": {
-    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes."
-  },
   "dropdown": {
     "search": "Rechercher parmi {0} valeurs…",
     "noMatch": "Aucune valeur",
@@ -157,34 +154,34 @@
     "unsupported": "Types non supportés"
   },
   "help": {
-    "intro": "Découvrez comment naviguer sur la carte et trouver des signaux en utilisant les filtres, la légende et les [Contrôles](#panel:help-control-panel) disponibles.",
+    "intro": "Découvrez comment naviguer sur la carte et trouver des signaux grâce aux filtres, à la légende et aux différents [Contrôles](#panel:help-control-panel).",
     "getStarted": {
       "title": "Prise en main",
       "finding": {
         "title": "Recherche de signaux",
         "content": [
-          "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex. : *Type IF*, *Code Ligne*).",
+          "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex: *Type IF*, *Code Ligne*).",
           "* **Légende :** Cliquez sur une catégorie pour isoler les signaux correspondants.",
-          "* **ID Réseau :** Filtrez par un identifiant spécifique, puis cliquez sur la **pastille** pour zoomer sur le signal sur la carte."
+          "* **ID Réseau :** Filtrez par identifiant, puis cliquez sur la **pastille** pour zoomer sur le signal."
         ]
       },
       "interaction": {
         "title": "Interaction avec la carte",
         "content": [
-          "* **Contrôles :** Faites un clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier.",
-          "* **Visibilité :** Tous les signaux apparaissent à partir du niveau de zoom 10. En dessous, un échantillonnage spatial est utilisé pour maintenir la lisibilité (les filtres actifs continuent de s'appliquer).",
-          "* **Persistance :** Les filtres, les signaux épinglés, la position de la carte et les paramètres sont conservés d'une session à l'autre."
+          "* **Contrôles :** Clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier.",
+          "* **Visibilité :** Tous les signaux apparaissent à partir du niveau de zoom 10. En dessous, un échantillonnage spatial assure la lisibilité (les filtres actifs restent prioritaires).",
+          "* **Persistance :** Les filtres, signaux épinglés, position et réglages sont conservés entre les sessions."
         ]
       },
       "properties": {
-        "title": "Propriétés du signal",
+        "title": "Détails du signal",
         "content": [
-          "La fenêtre contextuelle présente deux onglets :",
-          "* **Signaux :** Données d'infrastructure. Utilisez les flèches pour naviguer entre les signaux co-localisés.",
-          "  À côté de l'**ID Réseau**, cliquez sur le **logo OSM** pour consulter les informations du nœud [OpenStreetMap](https://www.openstreetmap.org/), ou sur **Localiser sur OpenStreetMap** s'il n'est pas encore cartographié.",
+          "La fenêtre propose deux onglets :",
+          "* **Signaux :** Données d'infrastructure. Utilisez les flèches si plusieurs signaux sont au même endroit.  ",
+          "  Près de l'**ID Réseau**, cliquez sur le **logo OSM** pour afficher les informations du nœud dans [OpenStreetMap](https://www.openstreetmap.org/), ou sur **Localiser sur OpenStreetMap** s'il n'est pas encore cartographié.",
           "* **Tags OSM :** Affichez, copiez ou ouvrez les tags dans l'[éditeur JOSM](https://josm.openstreetmap.de/). Les tags suivent les spécifications [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France).  ",
-          "  *Note : Fonctionnalité expérimentale (les spécifications sont en cours d'élaboration).* ",
-          "Le bouton **Épingler** (en haut de la fenêtre) permet de conserver un signal pour s'y référer ultérieurement."
+          "  *Note : Fonctionnalité expérimentale (les spécifications en cours d'élaboration).*",
+          "Le bouton **Épingler** (en haut de la fenêtre) permet de garder un signal en référence."
         ]
       }
     },
@@ -209,7 +206,6 @@
         "alt": "Alt",
         "ctrl": "Ctrl",
         "enter": "Entrée",
-        "home": "Origine",
         "shift": "Maj",
         "keyZoomInDesc": "Zoom avant",
         "keyZoomOutDesc": "Zoom arrière",
@@ -255,7 +251,8 @@
     "none": "Aucun filtre actif.",
     "clear": "Effacer les valeurs",
     "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
-    "close": "Supprimer le filtre"
+    "close": "Supprimer le filtre",
+    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes."
   },
   "context": {
     "zoomCenter": "Zoomer",

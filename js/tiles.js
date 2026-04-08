@@ -2,7 +2,7 @@
  * tiles.js — Tile manifest loader and URL calculator.
  */
 
-import { TILE_DEG, TILES_BASE, DATA_BASE } from './config.js';
+import { TILE_DEG, TILES_BASE, MANIFEST_FILE } from './config.js';
 
 let _manifest = null;
 
@@ -15,7 +15,7 @@ let _manifest = null;
 export async function loadManifest() {
     if (_manifest) return _manifest;
     try {
-        const res = await fetch(DATA_BASE + 'manifest.json');
+        const res = await fetch(MANIFEST_FILE);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         _manifest = await res.json();
         return _manifest;

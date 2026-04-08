@@ -8,6 +8,24 @@
  * (.panel-toolbar, .tbtn) are in sidebar.css. */
 
 
+/* ===== Filter index error warning =====
+ *
+ * Shown inside the Filters tab when index.json fails to load.
+ * Placed above the empty-state, translated via data-i18n. */
+
+.filter-index-error {
+    display: block;
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    color: var(--warn);
+    padding: 8px 12px 4px;
+}
+
+    .filter-index-error.is-hidden {
+        display: none;
+    }
+
+
 /* ===== .filter-panel (was .filter-group) =====
  *
  * Filter panels tile flush inside #filters-container.

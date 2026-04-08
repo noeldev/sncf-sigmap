@@ -97,6 +97,11 @@ if (!opts.NoTiles)
 Console.WriteLine($"  Distinct Signals : {signalData.SignalTypeCounts.Count}");
 Console.WriteLine($"  Distinct Lines   : {signalData.LineCodeCounts.Count}");
 Console.WriteLine($"  Block segments   : {blockResult.Segments.Count}");
+
 Console.WriteLine($"  Manifest         : {Path.Combine(opts.OutputDir, "manifest.json")}");
 Console.WriteLine($"  Index            : {Path.Combine(opts.OutputDir, "index.json")}");
+
+if (!opts.NoTiles)
+    Console.WriteLine($"  Tiles directory  : {Path.Combine(opts.OutputDir, "tiles")}");
+
 Console.WriteLine("Done.");

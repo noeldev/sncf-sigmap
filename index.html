@@ -66,9 +66,8 @@
 
                     <div id="filters-container"></div>
 
-                    <!-- Static empty state: shown when no filters are active.
-                         Sibling of #filters-container so container.replaceChildren()
-                         does not remove it. Toggled by filters.js/_buildPanels(). -->
+                    <!-- Static empty state: shown when no filters are active. -->
+                    <span id="filter-index-error" class="filter-index-error is-hidden" data-i18n="filter.indexError"></span>
                     <div class="empty-state" id="filters-empty-state">
                         <svg class="empty-state-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>
                         <span class="empty-state-text" data-i18n="filter.none"></span>
@@ -310,7 +309,7 @@
                                             <dd data-i18n="help.control.keyboard.keyZoomInDesc"></dd>
                                             <dt><kbd>-</kbd></dt>
                                             <dd data-i18n="help.control.keyboard.keyZoomOutDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.home"></kbd></dt>
+                                            <dt><kbd>↖</kbd></dt>
                                             <dd data-i18n="help.control.keyboard.keyResetDesc"></dd>
                                             <dt><kbd>F11</kbd></dt>
                                             <dd data-i18n="help.control.keyboard.keyFullscreenDesc"></dd>
@@ -344,14 +343,14 @@
                         <p class="panel-text" data-i18n-html="about.intro"></p>
                     </div>
 
-                    <!-- Links: collapsible, closed by default -->
-                    <div class="cp-panel info-panel" id="about-links-panel">
+                    <!-- Links: collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open info-panel" id="about-links-panel">
                         <div class="panel-summary" role="button" tabindex="0"
-                             aria-expanded="false" aria-controls="about-links-panel-body">
+                             aria-expanded="true" aria-controls="about-links-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             <span data-i18n="about.links.title"></span>
                         </div>
-                        <div class="cp-body" id="about-links-panel-body" hidden>
+                        <div class="cp-body" id="about-links-panel-body">
                             <div class="panel-body">
                                 <ul class="about-links panel-text">
                                     <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
@@ -365,14 +364,14 @@
                         </div>
                     </div>
 
-                    <!-- Disclaimer: collapsible, closed by default -->
-                    <div class="cp-panel info-panel" id="about-disclaimer-panel">
+                    <!-- Disclaimer: collapsible, open by default -->
+                    <div class="cp-panel cp-panel--open info-panel" id="about-disclaimer-panel">
                         <div class="panel-summary" role="button" tabindex="0"
-                             aria-expanded="false" aria-controls="about-disclaimer-panel-body">
+                             aria-expanded="true" aria-controls="about-disclaimer-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             <span data-i18n="about.disclaimer.title"></span>
                         </div>
-                        <div class="cp-body" id="about-disclaimer-panel-body" hidden>
+                        <div class="cp-body" id="about-disclaimer-panel-body">
                             <div class="panel-body">
                                 <div class="panel-text">
                                     <p data-i18n-html="about.disclaimer.trademark"></p>

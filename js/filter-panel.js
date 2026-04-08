@@ -19,7 +19,6 @@
  *   panel.appendTo(container)
  *   panel.refreshTags(activeVals)
  *   panel.refreshList(items)        // [{v, count, active, showDot}]
- *   panel.showHint(text)            // minSearch waiting state
  *   panel.setInputPlaceholder(text)
  *   panel.openDropdown() / panel.closeDropdown() / panel.isOpen()
  *   panel.focusInput() / panel.focusItem(val)
@@ -273,18 +272,6 @@ export class FilterPanel {
         if (prevFocusedVal && this.dd.isOpen()) {
             queueMicrotask(() => this.dd.focusItem(prevFocusedVal));
         }
-    }
-
-    /**
-     * Show a single hint row (minSearch threshold not yet reached).
-     * @param {string} text
-     */
-    showHint(text) {
-        const hint = this._tplNoMatch.content.cloneNode(true).querySelector('.fg-empty');
-        // Prevent translateElement from overwriting this dynamically-set text.
-        hint.removeAttribute('data-i18n');
-        hint.textContent = text;
-        this._el.list.replaceChildren(hint);
     }
 
 
