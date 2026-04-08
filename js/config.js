@@ -6,8 +6,13 @@
  * If the file is absent the app falls back to the OpenStreetMap tile layer.
  */
 
-// Base URL for the tiled GeoJSON data
-export const TILES_BASE = '/data/tiles/';
+// Base URL for non-compressed data files (manifest.json, index.json).
+// These sit in /data/ to avoid conflicts with the Netlify redirect rule
+// that serves /data/tiles/*.json from pre-compressed .json.gz files.
+export const DATA_BASE = '/data/';
+
+// Base URL for the tiled GeoJSON data (compressed .json.gz served as .json).
+export const TILES_BASE = `${DATA_BASE}tiles/`;
 
 // Must match the TileBuilder TILE_DEG constant
 export const TILE_DEG = 0.5;
