@@ -138,11 +138,11 @@ Set the debug profile arguments (*Project → Properties → Debug → Open debu
 |-------|-------|
 | Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"` |
 
-Press **Ctrl+F5**. Output: `data\tiles\manifest.json`, `data\tiles\index.json`, and ~289 `.json.gz` tiles.
+Press **Ctrl+F5**. Output: `data\manifest.json`, `data\index.json`, and ~289 `.json.gz` tile files in `data\tiles\`.
 
 The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the block type abbreviation table. Edit it to add new acronyms without recompiling.
 
-To rebuild only `index.json` and `manifest.json` without regenerating tile files, add `-n` (`--no-tiles`) to the arguments.
+To rebuild only `data\index.json` and `data\manifest.json` without regenerating tile files, add `-n` (`--no-tiles`) to the arguments.
 
 ### Configure the Jawg API key (optional)
 
@@ -254,7 +254,7 @@ Strings containing markup are precompiled to HTML at load time; `data-i18n` elem
 
 ## Data files
 
-### `data/tiles/manifest.json`
+### `data/manifest.json`
 
 Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 
@@ -273,7 +273,7 @@ Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 | `tile_deg` | Spatial tile size in decimal degrees (0.5° × 0.5°). Must match `TILE_DEG` in `config.js`. |
 | `tiles` | Map of tile key → signal count. Key is `"tx:ty"` where `tx = floor(lng / tile_deg)` and `ty = floor(lat / tile_deg)`. Used by `tiles.js` to resolve which tiles exist before fetching them. |
 
-### `data/tiles/index.json`
+### `data/index.json`
 
 Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` (which also initialises `block-system.js` from the same data).
 
@@ -339,7 +339,7 @@ sncf-sigmap/
 │   ├── block-system.js           ← line label and block signaling type lookup (called from filters.js)
 │   ├── cat-mapping.js            ← application signal categories and colors (no DOM)
 │   ├── collapsible-panel.js      ← cp-panel open/close state, localStorage persistence, ARIA
-│   ├── config.js                 ← static constants (TILES_BASE, zoom thresholds…)
+│   ├── config.js                 ← static constants (DATA_BASE, TILES_BASE, zoom thresholds…)
 │   ├── config.local.js           ← JAWG_API_KEY (local only)
 │   ├── config.local.example.js   ← template for API key, safe to commit
 │   ├── filter-panel.js           ← per-filter DOM panel (label, pills, combo, list)

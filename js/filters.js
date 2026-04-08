@@ -20,7 +20,7 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
-import { MIN_SEARCH_THRESHOLD, TILES_BASE } from './config.js';
+import { MIN_SEARCH_THRESHOLD, DATA_BASE } from './config.js';
 import { getCategoryEntries } from './cat-mapping.js';
 import { fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
@@ -108,7 +108,7 @@ export function initFilters(onChange) {
  */
 export async function loadFilterIndex() {
     try {
-        const res = await fetch(TILES_BASE + 'index.json');
+        const res = await fetch(DATA_BASE + 'index.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         initBlockSystem(data);

@@ -15,7 +15,6 @@
  *   progress.js  — loading overlay.
  */
 
-import { TILES_BASE } from './config.js';
 import { initMap, map, initMapEvents } from './map.js';
 import { initKeyboardShortcuts } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
@@ -57,14 +56,12 @@ function _onSidebarRefresh({ filterCount }) {
 
 /** Fetch the tile manifest, then start the map pipeline. */
 async function _loadData() {
-    console.info('[App] TILES_BASE:', TILES_BASE);
     showProgress(t('progress.index'));
 
     const manifest = await loadManifest();
 
     if (!manifest) {
         hideProgress();
-        console.error('[App] manifest.json not found at', TILES_BASE + 'manifest.json');
         return;
     }
 
