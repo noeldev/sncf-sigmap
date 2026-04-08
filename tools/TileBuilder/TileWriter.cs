@@ -13,6 +13,7 @@ static class TileWriter
     /// <summary>
     /// Write one .json.gz tile file per tile key, unless noTiles is true.
     /// Returns the manifest (tile key → signal count) in both cases.
+    /// Tiles are written to a "tiles" subdirectory inside outputDir.
     /// </summary>
     public static Dictionary<string, int>
         WriteTiles(
@@ -35,10 +36,13 @@ static class TileWriter
             return manifest;
         }
 
+        var tilesDir = Path.Combine(outputDir, "tiles");
+        Directory.CreateDirectory(tilesDir);
+
         int written = 0;
         foreach (var (key, signals) in tiles)
         {
-            var fileName = Path.Combine(outputDir, $"{key.Replace(':', '_')}.json.gz");
+            var fileName = Path.Combine(tilesDir, $"{key.Replace(':', '_')}.json.gz");
             var json = JsonSerializer.SerializeToUtf8Bytes(signals, Constants.JsonOptions);
 
             using var fs = File.Create(fileName);
@@ -54,7 +58,7 @@ static class TileWriter
             }
         }
 
-        Console.WriteLine($"  {written} tile(s) written.");
+        Console.WriteLine($"  {written} tile(s) written to {tilesDir}");
         Console.WriteLine();
         return manifest;
     }

@@ -14,6 +14,11 @@ export const DATA_BASE = '/data/';
 // Base URL for the tiled GeoJSON data (compressed .json.gz served as .json).
 export const TILES_BASE = `${DATA_BASE}tiles/`;
 
+// Full URLs for the two top-level data files.
+// Centralised here so a path change only requires editing config.js.
+export const INDEX_FILE = `${DATA_BASE}index.json`;
+export const MANIFEST_FILE = `${DATA_BASE}manifest.json`;
+
 // Must match the TileBuilder TILE_DEG constant
 export const TILE_DEG = 0.5;
 

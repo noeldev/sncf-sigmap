@@ -55,9 +55,6 @@
       "unknown": "N/A"
     }
   },
-  "filters": {
-    "indexError": "Filter index unavailable — suggestions may be incomplete."
-  },
   "dropdown": {
     "search": "Search among {0} values…",
     "noMatch": "No matching values",
@@ -209,7 +206,6 @@
         "alt": "Alt",
         "ctrl": "Ctrl",
         "enter": "Enter",
-        "home": "Home",
         "shift": "Shift",
         "keyZoomInDesc": "Zoom in",
         "keyZoomOutDesc": "Zoom out",
@@ -255,7 +251,8 @@
     "none": "No active filters.",
     "clear": "Clear filter values",
     "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
-    "close": "Remove filter"
+    "close": "Remove filter",
+    "indexError": "Filter index unavailable — suggestions may be incomplete."
   },
   "context": {
     "zoomCenter": "Zoom to",

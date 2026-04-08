@@ -68,7 +68,9 @@ record CliOptions(
         Options:
           -s, --source  <dir>   Source directory containing SNCF GeoJSON files
                                 (default: current directory)
-          -o, --output  <dir>   Output directory  (default: current directory)
+          -o, --output  <dir>   Output directory for index.json and manifest.json;
+                                tile files are written into a "tiles" subfolder
+                                (default: current directory)
           -n, --no-tiles        Skip tile files; write index.json + manifest.json only
           -h, --help            Show this help
         """);

@@ -10,6 +10,7 @@ tools/TileBuilder/obj/
 # Logs
 *.log
 /.vs
+/.netlify
 /tools/TileBuilder/.vs
 /js/config.secret.js
 /js/config.local.js

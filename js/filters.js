@@ -20,7 +20,7 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
-import { MIN_SEARCH_THRESHOLD, DATA_BASE } from './config.js';
+import { MIN_SEARCH_THRESHOLD, INDEX_FILE } from './config.js';
 import { getCategoryEntries } from './cat-mapping.js';
 import { fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
@@ -106,9 +106,18 @@ export function initFilters(onChange) {
  * and initialises the block system from the same index data.
  * @returns {Promise<object|null>}  Raw index data, or null on failure.
  */
-export async function loadFilterIndex() {
+/** Single in-flight promise — prevents duplicate fetches if called more than once. */
+let _indexPromise = null;
+
+export function loadFilterIndex() {
+    if (_indexPromise) return _indexPromise;
+    _indexPromise = _doLoadFilterIndex();
+    return _indexPromise;
+}
+
+async function _doLoadFilterIndex() {
     try {
-        const res = await fetch(DATA_BASE + 'index.json');
+        const res = await fetch(INDEX_FILE);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         initBlockSystem(data);
@@ -118,14 +127,9 @@ export async function loadFilterIndex() {
         return data;
     } catch (err) {
         console.warn('[Filters] index.json:', err.message);
-        const container = document.getElementById('filters-container');
-        if (container) {
-            const warn = _tpl.noMatch.content.cloneNode(true).querySelector('.fg-empty');
-            warn.removeAttribute('data-i18n');
-            warn.style.color = 'var(--warn)';
-            warn.textContent = t('filter.indexError');
-            container.prepend(warn);
-        }
+        // Show the warning span already in #filters-empty-state (set via data-i18n).
+        document.getElementById('filter-index-error')?.classList.remove('is-hidden');
+        return null;
     }
 }
 
