@@ -18,9 +18,9 @@
 //   2. Project → Properties → Debug → Open debug launch profiles UI
 //   3. Command line arguments — examples:
 //        Full build:
-//          -s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"
+//          -s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data"
 //        Index + manifest only:
-//          -n -s "C:\path\to\sncf-data" -o "C:\path\to\tiles"
+//          -n -s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data"
 //   4. Ctrl+F5
 
 using System;
