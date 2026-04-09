@@ -21,7 +21,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - Filters by signal type, line code, track name, direction, placement, network ID
 - Network ID filter searches all 123,870 signals; clicking a pill flies the map to that signal with a location marker
 - Active filters persist across sessions and are restored on next visit
-- `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
+- `Supported types only` toggle to highlight signal types that have an OSM mapping (defined in `signal-types.js`)
 - **Pinned signals**: Ctrl+click any signal to bookmark it; pinned signals appear in the Filters tab and can be used to fly back to any signal
 - **Context menu**: right-click any signal for quick access to Zoom to, Pin/Unpin, and Properties
 - Alt+click any signal to zoom and center without opening the popup
@@ -87,7 +87,7 @@ filters.js
 
 prefs.js               (single source of truth for all localStorage access)
 markup.js              (pure functions for parsing inline markdown/lists)
-translation.js         (uses getLangPref / setLangPref from prefs.js, uses markup.js)```
+translation.js         (uses getLangPref / setLangPref from prefs.js, uses markup.js)
 ```
 
 Tiles are stored as `.json.gz` files but requested by the app as `.json` URLs:
@@ -122,6 +122,28 @@ localhost:8443 {
 }
 ```
 
+
+
+### Testing with Netlify locally
+
+For closer-to-production testing without Caddy, the [Netlify CLI](https://docs.netlify.com/cli/get-started/) can replicate the redirect and header rules from `netlify.toml`:
+
+```
+# Serve locally with Netlify rules (port 8888 by default)
+npm install -g netlify-cli
+netlify login # one-time authentication
+netlify dev
+```
+
+To deploy a live draft for real-condition testing without touching the production URL:
+
+```
+# Creates a draft URL (e.g. https://abc123def456--sncf-sigmap.netlify.app)
+netlify deploy
+```
+
+Push to `main` to trigger an automatic production deploy via the Netlify GitHub integration.
+
 ## First-time setup
 
 ### Generate tiles
@@ -137,9 +159,9 @@ Set the debug profile arguments (*Project → Properties → Debug → Open debu
 
 | Field | Value |
 |-------|-------|
-| Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"` |
+| Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data"` |
 
-Press **Ctrl+F5**. Output: `data\manifest.json`, `data\index.json`, and ~289 `.json.gz` tile files in `data\tiles\`.
+Press **Ctrl+F5**. Output: `data\manifest.json`, `data\index.json`, and ~289 `.json.gz` tile files in `data\tiles\` (created automatically).
 
 The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the block type abbreviation table. Edit it to add new acronyms without recompiling.
 
@@ -251,7 +273,7 @@ Strings containing markup are precompiled to HTML at load time; `data-i18n` elem
 
 ## Signal type mapping
 
-`js/signal-mapping.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
+`js/signal-types.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
 
 ## Data files
 
@@ -360,6 +382,7 @@ sncf-sigmap/
 │   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel
 │   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
 │   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
+│   ├── signal-types.js           ← _SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags)
 │   ├── sncf-convert.js           ← SNCF raw data normalization
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator
