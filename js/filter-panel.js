@@ -88,7 +88,6 @@ export class FilterPanel {
         panel.id = panelId;
 
         // Wire the summary aria-controls to the cp-body.
-        // The simplified template has no fg-body wrapper — the cp-body is direct child.
         const summary = panel.querySelector('.fg-header');
         const body = panel.querySelector('.cp-body');
         if (summary) summary.setAttribute('aria-controls', bodyId);
@@ -100,7 +99,6 @@ export class FilterPanel {
             clearBtn: panel.querySelector('.fg-clear'),
             removeBtn: panel.querySelector('.fg-remove'),
             tags: panel.querySelector('.fg-tags'),
-            // fg-combo-input is now a direct child of cp-body (no .fg-combo wrapper)
             comboInput: panel.querySelector('.fg-combo-input'),
             comboArrow: panel.querySelector('.fg-combo-arrow'),
             input: panel.querySelector('.fg-search'),
