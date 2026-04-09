@@ -57,10 +57,13 @@ export function showContextMenu(x, y, items) {
     // Delegated keydown — arrow navigation + Enter/Space/Escape.
     menu.addEventListener('keydown', _onMenuKeydown);
 
-    // Position; clamp after insertion so we know the rendered dimensions.
+    // In fullscreen mode the browser only renders the fullscreen element and its
+    // descendants. Appending to document.body (a fullscreen ancestor, not descendant)
+    // makes the menu invisible. Append inside the fullscreen subtree instead.
+    const container = document.fullscreenElement ?? document.body;
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
-    document.body.appendChild(menu);
+    container.appendChild(menu);
     _menuEl = menu;
 
     const rect = menu.getBoundingClientRect();

@@ -269,7 +269,7 @@ function _makeDotIcon(color, size, multi) {
     const half = size / 2;
     return L.divIcon({
         className: '',
-        html: `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color};--sz:${size}px"></div>`,
+        html: `<div class="sig-dot${multi ? ' multi' : ''}" style="--c:${color};--sz:${size}px" tabindex="0" role="button"></div>`,
         iconSize: [size, size],
         iconAnchor: [half, half],
     });
