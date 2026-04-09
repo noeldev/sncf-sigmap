@@ -25,16 +25,15 @@ const _tpl = {
 
 
 /**
- * Show the context menu at viewport coordinates (x, y).
- * @param {number}   x      clientX from the triggering event.
- * @param {number}   y      clientY from the triggering event.
- * @param {Array}    items  Array of item descriptors or the string 'separator'.
+ * Build the menu DOM from an items array and attach delegated event listeners.
+ * Separated from showContextMenu so DOM construction is independently readable.
+ *
+ * @param {Array} items  Item descriptors or the string 'separator'.
+ * @returns {{ menu: HTMLElement, actions: Function[] }}
  */
-export function showContextMenu(x, y, items) {
-    closeContextMenu();
-    _actions = [];
-
+function _buildMenu(items) {
     const menu = _tpl.menu.content.cloneNode(true).querySelector('.ctx-menu');
+    _actions = [];
 
     for (const item of items) {
         if (item === 'separator') {
@@ -57,23 +56,39 @@ export function showContextMenu(x, y, items) {
     // Delegated keydown — arrow navigation + Enter/Space/Escape.
     menu.addEventListener('keydown', _onMenuKeydown);
 
-    // In fullscreen mode the browser only renders the fullscreen element and its
-    // descendants. Appending to document.body (a fullscreen ancestor, not descendant)
-    // makes the menu invisible. Append inside the fullscreen subtree instead.
+    return menu;
+}
+
+
+/**
+ * Show the context menu at viewport coordinates (x, y).
+ * @param {number}   x      clientX from the triggering event.
+ * @param {number}   y      clientY from the triggering event.
+ * @param {Array}    items  Array of item descriptors or the string 'separator'.
+ */
+export function showContextMenu(x, y, items) {
+    closeContextMenu();
+
+    const menu = _buildMenu(items);
+
+    // In fullscreen mode only the fullscreen element and its descendants are
+    // rendered. Append inside that subtree so the menu is visible.
     const container = document.fullscreenElement ?? document.body;
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
     container.appendChild(menu);
     _menuEl = menu;
 
+    // Clamp to viewport after insertion so rendered dimensions are known.
     const rect = menu.getBoundingClientRect();
-    if (rect.right > window.innerWidth) menu.style.left = Math.max(0, x - rect.width) + 'px';
-    if (rect.bottom > window.innerHeight) menu.style.top = Math.max(0, y - rect.height) + 'px';
+    if (rect.right > window.innerWidth)
+        menu.style.left = Math.max(0, x - rect.width) + 'px';
+    if (rect.bottom > window.innerHeight)
+        menu.style.top = Math.max(0, y - rect.height) + 'px';
 
-    // Focus the first item.
     menu.querySelector('.ctx-item')?.focus();
 
-    // Outside-mousedown dismissal (deferred so the triggering event doesn't close it).
+    // Deferred so the triggering event does not immediately close the menu.
     setTimeout(() => {
         document.addEventListener('mousedown', _onOutsideMousedown, { capture: true, once: true });
     }, 0);

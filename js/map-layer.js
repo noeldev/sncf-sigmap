@@ -276,15 +276,6 @@ function _makeDotIcon(color, size, multi) {
 }
 
 /**
- * Build a fully configured Leaflet marker for one group.
- * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
- * @param {number}   lat
- * @param {number}   lng
- * @param {object[]} all      all co-located signals (for JOSM export)
- * @param {object[]} display  filtered signals (for icon colour and tooltip)
- * @returns {L.Marker}
- */
-/**
  * Alt+Click handler: zoom to and center on the signal.
  * No location marker — the signal dot is already visible at the click position.
  */
@@ -325,13 +316,10 @@ function _onMarkerClick(latlng, all, shift) {
  * @param {number}   lng
  * @param {object[]} all  All co-located signals in the group.
  */
-function _showSignalContextMenu(x, y, lat, lng, all) {
+function _showContextMenuAt(x, y, lat, lng, all) {
     const networkId = all[0]?.p?.networkId ?? null;
     const pinned = networkId ? isPinned(networkId) : false;
-    // Close the signal popup before showing the context menu — the two UIs
-    // are mutually exclusive and the popup would obscure the menu on small viewports.
-    closeSignalPopup();
-    showContextMenu(x, y, [
+    const items = [
         {
             labelKey: 'context.zoomCenter',
             shortcut: 'Alt+Click',
@@ -350,9 +338,23 @@ function _showSignalContextMenu(x, y, lat, lng, all) {
             // matching the behaviour of Shift+Click directly on the marker.
             action: (shift) => openSignalPopup([lat, lng], all, 0, resolveStartTab(shift)),
         },
-    ]);
+    ];
+
+    // Close the signal popup before showing the context menu — the two UIs
+    // are mutually exclusive and the popup would obscure the menu on small viewports.
+    closeSignalPopup();
+    showContextMenu(x, y, items);
 }
 
+/**
+ * Build a fully configured Leaflet marker for one group.
+ * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all      all co-located signals (for JOSM export)
+ * @param {object[]} display  filtered signals (for icon color and tooltip)
+ * @returns {L.Marker}
+ */
 function _makeMarker(lat, lng, all, display) {
     const color = getTypeColor(display[0].p.signalType);
     const count = display.length;
@@ -390,7 +392,7 @@ function _makeMarker(lat, lng, all, display) {
         .on('contextmenu', e => {
             L.DomEvent.preventDefault(e);
             dismissLocationMarker();
-            _showSignalContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
+            _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
     return marker;
 }
@@ -401,11 +403,11 @@ function _makeMarker(lat, lng, all, display) {
  * Called by map-controls.js keyboard shortcuts — avoids synthetic contextmenu events
  * which would also trigger the browser's native context menu on some platforms.
  */
-export function triggerContextMenuOnFocusedMarker() {
+export function showSignalContextMenu() {
     const data = document.activeElement?._sigData ?? null;
     if (!data) return;
     const rect = document.activeElement.getBoundingClientRect();
-    _showSignalContextMenu(
+    _showContextMenuAt(
         rect.left + rect.width / 2,
         rect.top + rect.height / 2,
         data.lat, data.lng, data.all

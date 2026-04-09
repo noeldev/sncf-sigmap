@@ -254,8 +254,8 @@ export class FilterPanel {
         for (const { v, count, active, showDot } of items) {
             const item = this._tplItem.content
                 .cloneNode(true).querySelector('.fg-drop-item');
-            item.tabIndex = -1;
-            item.setAttribute('role', 'option');
+            // tabIndex, role, and the aria-selected default are in the template.
+            // Only dynamic values are written here.
             item.setAttribute('aria-selected', String(active));
             item.classList.toggle('active', active);
             item.classList.toggle('mapped', showDot);

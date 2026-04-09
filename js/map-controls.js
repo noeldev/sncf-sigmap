@@ -18,7 +18,7 @@ import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
 import { t } from './translation.js';
 import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
 import { map, flyToLocation } from './map.js';
-import { triggerContextMenuOnFocusedMarker } from './map-layer.js';
+import { showSignalContextMenu } from './map-layer.js';
 
 /**
  * Wire all map toolbar buttons.
@@ -246,7 +246,7 @@ export function initKeyboardShortcuts() {
                 // even when keydown is prevented. Swallow it once so only our menu appears.
                 window.addEventListener('contextmenu', evt => evt.preventDefault(),
                     { once: true, capture: true });
-                triggerContextMenuOnFocusedMarker();
+                showSignalContextMenu();
                 return;
             }
         }
