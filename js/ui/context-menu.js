@@ -29,7 +29,7 @@ const _tpl = {
  * Separated from showContextMenu so DOM construction is independently readable.
  *
  * @param {Array} items  Item descriptors or the string 'separator'.
- * @returns {{ menu: HTMLElement, actions: Function[] }}
+ * @returns {HTMLElement}
  */
 function _buildMenu(items) {
     const menu = _tpl.menu.content.cloneNode(true).querySelector('.ctx-menu');

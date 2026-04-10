@@ -44,6 +44,7 @@ let _loadPending = false;
 let _loadRunning = false;
 let _lastGroups = [];   // last rendered groups — used by getSignalLatlng()
 let _sampled = false;   // true when the current view is a spatial overview sample
+let _lastUrlKey = '';   // cache key for the last worker run (tile URLs + filter snapshot)
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -127,6 +128,12 @@ export function refresh(force = false) {
         return;
     }
 
+    // Skip the worker run when tile set and active filters are unchanged.
+    // This covers rapid pan/zoom within the same tiles at the same filter state.
+    const urlKey = fetchUrls.join('|') + '|' + JSON.stringify(getActiveFiltersForWorker());
+    if (!force && urlKey === _lastUrlKey) return;
+    _lastUrlKey = urlKey;
+
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom);
 }
@@ -165,7 +172,13 @@ function _runWorker(bounds, tileUrls, zoom) {
     _loadRunning = true;
     showProgress(t('progress.tiles', tileUrls.length));
 
-    _worker = new Worker(new URL('tiles.worker.js', import.meta.url), { type: 'module' });
+    try {
+        _worker = new Worker(new URL('tiles.worker.js', import.meta.url), { type: 'module' });
+    } catch (err) {
+        console.error('[Worker] Failed to create worker:', err.message);
+        _terminateLoad();
+        return;
+    }
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
@@ -229,6 +242,11 @@ function _terminateLoad() {
     _terminateWorker();
     _loadRunning = false;
     hideProgress();
+}
+
+/** Invalidate the URL cache so the next refresh() always runs the worker. */
+export function invalidateLayerCache() {
+    _lastUrlKey = '';
 }
 
 /**
@@ -343,6 +361,9 @@ function _showContextMenuAt(x, y, lat, lng, all) {
     // Close the signal popup before showing the context menu — the two UIs
     // are mutually exclusive and the popup would obscure the menu on small viewports.
     closeSignalPopup();
+    // Close the marker tooltip.
+    map.closeTooltip();
+    // Now we can show the context menu
     showContextMenu(x, y, items);
 }
 

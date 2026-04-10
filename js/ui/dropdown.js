@@ -169,15 +169,6 @@ export class Dropdown {
     }
 
     /**
-     * Update aria-selected on all items.
-     * @param {Set<string>} selectedVals
-     */
-    updateSelection(selectedVals) {
-        for (const item of this._list.querySelectorAll(this._itemSel))
-            item.setAttribute('aria-selected', String(selectedVals.has(item.dataset.val)));
-    }
-
-    /**
      * Unregister from the outside-click registry and detach the keydown handler.
      * Call when the panel is removed from the DOM.
      */
