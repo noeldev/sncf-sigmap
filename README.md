@@ -393,9 +393,9 @@ sncf-sigmap/
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator, tile fetch helpers
 │   ├── tiles-worker.js           ← tile fetch, normalization, filtering, spatial sampling (Web Worker)
+│   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
 │   ├── tooltip.js                ← hover tooltip builder
 │   ├── translation.js            ← i18n: strings loader, t(); uses prefs.js for lang persistence
-│   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
 │   └── ui/
 │       ├── combobox.js           ← search input behavior for filter dropdowns
 │       ├── context-menu.js       ← floating context menu with event delegation and keyboard navigation
