@@ -19,13 +19,11 @@
  * Note: direction and placement are already in OSM notation after normalization
  * ('forward'|'backward'|'both'  and  'right'|'left'|'bridge'), so no additional
  * conversion is needed for OSM tag export.
- */
-
-
-/* ===== Early normalization =====
+ *
+ * ===== Early normalization =====
  *
  * SNCF tile field  → App field        Notes
- * ───────────────────────────────────────────────────────────────────────
+ * ------------------------------------------------------------------
  * type_if          → signalType       SNCF signal category code
  * code_ligne       → lineCode         6-digit SNCF line identifier
  * code_voie        → trackCode        Track identifier on the line

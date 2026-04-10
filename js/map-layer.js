@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *   - Manage the Leaflet marker layer for signal dots.
- *   - Drive the tiles.worker.js pipeline: fetch tiles, normalize, filter, sample.
+ *   - Drive the tiles-worker.js pipeline: fetch tiles, normalize, filter, sample.
  *   - Render worker results as Leaflet markers with tooltips and popups.
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
  *
@@ -22,17 +22,18 @@
 
 import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
 import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
-import { getTileUrlsForBounds } from './tiles.js';
+import { getTileUrlsForBounds, fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
 import { getTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
-import { isOwnWorkerMessage } from './worker-contract.js';
+import { isOwnWorkerMessage } from './tiles-worker-contract.js';
 import { showFlash, showProgress, hideProgress } from './progress.js';
 import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu } from './ui/context-menu.js';
+import { getNetworkIdIndex } from './signal-data.js';
 
 
 // ===== Module state =====
@@ -42,9 +43,9 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
-let _lastGroups = [];   // last rendered groups — used by getSignalLatlng()
-let _sampled = false;   // true when the current view is a spatial overview sample
+let _lastGroups = [];   // last rendered groups — used by _getSignalLatlng()
 let _lastUrlKey = '';   // cache key for the last worker run (tile URLs + filter snapshot)
+let _sampled = false;   // true when the current view is a spatial overview sample
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -54,7 +55,7 @@ let _lastUrlKey = '';   // cache key for the last worker run (tile URLs + filter
 export function isSampled() { return _sampled; }
 
 
-/* ===== Language change handling ===== */
+// ===== Language change handling =====
 
 // Leaflet caches tooltip DOM nodes at marker-creation time.
 // Rebuild all markers when the language changes so tooltips use the new locale.
@@ -131,14 +132,8 @@ export function refresh(force = false) {
     // Skip the worker run when tile set and active filters are unchanged.
     // This covers rapid pan/zoom within the same tiles at the same filter state.
     const urlKey = fetchUrls.join('|') + '|' + JSON.stringify(getActiveFiltersForWorker());
-    // TODO if (!force && urlKey === _lastUrlKey) return;
-    if (!force && urlKey === _lastUrlKey) {
-        console.debug('[Layer] refresh skipped — tiles and filters unchanged');
-        return;
-    }
-    console.debug('[Layer] refresh running —', force ? 'forced' : 'new key');
+    if (!force && urlKey === _lastUrlKey) return;
     _lastUrlKey = urlKey;
-
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom);
 }
@@ -151,7 +146,7 @@ export function refresh(force = false) {
  * @param {string} networkId
  * @returns {[number, number] | null}
  */
-export function getSignalLatlng(networkId) {
+function _getSignalLatlng(networkId) {
     for (const { lat, lng, all } of _lastGroups) {
         if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
     }
@@ -166,10 +161,8 @@ export function getSignalLatlng(networkId) {
  * Centralised here to avoid duplicating the null-guard at every call site.
  */
 function _terminateWorker() {
-    if (_worker) {
-        _worker.terminate();
-        _worker = null;
-    }
+    _worker?.terminate();
+    _worker = null;
 }
 
 function _runWorker(bounds, tileUrls, zoom) {
@@ -178,7 +171,7 @@ function _runWorker(bounds, tileUrls, zoom) {
     showProgress(t('progress.tiles', tileUrls.length));
 
     try {
-        _worker = new Worker(new URL('tiles.worker.js', import.meta.url), { type: 'module' });
+        _worker = new Worker(new URL('tiles-worker.js', import.meta.url), { type: 'module' });
     } catch (err) {
         console.error('[Worker] Failed to create worker:', err.message);
         _terminateLoad();
@@ -258,8 +251,8 @@ function _terminateLoad() {
  */
 function _onWorkerDone(groups, sampled, total) {
     _lastGroups = groups;
+    _sampled = sampled;     // must precede indexSignals so isSampled() is current
     resetCounts();
-    _sampled = sampled;             // must precede indexSignals so isSampled() is current
     setSampledBadge(sampled, total);
     indexSignals(groups.flatMap(g => g.all));
     _renderGroups(groups);
@@ -418,6 +411,35 @@ function _makeMarker(lat, lng, all, display) {
             _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
     return marker;
+}
+
+/**
+ * Fly to the signal with the given network ID and show a location marker.
+ *
+ * Fast path: signal is currently visible in the viewport → immediate flight.
+ * Slow path: fetch the tile that contains the signal (browser-cached on repeat
+ *            calls), then fly once the coordinates are known.
+ *
+ * @param {string} networkId
+ * @returns {Promise<void>}
+ */
+export async function flyToSignal(networkId) {
+    // Fast path — signal is already rendered in the viewport.
+    const latlng = _getSignalLatlng(networkId);
+    if (latlng) {
+        flyToLocationWithMarker(latlng);
+        return;
+    }
+
+    const tileKey = getNetworkIdIndex().get(networkId);
+    if (!tileKey) {
+        console.warn(`[map-layer] No tile key for networkId ${networkId}`);
+        return;
+    }
+
+    const signals = await fetchTileByKey(tileKey);
+    const location = findSignalLocation(signals, networkId);
+    if (location) flyToLocationWithMarker(location);
 }
 
 /**

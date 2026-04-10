@@ -1,5 +1,5 @@
 /**
- * tiles.worker.js — Fetch, normalize and filter tile data off the main thread.
+ * tiles-worker.js — Fetch, normalize and filter tile data off the main thread.
  *
  * Incoming message:
  *   { type, urls, activeFilters, bounds, maxSignals }
@@ -28,7 +28,7 @@
  * A group is included only when display.length > 0.
  */
 
-import { workerPost } from './worker-contract.js';
+import { workerPost } from './tiles-worker-contract.js';
 import { normalizeSignal } from './sncf-convert.js';
 import { fetchTile } from './tiles.js';
 
@@ -74,7 +74,7 @@ self.onmessage = async function (e) {
     }
 };
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 /** Convert activeFilters arrays to Sets for O(1) lookups. */
 function _buildFilterSets(activeFilters) {

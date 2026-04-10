@@ -34,7 +34,7 @@ import { _SIGNAL_MAPPING } from './signal-types.js';
 const _PRIORITY = Object.keys(_SIGNAL_MAPPING);
 
 
-/* ===== Node conflict resolution ===== */
+// ===== Node conflict resolution =====
 
 /**
  * Returns true when the incoming feature can be placed in the given group
@@ -57,7 +57,7 @@ function _canFit(feat, group) {
 }
 
 
-/* ===== OSM tag construction ===== */
+// ===== OSM tag construction =====
 
 /**
  * Write all OSM tags for one signal into the tags Map.
@@ -103,7 +103,7 @@ function _buildNodeTags(group) {
     return tags;
 }
 
-/* ===== Public query functions ===== */
+// ===== Public query functions =====
 
 /** Return the display color for any signalType. */
 export function getTypeColor(signalType) {
@@ -141,7 +141,7 @@ export function getSignalId(signalType) {
 const _supportedTypes = new Set(Object.keys(_SIGNAL_MAPPING));
 export function getSupportedTypes() { return _supportedTypes; }
 
-/* ===== OSM node computation ===== */
+// ===== OSM node computation =====
 
 /**
  * Returns the first 4 digits of a networkId string as a cluster key.

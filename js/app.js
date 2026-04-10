@@ -24,6 +24,7 @@ import { setManifest, refresh } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
 import { initStatusBar, updateZoomStatus, setRecordCount, updateFilterCount } from './statusbar.js';
+import { loadIndexData } from './signal-data.js';
 
 
 // ES modules are deferred by spec — the DOM is guaranteed ready when this executes.
@@ -53,17 +54,23 @@ function _onSidebarRefresh({ filterCount }) {
 }
 
 
-/* ===== Data loading ===== */
+// ===== Data loading =====
 
-/** Fetch the tile manifest, then start the map pipeline. */
+/**
+ * Fetch the tile manifest and signal index in parallel, then start the map pipeline.
+ * Index failure is non-fatal — filters will show an error indicator via indexReady.
+ */
 async function _loadData() {
     showProgress(t('progress.index'));
 
-    const manifest = await loadManifest();
+    const [manifest] = await Promise.all([
+        loadManifest(),
+        loadIndexData().catch(err => console.warn('[App] Index loading failed:', err.message)),
+    ]);
 
     if (!manifest) {
         hideProgress();
-        console.error('[App] manifest.json not found at ', MANIFEST_FILE);
+        console.error('[App] manifest.json not found at', MANIFEST_FILE);
         return;
     }
 

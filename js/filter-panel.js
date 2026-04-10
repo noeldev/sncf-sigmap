@@ -71,7 +71,7 @@ export class FilterPanel {
     }
 
 
-    /* ===== Private initialisation ===== */
+    // ===== Private initialisation =====
 
     /**
      * Clone the filter-panel template, apply i18n, and cache element references.
@@ -202,7 +202,7 @@ export class FilterPanel {
     }
 
 
-    /* ===== Public API ===== */
+    // ===== Public API =====
 
     /**
      * Append the panel element to a container. 

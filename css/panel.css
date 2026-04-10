@@ -4,7 +4,7 @@
  * the scroll container (.panels-scroll).
  * Footer cp-panels (JOSM, Credits) sit outside the scroll container at the
  * bottom, pinned via flex-shrink:0.
-  */
+ */
 
 .tab-panel {
     display: none;

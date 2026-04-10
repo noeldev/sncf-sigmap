@@ -20,15 +20,15 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
-import { MIN_SEARCH_THRESHOLD, INDEX_FILE } from './config.js';
+import { MIN_SEARCH_THRESHOLD } from './config.js';
 import { getCategoryEntries } from './cat-mapping.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
 import { isSampled } from './map-layer.js';
-import { initBlockSystem } from './block-system.js';
-import { initFromIndex, flyToSignal, searchNetworkIds } from './signal-locator.js';
+import { getFilterData, searchNetworkIds, indexReady } from './signal-data.js';
+import { flyToSignal } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 const _ALL_FILTER_FIELDS = [
@@ -79,7 +79,7 @@ const _tpl = {
 
 };
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 export function initFilters(onChange) {
     _onChange = onChange;
@@ -87,13 +87,13 @@ export function initFilters(onChange) {
     _initFieldState();
     _clearActiveFilters();
     _buildPanels();
+    _restoreFilters();
+    _waitForIndexAndRefresh();
 
     onLangChange(() => {
         _buildPanels();
         _refreshAllTags();
     });
-
-    _restoreFilters();
 }
 
 /**
@@ -104,31 +104,7 @@ export function initFilters(onChange) {
  * @returns {Promise<object|null>}  Raw index data, or null on failure.
  */
 /** Single in-flight promise — prevents duplicate fetches if called more than once. */
-let _indexPromise = null;
 
-export function loadFilterIndex() {
-    if (_indexPromise) return _indexPromise;
-    _indexPromise = _doLoadFilterIndex();
-    return _indexPromise;
-}
-
-async function _doLoadFilterIndex() {
-    try {
-        const res = await fetch(INDEX_FILE);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        initBlockSystem(data);
-        initFromIndex(data);
-        _parseFieldIndex(data);
-        _refreshAllDropdowns();
-        return data;
-    } catch (err) {
-        console.warn('[Filters] index.json:', err.message);
-        // Show the warning span already in #filters-empty-state (set via data-i18n).
-        document.getElementById('filter-index-error')?.classList.remove('is-hidden');
-        return null;
-    }
-}
 
 /**
  * Index a set of normalized signals into per-field value counts.
@@ -264,8 +240,31 @@ export function hasAnyFilters() {
     return _defs.some(d => _activeFilters[d.field]?.size > 0 || d.search.length > 0);
 }
 
-/* ===== Internal helpers ===== */
+// ===== Internal helpers =====
 
+
+/**
+ * Reveal the index-load error indicator in the filter panel.
+ */
+function _showIndexError() {
+    document.getElementById('filter-index-error')?.classList.remove('is-hidden');
+}
+
+/**
+ * Subscribe to indexReady: populate filter value lists and refresh dropdowns
+ * once index.json has finished loading. On failure, show the error indicator.
+ */
+function _waitForIndexAndRefresh() {
+    indexReady
+        .then(() => {
+            _parseFieldIndex(getFilterData());
+            _refreshAllDropdowns();
+        })
+        .catch(err => {
+            console.warn('[Filters] Index unavailable:', err.message);
+            _showIndexError();
+        });
+}
 
 function _parseFieldIndex(data) {
     _ALL_FILTER_FIELDS.forEach(f => {
@@ -359,7 +358,7 @@ function _confirmClear() {
     return confirm(t('filter.confirmClear'));
 }
 
-/* ===== Group preset state ===== */
+// ===== Group preset state =====
 
 /**
  * Return true when the given field key is 'signalType'.
@@ -385,7 +384,7 @@ function _clearActiveGroup() {
 }
 
 
-/* ===== Commit helper ===== */
+// ===== Commit helper =====
 
 /**
  * Persist filter state and fire the external change callback.
@@ -399,7 +398,7 @@ function _commit() {
 }
 
 
-/* ===== Panel management ===== */
+// ===== Panel management =====
 
 /**
  * Build the FilterPanel options object for one filter definition.
@@ -436,7 +435,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 
 
 
-/* ===== Panel callback handlers ===== */
+// ===== Panel callback handlers =====
 
 /**
  * Ask for user confirmation before executing callback when the given field has
@@ -560,7 +559,7 @@ function _buildPanels() {
     });
 }
 
-/* ===== DOM update helpers ===== */
+// ===== DOM update helpers =====
 
 function _refreshTags(idx) {
     const def = _defs[idx];
@@ -745,7 +744,7 @@ function _persistFilters() {
 
 
 
-/* ===== State mutations ===== */
+// ===== State mutations =====
 
 function _selectFirst(idx) {
     const firstVal = _defs[idx]?.panel?.getFirstItemVal();

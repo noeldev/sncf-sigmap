@@ -104,7 +104,7 @@ export function closeContextMenu() {
 }
 
 
-/* ===== Private ===== */
+// ===== Private =====
 
 function _activateIdx(idx, shiftKey = false) {
     const action = _actions?.[idx];

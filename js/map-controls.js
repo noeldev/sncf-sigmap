@@ -56,7 +56,7 @@ export function initMapControls() {
     );
 }
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 function _toggleSidebar() {
     document.getElementById('sidebar')?.classList.toggle('sidebar-closed');

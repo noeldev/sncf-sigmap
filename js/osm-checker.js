@@ -88,7 +88,7 @@ export class OsmStatusChecker {
     }
 
 
-    /* ===== Private ===== */
+    // ===== Private =====
 
     _notify() {
         this._onStatusChange?.(this.statuses);

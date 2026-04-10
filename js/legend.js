@@ -75,7 +75,7 @@ export function updateLegendIndicator() {
 }
 
 
-/* ===== Private ===== */
+// ===== Private =====
 
 /**
  * Populate #legend-body with one <button> per category.

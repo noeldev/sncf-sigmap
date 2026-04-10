@@ -71,7 +71,7 @@ export function openPanel(panel) {
     _setOpen(panel, true, true);
 }
 
-/* ===== Private ===== */
+// ===== Private =====
 
 function _loadStates() {
     try {

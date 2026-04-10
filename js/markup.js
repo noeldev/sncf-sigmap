@@ -22,7 +22,7 @@
  *   toHtml(str)     — convert a markup string to an HTML string.
  */
 
-/* ===== Precompiled regular expressions ===== */
+// ===== Precompiled regular expressions =====
 
 const RE_BOLD = /\*\*([^*]+)\*\*/g;
 const RE_ITALIC = /\*([^*]+)\*/g;
@@ -31,7 +31,7 @@ const RE_HEADING = /^(#{2,3}) (.+)/; // Combined H2 and H3 for single-pass evalu
 const RE_LIST_ITEM = /^( *)\* (.+)/;
 const RE_TRAILING_SPACES = /  \n/g;
 
-/* ===== Inline markup conversion (pure function) ===== */
+// ===== Inline markup conversion (pure function) =====
 
 /**
  * Convert inline markup (bold, italic, links) to HTML.
@@ -54,7 +54,7 @@ function inlineToHtml(text) {
         });
 }
 
-/* ===== Helper for list item content (supports <br> and paragraphs) ===== */
+// ===== Helper for list item content =====
 
 /**
  * Convert raw multiline text inside a list item to HTML.
@@ -72,7 +72,7 @@ function formatListItemContent(raw) {
         .join('');
 }
 
-/* ===== List handling (stateful, encapsulated) ===== */
+// ===== List handling (stateful, encapsulated) =====
 
 class ListStack {
     constructor(output) {
@@ -124,7 +124,7 @@ class ListStack {
     }
 }
 
-/* ===== Multiline block parser ===== */
+// ===== Multiline block parser =====
 
 /**
  * Parse multiline markup into HTML.
@@ -201,7 +201,7 @@ function parseMultiline(str) {
     return output.join('');
 }
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Return true when the string contains at least one recognised markup pattern.

@@ -143,7 +143,7 @@ function _createTileLayers(jawgKey) {
     });
 }
 
-/* ===== Position persistence ===== */
+// ===== Position persistence =====
 
 /**
  * Restore the last saved map position, or fall back to the default France extent.
@@ -171,7 +171,7 @@ export function saveLastPosition() {
 }
 
 
-/* ===== Map event wiring ===== */
+// ===== Map event wiring =====
 
 /**
  * Wire Leaflet map events for zoom-threshold detection and position saving.
@@ -197,7 +197,7 @@ export function initMapEvents(onMove, ms = 150) {
 }
 
 
-/* ===== Basemap selector buttons ===== */
+// ===== Basemap selector buttons =====
 
 function _buildBasemapButtons() {
     const list = document.getElementById('basemap-list');
@@ -282,7 +282,7 @@ export function showLocationMarker(latlng) {
 }
 
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 function _setBasemap(key) {
     if (!_tileLayers[key] || key === _current) return;

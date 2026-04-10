@@ -76,7 +76,7 @@ export function buildLangOptions(listEl) {
 let _lang = _resolveInitialLang();
 
 
-/* ===== String loading ===== */
+// ===== String loading =====
 
 /**
  * Fetch and install strings for the given locale.
@@ -155,7 +155,7 @@ function _precompileAllMarkup(strings) {
 }
 
 
-/* ===== Core API ===== */
+// ===== Core API =====
 
 /**
  * Return the current locale code, e.g. 'en-US'.
@@ -195,7 +195,7 @@ export function t(key, ...args) {
 }
 
 
-/* ===== DOM translation ===== */
+// ===== DOM translation =====
 
 /**
  * Apply translations to every data-i18n* element within a given root.
@@ -252,7 +252,7 @@ export function onLangChange(fn) {
 }
 
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 function _resolveInitialLang() {
     const _supported = Object.keys(_LANG_INFO.supported);

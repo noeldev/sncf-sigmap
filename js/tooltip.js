@@ -95,7 +95,7 @@ export function buildTooltip(feats) {
     return wrap;
 }
 
-/* ===== Internal helpers ===== */
+// ===== Internal helpers =====
 
 /** Group feats by their (direction, placement) combination, preserving insertion order. */
 function _groupByDirectionPlacement(feats) {

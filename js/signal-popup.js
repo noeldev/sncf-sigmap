@@ -27,13 +27,13 @@ import { getSkipJosmConfirm, getAutoTagsTab } from './prefs.js';
 import { isPinned, togglePin } from './pins.js';
 
 
-/* ===== Template accessor ===== */
+// ===== Template accessor =====
 
 const _tplPopup = () => document.getElementById('tpl-signal-popup');
 const _tplTagRow = () => document.getElementById('tpl-osm-tag-row');
 
 
-/* ===== Contrast helper ===== */
+// ===== Contrast helper =====
 
 function _contrastColor(hex) {
     if (!hex) return '#fff';
@@ -62,7 +62,7 @@ export function resolveStartTab(flipped) {
 }
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 let _popup = null;     // Leaflet popup instance
 let _popupEl = null;   // live .pu-wrap DOM node
@@ -78,7 +78,7 @@ let _tagsNodeIdx = 0;      // node index shown in the OSM Tags tab
 let _activeTab = TAB_SIGNALS;
 
 
-/* ===== Language change handling ===== */
+// ===== Language change handling =====
 
 // Re-translate all dynamic popup content when the language changes.
 // Both panels must be refreshed: Signals for direction/placement values,
@@ -91,7 +91,7 @@ onLangChange(() => {
 });
 
 
-/* ===== Public entry point ===== */
+// ===== Public entry point =====
 
 /**
  * Open the unified popup for a co-located signal group.
@@ -119,7 +119,7 @@ export function closeSignalPopup() {
 }
 
 
-/* ===== Initialisation ===== */
+// ===== Initialisation =====
 
 /**
  * Reset module state for a new popup.
@@ -178,7 +178,7 @@ function _openPopup() {
 }
 
 
-/* ===== OSM check ===== */
+// ===== OSM check =====
 
 /**
  * Called by OsmStatusChecker when Overpass results arrive.
@@ -240,7 +240,7 @@ function _applyOsmStatus(idRow, { status, nodeId }, feat) {
 }
 
 
-/* ===== In-place DOM updates ===== */
+// ===== In-place DOM updates =====
 
 // Fields resolved directly from p — block system fields are resolved separately below.
 // Field rows are read from the DOM template via [data-field] — no hardcoded list needed.
@@ -416,7 +416,7 @@ function _updateTagsPanel() {
 }
 
 
-/* ===== Tab management ===== */
+// ===== Tab management =====
 
 function _switchTab(tab) {
     _activeTab = tab;
@@ -437,7 +437,7 @@ function _switchTab(tab) {
 }
 
 
-/* ===== Click handler ===== */
+// ===== Click handler =====
 
 /** Step the current signal index by delta (-1 or +1), wrapping around. */
 function _navigateSignal(delta) {
@@ -523,7 +523,7 @@ function _onClick(e) {
 }
 
 
-/* ===== Actions ===== */
+// ===== Actions =====
 
 function _copyTags(node, btn) {
     if (!node?.tags?.size) return;
@@ -562,7 +562,7 @@ function _flash(btn) {
 }
 
 
-/* ===== Accessibility ===== */
+// ===== Accessibility =====
 
 function _trapFocus(popupEl) {
     if (!popupEl) return;

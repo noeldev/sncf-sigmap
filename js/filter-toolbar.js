@@ -53,7 +53,7 @@ export function updateFilterToolbar() {
 }
 
 
-/* ===== Private ===== */
+// ===== Private =====
 
 function _onBtnClick(e) {
     e.stopPropagation();

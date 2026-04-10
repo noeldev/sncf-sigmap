@@ -28,20 +28,20 @@ import { initCollapsiblePanels, openPanel } from './collapsible-panel.js';
 import { initLangPicker } from './lang-picker.js';
 import { initLegend, updateLegendIndicator } from './legend.js';
 import {
-    initFilters, resetFilters, loadFilterIndex,
+    initFilters, resetFilters,
     hasAnyFilters, getActiveFilterCount
 } from './filters.js';
 import { initFilterToolbar, updateFilterToolbar } from './filter-toolbar.js';
 import { initPins } from './pins.js';
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 /** Map-level refresh callback provided by app.js at init time. */
 let _onRefresh = null;
 
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Initialize all sidebar UI components.
@@ -64,11 +64,10 @@ export function initSidebar({ onRefresh }) {
     _initFilters();
     _initResetButton();
     _initPins();
-    _initFilterIndex();
 }
 
 
-/* ===== Pinned signals panel ===== */
+// ===== Pinned signals panel =====
 
 /**
  * Initialise the pinned signals panel immediately so saved pins are visible
@@ -79,17 +78,7 @@ function _initPins() {
 }
 
 
-/* ===== Filter index loading ===== */
-
-/**
- * Start the filter index fetch asynchronously — non-blocking.
- */
-function _initFilterIndex() {
-    loadFilterIndex().catch(console.error);
-}
-
-
-/* ===== Filters ===== */
+// ===== Filters =====
 
 function _initFilters() {
     initFilters(_onFiltersChange);
@@ -130,7 +119,7 @@ function _onResetFilters() {
 }
 
 
-/* ===== Behavior toggles ===== */
+// ===== Behavior toggles =====
 
 // Checkbox id → [getter, setter] — single source of truth for behavior toggle wiring.
 const _TOGGLE_PREFS = {
@@ -153,7 +142,7 @@ function _initBehaviorToggles() {
 }
 
 
-/* ===== Tabs ===== */
+// ===== Tabs =====
 
 /**
  * Activate a tab panel by its element ID (e.g. 'tab-settings').
@@ -216,7 +205,7 @@ function _initTabLinks() {
 }
 
 
-/* ===== JOSM detection panel ===== */
+// ===== JOSM detection panel =====
 
 async function _refreshJosmStatus() {
     const body = document.getElementById('josm-detect-body');

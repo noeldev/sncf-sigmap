@@ -23,7 +23,7 @@
 import { parseMilepostAsMeters } from './sncf-convert.js';
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 /** lineCode (string) → { count, label? } — merged line entry from index.json. */
 let _lines = null;
@@ -40,7 +40,7 @@ let _blockTypes = null;
 let _blockMap = null;
 
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Initialize block system data from the parsed index.json object.
@@ -115,7 +115,7 @@ export function getBlockType(lineCode, milepost, direction) {
 }
 
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 /**
  * Returns true when the signal position falls within the [start, end] block segment.

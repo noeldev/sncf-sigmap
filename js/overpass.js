@@ -24,10 +24,10 @@ import { map } from './map.js';
 import { getSignalId } from './signal-mapping.js';
 
 
-/* ===== Cache and in-flight state ===== */
+// ===== Cache and in-flight state =====
 
-const _cache = new Map();   // cacheKey  → result
-const _pending = new Map();   // batchKey  → Promise
+const _cache = new Map();   // cacheKey → result
+const _pending = new Map(); // batchKey → Promise
 
 // Aborted when a new popup opens before the previous batch resolves,
 // sparing the Overpass server from stale in-flight requests.
@@ -37,7 +37,7 @@ let _batchAbort = null;
 function _cacheKey(refTag, networkId) { return `${refTag}:${networkId}`; }
 
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 /** Returns the current viewport as an Overpass bbox string "S,W,N,E". */
 function _viewportBbox() {
@@ -116,7 +116,7 @@ function _resolveStatuses(entries, hadError) {
 }
 
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Remove 'not-in-osm' cache entries for the given features so that the next
