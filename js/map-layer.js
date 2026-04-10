@@ -131,7 +131,12 @@ export function refresh(force = false) {
     // Skip the worker run when tile set and active filters are unchanged.
     // This covers rapid pan/zoom within the same tiles at the same filter state.
     const urlKey = fetchUrls.join('|') + '|' + JSON.stringify(getActiveFiltersForWorker());
-    if (!force && urlKey === _lastUrlKey) return;
+    // TODO if (!force && urlKey === _lastUrlKey) return;
+    if (!force && urlKey === _lastUrlKey) {
+        console.debug('[Layer] refresh skipped — tiles and filters unchanged');
+        return;
+    }
+    console.debug('[Layer] refresh running —', force ? 'forced' : 'new key');
     _lastUrlKey = urlKey;
 
     _loadPending = false;
@@ -244,10 +249,6 @@ function _terminateLoad() {
     hideProgress();
 }
 
-/** Invalidate the URL cache so the next refresh() always runs the worker. */
-export function invalidateLayerCache() {
-    _lastUrlKey = '';
-}
 
 /**
  * Handle a successful worker 'done' message.
@@ -361,9 +362,7 @@ function _showContextMenuAt(x, y, lat, lng, all) {
     // Close the signal popup before showing the context menu — the two UIs
     // are mutually exclusive and the popup would obscure the menu on small viewports.
     closeSignalPopup();
-    // Close the marker tooltip.
-    map.closeTooltip();
-    // Now we can show the context menu
+    // Show the context menu
     showContextMenu(x, y, items);
 }
 
@@ -413,6 +412,9 @@ function _makeMarker(lat, lng, all, display) {
         .on('contextmenu', e => {
             L.DomEvent.preventDefault(e);
             dismissLocationMarker();
+            // Close this marker's bound tooltip
+            marker.closeTooltip();
+            // Show the context menu
             _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
         });
     return marker;

@@ -12,7 +12,7 @@
 
 import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
-import { flyToSignal } from './filters.js';
+import { flyToSignal } from './signal-locator.js';
 import { PillList } from './ui/pill-list.js';
 
 

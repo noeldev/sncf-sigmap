@@ -22,14 +22,13 @@
 
 import { MIN_SEARCH_THRESHOLD, INDEX_FILE } from './config.js';
 import { getCategoryEntries } from './cat-mapping.js';
-import { fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
-import { flyToLocationWithMarker } from './map.js';
-import { isSampled, getSignalLatlng } from './map-layer.js';
+import { isSampled } from './map-layer.js';
 import { initBlockSystem } from './block-system.js';
+import { initFromIndex, flyToSignal, searchNetworkIds } from './signal-locator.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 const _ALL_FILTER_FIELDS = [
@@ -62,8 +61,6 @@ const _ALL_FILTER_FIELDS = [
 const _activeFilters = {};
 
 let _indexValues = {};
-let _networkIdToTile = new Map();  // networkId → tileKey — inverted at load time
-
 let _counts = {};
 let _globalCounts = {};     // per-value counts from index.json (full dataset, always accurate)
 let _knownValues = {};      // accumulated across tile loads; never reset by resetCounts()
@@ -121,8 +118,8 @@ async function _doLoadFilterIndex() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         initBlockSystem(data);
+        initFromIndex(data);
         _parseFieldIndex(data);
-        _parseNetworkIdIndex(data);
         _refreshAllDropdowns();
         return data;
     } catch (err) {
@@ -137,7 +134,8 @@ async function _doLoadFilterIndex() {
  * Index a set of normalized signals into per-field value counts.
  * Called by map-layer.js after each worker 'done' message.
  * Triggers a refresh of all open filter dropdowns.
- * @param {Array<{p: object}>} signals  Normalized signal objects.
+ *
+ * @param {Array} signals  Flat array of normalized signal objects ({ lat, lng, p }).
  */
 export function indexSignals(signals) {
     let changed = false;
@@ -146,7 +144,7 @@ export function indexSignals(signals) {
             const v = s.p[f.key];
             if (v) {
                 _counts[f.key].set(v, (_counts[f.key].get(v) || 0) + 1);
-                _knownValues[f.key].add(v);   // persist across viewport changes
+                _knownValues[f.key].add(v);
                 changed = true;
             }
         });
@@ -282,19 +280,7 @@ function _parseFieldIndex(data) {
     });
 }
 
-/**
- * Flatten the tileKey → { networkId → [lat, lng] } index from index.json
- * into a single Map for O(1) lookup by networkId.
- */
-function _parseNetworkIdIndex(data) {
-    if (!data.networkId) return;
-    // index.json: tileKey → [networkId, …]. Build a flat networkId → tileKey Map.
-    _networkIdToTile = new Map();
-    for (const [tileKey, ids] of Object.entries(data.networkId)) {
-        for (const id of ids) _networkIdToTile.set(id, tileKey);
-    }
-    console.info(`[Filters] networkId index: ${_networkIdToTile.size.toLocaleString()} entries`);
-}
+
 
 
 /** Initialise per-field state maps — called once from initFilters(). */
@@ -614,7 +600,7 @@ function _refreshAllDropdowns() {
     _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
-/** Render the networkId dropdown — searches the full _networkIdToTile index. */
+/** Render the networkId dropdown — searches the full spatial index via signal-locator.js. */
 function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
     def.panel.setInputPlaceholder(t('dropdown.searchNetworkId'));
     const activeItems = () => [...sel].map(v => ({ v, count: 0, active: true, showDot: false }));
@@ -624,7 +610,7 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
     }
 
     const threshold = fieldMeta.searchThreshold ?? MIN_SEARCH_THRESHOLD;
-    const matched = [..._networkIdToTile.keys()].filter(id => id.startsWith(q));
+    const matched = searchNetworkIds(q);
     if (matched.length > threshold) {
         def.panel.refreshList(activeItems());
         return;
@@ -757,28 +743,6 @@ function _persistFilters() {
 }
 
 
-/**
- * Fly to a signal by Network ID and show a location marker.
- * Fast path: signal is in the current viewport — fly immediately.
- * Slow path: fetch the tile from cache, then fly with marker after moveend.
- * Exported so pins.js can reuse it without duplicating the lookup logic.
- *
- * @param {string} networkId
- */
-export async function flyToSignal(networkId) {
-    // Fast path: signal is currently rendered in the viewport.
-    const latlng = getSignalLatlng(networkId);
-    if (latlng) {
-        flyToLocationWithMarker(latlng);
-        return;
-    }
-    // Slow path: fetch tile from cache to get exact coordinates.
-    const tileKey = _networkIdToTile.get(networkId);
-    if (!tileKey) return;
-    const signals = await fetchTileByKey(tileKey);
-    const location = findSignalLocation(signals, networkId);
-    if (location) flyToLocationWithMarker(location);
-}
 
 
 /* ===== State mutations ===== */

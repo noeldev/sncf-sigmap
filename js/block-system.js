@@ -1,8 +1,7 @@
 /**
  * block-system.js — Line label and block signaling mode lookup from index.json data.
  *
- * Call initBlockSystem(index) once after index.json has been fetched
- * (typically in app.js, right after the existing filter index init).
+ * Call initBlockSystem(index) once after index.json has been fetched.
  *
  * Public API:
  *   initBlockSystem(index)                   — load line labels, block types, segments
@@ -95,7 +94,7 @@ export function getLineLabel(lineCode) {
  * When multiple segments overlap at a non-boundary PK (unusual), the first
  * match in insertion order is returned.
  *
- * @param {string} lineCode    App line code (e.g. '205000')
+ * @param {string} lineCode   App line code (e.g. '205000')
  * @param {string} milepost   SNCF milepost string, e.g. '069+350'
  * @param {string} direction  OSM direction value: 'forward', 'backward', or 'both'
  * @returns {string|null}

@@ -63,7 +63,19 @@ export function initSidebar({ onRefresh }) {
     _initBehaviorToggles();
     _initFilters();
     _initResetButton();
+    _initPins();
     _initFilterIndex();
+}
+
+
+/* ===== Pinned signals panel ===== */
+
+/**
+ * Initialise the pinned signals panel immediately so saved pins are visible
+ * before the filter index loads. flyToSignal handles missing index gracefully.
+ */
+function _initPins() {
+    initPins({ container: document.getElementById('pinned-container') });
 }
 
 
@@ -71,18 +83,9 @@ export function initSidebar({ onRefresh }) {
 
 /**
  * Start the filter index fetch asynchronously — non-blocking.
- * Called from initSidebar; fires _onFilterIndexLoaded when complete.
  */
 function _initFilterIndex() {
-    loadFilterIndex().then(_onFilterIndexLoaded).catch(console.error);
-}
-
-/**
- * Called when the filter index has finished loading.
- * Initialises the pinned signals panel (requires networkIdToTile to be populated).
- */
-function _onFilterIndexLoaded() {
-    initPins({ container: document.getElementById('pinned-container') });
+    loadFilterIndex().catch(console.error);
 }
 
 
