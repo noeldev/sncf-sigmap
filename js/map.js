@@ -254,10 +254,8 @@ export function flyToLocationWithMarker(latlng) {
  * Exported so it can be called when interacting with other map elements.
  */
 export function dismissLocationMarker() {
-    if (_locMarker) {
-        _locMarker.remove();
-        _locMarker = null;
-    }
+    _locMarker?.remove();
+    _locMarker = null;
 }
 
 /**

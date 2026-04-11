@@ -1,7 +1,7 @@
 /**
  * signal-types.js — Signal type definitions table.
  *
- * The _SIGNAL_MAPPING constant is the single source of truth for all
+ * The SIGNAL_MAPPING constant is the single source of truth for all
  * signal type metadata: display category, OpenRailwayMap tag category/type,
  * and static tag properties. Extracted from signal-mapping.js to keep that
  * file focused on logic (node conflict resolution, tag building, API).
@@ -9,7 +9,7 @@
  * Consumed exclusively by signal-mapping.js.
  */
 
-export const _SIGNAL_MAPPING = {
+export const SIGNAL_MAPPING = {
 
     // Main signals
     "CARRE": {

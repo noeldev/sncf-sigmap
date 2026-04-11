@@ -25,7 +25,7 @@ import { showSignalContextMenu } from './map-layer.js';
  * Must be called after initMap() so that the Leaflet map instance exists.
  */
 // Map button id → action — single source of truth for toolbar wiring.
-const _BTN_ACTIONS = {
+const BTN_ACTIONS = {
     'btn-zoom-in': () => map.zoomIn(),
     'btn-zoom-out': () => map.zoomOut(),
     'btn-reset-view': _resetView,
@@ -42,7 +42,7 @@ export function initMapControls() {
     // Single delegated click on #map-controls handles every toolbar button.
     document.getElementById('map-controls')?.addEventListener('click', e => {
         const btn = e.target.closest('button[id]');
-        if (btn) _BTN_ACTIONS[btn.id]?.();
+        if (btn) BTN_ACTIONS[btn.id]?.();
     });
 
     // Close basemap panel when clicking outside it.

@@ -122,7 +122,7 @@ function _onResetFilters() {
 // ===== Behavior toggles =====
 
 // Checkbox id → [getter, setter] — single source of truth for behavior toggle wiring.
-const _TOGGLE_PREFS = {
+const TOGGLE_PREFS = {
     'chk-auto-tags-tab': [getAutoTagsTab, setAutoTagsTab],
     'chk-skip-josm-confirm': [getSkipJosmConfirm, setSkipJosmConfirm],
     'chk-remember-position': [getRememberPosition, setRememberPosition],
@@ -130,13 +130,13 @@ const _TOGGLE_PREFS = {
 
 function _initBehaviorToggles() {
     // Initialize checked states.
-    for (const [id, [getter]] of Object.entries(_TOGGLE_PREFS)) {
+    for (const [id, [getter]] of Object.entries(TOGGLE_PREFS)) {
         const el = document.getElementById(id);
         if (el) el.checked = getter();
     }
     // Single delegated change listener on the behavior panel body.
     document.getElementById('settings-behavior-panel-body')?.addEventListener('change', e => {
-        const pair = _TOGGLE_PREFS[e.target.id];
+        const pair = TOGGLE_PREFS[e.target.id];
         if (pair) pair[1](e.target.checked);
     });
 }

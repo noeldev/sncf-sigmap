@@ -1,10 +1,10 @@
 /**
  * signal-mapping.js — Signal type logic: node conflict resolution, tag building, public API.
  *
- * The _SIGNAL_MAPPING data table lives in signal-types.js (imported below).
+ * The SIGNAL_MAPPING data table lives in signal-types.js (imported below).
  * See signal-types.js for the entry field documentation.
  *
- * _SIGNAL_MAPPING entry fields (reference):
+ * SIGNAL_MAPPING entry fields (reference):
  *   group      — application display category key (defined in cat-mapping.js)
  *   cat        — ORM tag category:  railway:signal:<cat>=…
  *   type       — ORM main value:    railway:signal:<cat>=<type>
@@ -27,11 +27,11 @@
 import { milepostToDecimalKm } from './sncf-convert.js';
 import { getColorForCategory } from './cat-mapping.js';
 
-import { _SIGNAL_MAPPING } from './signal-types.js';
+import { SIGNAL_MAPPING } from './signal-types.js';
 
-// Type priority list derived once from _SIGNAL_MAPPING insertion order.
+// Type priority list derived once from SIGNAL_MAPPING insertion order.
 // Pre-computed so getOsmNodes does not rebuild it on every popup open.
-const _PRIORITY = Object.keys(_SIGNAL_MAPPING);
+const PRIORITY = Object.keys(SIGNAL_MAPPING);
 
 
 // ===== Node conflict resolution =====
@@ -48,11 +48,11 @@ const _PRIORITY = Object.keys(_SIGNAL_MAPPING);
  *      node would overwrite each other.
  */
 function _canFit(feat, group) {
-    const cat1 = _SIGNAL_MAPPING[feat.p.signalType].cat;
+    const cat1 = SIGNAL_MAPPING[feat.p.signalType].cat;
     const dir1 = feat.p.direction;
     return group.every(other =>
         other.p.direction === dir1 &&
-        _SIGNAL_MAPPING[other.p.signalType].cat !== cat1
+        SIGNAL_MAPPING[other.p.signalType].cat !== cat1
     );
 }
 
@@ -67,7 +67,7 @@ function _canFit(feat, group) {
  *   railway:signal:<cat>:ref       = <networkId>
  */
 function _writeSignalTags(prefix, feat, tags) {
-    const e = _SIGNAL_MAPPING[feat.p.signalType];
+    const e = SIGNAL_MAPPING[feat.p.signalType];
     tags.set(prefix, e.type);
     for (const [k, v] of Object.entries(e.properties || {})) {
         tags.set(`${prefix}:${k}`, v);
@@ -95,7 +95,7 @@ function _buildNodeTags(group) {
     if (group[0].p.placement !== "unknown") tags.set("railway:signal:position", group[0].p.placement);
 
     for (const feat of group) {
-        const prefix = `railway:signal:${_SIGNAL_MAPPING[feat.p.signalType].cat}`;
+        const prefix = `railway:signal:${SIGNAL_MAPPING[feat.p.signalType].cat}`;
         _writeSignalTags(prefix, feat, tags);
     }
 
@@ -107,13 +107,13 @@ function _buildNodeTags(group) {
 
 /** Return the display color for any signalType. */
 export function getTypeColor(signalType) {
-    const group = _SIGNAL_MAPPING[signalType]?.group ?? 'unsupported';
+    const group = SIGNAL_MAPPING[signalType]?.group ?? 'unsupported';
     return getColorForCategory(group);
 }
 
 /** Return true when this signalType has an OSM mapping. */
 export function isSupported(signalType) {
-    return !!_SIGNAL_MAPPING[signalType];
+    return !!SIGNAL_MAPPING[signalType];
 }
 
 /**
@@ -123,7 +123,7 @@ export function isSupported(signalType) {
  * @returns {string[]}
  */
 export function getTypesByGroup(group) {
-    return Object.entries(_SIGNAL_MAPPING)
+    return Object.entries(SIGNAL_MAPPING)
         .filter(([, def]) => def.group === group)
         .map(([type]) => type);
 }
@@ -133,12 +133,12 @@ export function getTypesByGroup(group) {
  * Example: "CARRE" -> "railway:signal:main:ref"
  */
 export function getSignalId(signalType) {
-    const entry = _SIGNAL_MAPPING[signalType];
+    const entry = SIGNAL_MAPPING[signalType];
     return entry ? `railway:signal:${entry.cat}:ref` : null;
 }
 
 /** Set of all signalType values that have a mapping. Exported for filters.js. */
-const _supportedTypes = new Set(Object.keys(_SIGNAL_MAPPING));
+const _supportedTypes = new Set(Object.keys(SIGNAL_MAPPING));
 export function getSupportedTypes() { return _supportedTypes; }
 
 // ===== OSM node computation =====
@@ -157,7 +157,7 @@ function _idrCluster(networkId) {
  * Group co-located features into one or more OSM nodes, respecting ORM tagging
  * conflict rules, then build the complete tag Map for each node.
  *
- * Features are sorted by _SIGNAL_MAPPING insertion order (priority) so that
+ * Features are sorted by SIGNAL_MAPPING insertion order (priority) so that
  * more important signal types occupy earlier nodes and appear first in tags.
  *
  * Returns:
@@ -180,13 +180,13 @@ export function getOsmNodes(feats) {
     // Sort so signals with similar networkId prefixes are processed consecutively.
     // This increases the chance that numerically close signals (e.g. 94560-94563)
     // share a node when their cats allow it, while unrelated clusters (e.g. 118480+)
-    // naturally go to separate nodes. Within a cluster, _SIGNAL_MAPPING priority
+    // naturally go to separate nodes. Within a cluster, SIGNAL_MAPPING priority
     // order is preserved so higher-priority types still claim the best node first.
     supported.sort((a, b) => {
         const clA = _idrCluster(a.p.networkId);
         const clB = _idrCluster(b.p.networkId);
         if (clA !== clB) return clA < clB ? -1 : 1;
-        return _PRIORITY.indexOf(a.p.signalType) - _PRIORITY.indexOf(b.p.signalType);
+        return PRIORITY.indexOf(a.p.signalType) - PRIORITY.indexOf(b.p.signalType);
     });
 
     const nodeGroups = [];

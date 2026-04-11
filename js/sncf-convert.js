@@ -40,8 +40,8 @@
  *   t('values.placement.right')    → "Right"      | "Droite"
  */
 
-const _DIR = { C: 'forward', D: 'backward', B: 'both' };
-const _PLACE = { D: 'right', G: 'left', A: 'bridge' };
+const DIR = { C: 'forward', D: 'backward', B: 'both' };
+const PLACE = { D: 'right', G: 'left', A: 'bridge' };
 
 /**
  * Return a new object with SNCF property names and coded values replaced by
@@ -57,8 +57,8 @@ export function normalizeSignal(raw) {
         lineCode: raw.code_ligne ?? '',
         trackCode: raw.code_voie ?? '',
         trackName: raw.nom_voie ?? '',
-        direction: _DIR[raw.sens] ?? 'unknown',
-        placement: _PLACE[raw.position] ?? 'unknown',
+        direction: DIR[raw.sens] ?? 'unknown',
+        placement: PLACE[raw.position] ?? 'unknown',
         milepost: raw.pk ?? '',
         networkId: raw.idreseau ?? '',
     };

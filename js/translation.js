@@ -22,8 +22,16 @@
  *   translateElement(root) — apply translations to a DOM subtree
  *   translateAll()         — apply translations to the full live document
  *   onLangChange(fn)       — register a listener called after lang change
- *   buildLangOptions(el)   — populate a dropdown <ul> from _LANG_INFO
+ *   buildLangOptions(el)   — populate a dropdown <ul> from LANG_INFO
  */
+
+import { getLangPref, setLangPref } from './prefs.js';
+import { isMarkup, toHtml } from './markup.js';
+
+
+// ===== Precompiled regular expressions =====
+
+const RE_PLACEHOLDER = /\{(\d+)\}/g;
 
 
 /* ===== Language configuration =====
@@ -32,10 +40,8 @@
  * Locale codes use BCP 47 casing (e.g. 'en-US', 'fr-FR').
  * String file names are derived by lowercasing the code (strings.en-us.json).
  */
-import { getLangPref, setLangPref } from './prefs.js';
-import { isMarkup, toHtml } from './markup.js';
 
-const _LANG_INFO = {
+const LANG_INFO = {
     default: 'en-US',
     supported: {
         'en-US': { label: 'English', flag: 'flag-en.svg' },
@@ -48,7 +54,7 @@ let _strings = {};
 
 /* ===== Language picker DOM generation =====
  *
- * Generates .lang-option list items from _LANG_INFO at runtime,
+ * Generates .lang-option list items from LANG_INFO at runtime,
  * replacing any placeholder content in the dropdown.
  * Called once from sidebar.js during initSidebar().
  */
@@ -62,7 +68,7 @@ export function buildLangOptions(listEl) {
     const tpl = document.getElementById('tpl-lang-option');
     if (!tpl) return;
     listEl.replaceChildren();
-    for (const [code, { label, flag }] of Object.entries(_LANG_INFO.supported)) {
+    for (const [code, { label, flag }] of Object.entries(LANG_INFO.supported)) {
         const li = tpl.content.cloneNode(true).querySelector('.lang-option');
         li.dataset.val = code;
         const img = li.querySelector('img');
@@ -101,12 +107,12 @@ export async function loadStrings(locale) {
         setLangPref(locale);
     } catch (err) {
         console.warn(`[i18n] Failed to load strings.${locale}.json: ${err.message}`);
-        if (locale !== _LANG_INFO.default) {
-            console.warn(`[i18n] Falling back to ${_LANG_INFO.default}`);
+        if (locale !== LANG_INFO.default) {
+            console.warn(`[i18n] Falling back to ${LANG_INFO.default}`);
             try {
-                _strings = await _load(_LANG_INFO.default);
-                _lang = _LANG_INFO.default;
-                setLangPref(_LANG_INFO.default);
+                _strings = await _load(LANG_INFO.default);
+                _lang = LANG_INFO.default;
+                setLangPref(LANG_INFO.default);
             } catch {
                 console.error('[i18n] Fallback also failed — UI strings will show as keys.');
             }
@@ -185,10 +191,11 @@ export async function setLang(locale) {
  * @param {...*}   args  Substitution values.
  * @returns {string}
  */
+
 export function t(key, ...args) {
     const str = _strings[key] ?? key;
     if (!args.length) return str;
-    return str.replace(/\{(\d+)\}/g, (_, i) => {
+    return str.replace(RE_PLACEHOLDER, (_, i) => {
         const v = args[+i];
         return typeof v === 'number' ? v.toLocaleString() : (v ?? '');
     });
@@ -255,10 +262,10 @@ export function onLangChange(fn) {
 // ===== Private helpers =====
 
 function _resolveInitialLang() {
-    const _supported = Object.keys(_LANG_INFO.supported);
+    const _supported = Object.keys(LANG_INFO.supported);
     const stored = getLangPref();
     if (stored && _supported.includes(stored)) return stored;
     const browser = navigator.language.toLowerCase();
     return _supported.find(code => browser.startsWith(code.split('-')[0]))
-        ?? _LANG_INFO.default;
+        ?? LANG_INFO.default;
 }

@@ -58,14 +58,14 @@ function _onSidebarRefresh({ filterCount }) {
 
 /**
  * Fetch the tile manifest and signal index in parallel, then start the map pipeline.
- * Index failure is non-fatal — filters will show an error indicator via indexReady.
+ * Index failure is non-fatal — filters.js detects it via getFilterData() returning null.
  */
 async function _loadData() {
     showProgress(t('progress.index'));
 
     const [manifest] = await Promise.all([
         loadManifest(),
-        loadIndexData().catch(err => console.warn('[App] Index loading failed:', err.message)),
+        loadIndexData()
     ]);
 
     if (!manifest) {

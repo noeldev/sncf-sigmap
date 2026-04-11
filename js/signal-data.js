@@ -13,10 +13,9 @@
  *       filters.js   → searchNetworkIds(prefix)
  *
  * Public API:
- *   loadIndexData()          — fetch index.json and initialize dependent modules
- *   indexReady               — Promise that resolves when the index is fully loaded
- *   getFilterData()          — { signalType, lineCode, trackName, direction, placement, networkId }
- *   getNetworkIdIndex()      — Map<networkId, tileKey>
+ *   loadIndexData()          — fetch index.json, initialize dependent modules; resolves to null on failure
+ *   getFilterData()          — { signalType, lineCode, …} or null if index not loaded
+ *   getNetworkIdIndex()      — Map<networkId, tileKey>, or null if index not loaded
  *   searchNetworkIds(prefix) — string[] of networkIds starting with prefix
  */
 
@@ -37,8 +36,10 @@ let _loadPromise = null;
 
 /**
  * Fetch index.json, initialize block-system, and cache the result.
- * Safe to call multiple times — subsequent calls return the cached promise.
- * Called explicitly by app.js alongside loadManifest() during boot.
+ * Resolves to null on failure (never rejects) — callers check the return value
+ * of getFilterData() and getNetworkIdIndex() to detect an unsuccessful load.
+ * Idempotent: returns the cached promise on subsequent calls.
+ * On failure the promise cache is cleared so the next call retries the fetch.
  *
  * @returns {Promise<void>}
  */
@@ -49,25 +50,16 @@ export function loadIndexData() {
 }
 
 /**
- * Promise that resolves when index.json has been fully loaded and processed.
- * Filters.js attaches a .then() callback to this promise to populate its
- * dropdowns as soon as the data is available, without polling or callbacks.
- *
- * Starts automatically when this module is first imported (because
- * loadIndexData() is idempotent, app.js calling it explicitly is harmless
- * and ensures parallel loading alongside the manifest).
- */
-export const indexReady = loadIndexData();
-
-
-/**
  * Return the subset of index.json fields used by the filter system.
- * Must only be called after indexReady has resolved.
+ * Returns null when the index has not yet loaded or failed to load.
  *
  * @returns {object}  Filter-related fields (signalType, lineCode, etc.)
  */
 export function getFilterData() {
-    if (!_indexData) throw new Error('[signal-data] Index not loaded yet');
+    if (!_indexData) {
+        console.warn('[signal-data] getFilterData() called before index loaded');
+        return null;
+    }
     const fields = ['signalType', 'lineCode', 'trackName', 'direction', 'placement', 'networkId'];
     const result = {};
     for (const f of fields) {
@@ -79,12 +71,15 @@ export function getFilterData() {
 /**
  * Build and return a Map from networkId to tileKey.
  * Used by map-layer.js for the flyToSignal fast-path lookup.
- * Must only be called after indexReady has resolved.
+ * Returns null when the index has not yet loaded or failed to load.
  *
  * @returns {Map<string, string>}
  */
 export function getNetworkIdIndex() {
-    if (!_indexData) throw new Error('[signal-data] Index not loaded yet');
+    if (!_indexData) {
+        console.warn('[signal-data] getNetworkIdIndex() called before index loaded');
+        return null;
+    }
     const map = new Map();
     const net = _indexData.networkId;
     if (net) {
@@ -115,7 +110,7 @@ export function searchNetworkIds(prefix) {
 }
 
 
-// ===== Private =====
+// ===== Private helpers =====
 
 async function _doLoad() {
     try {
@@ -129,7 +124,8 @@ async function _doLoad() {
 
         console.info('[signal-data] index.json loaded');
     } catch (err) {
+        // Reset so a subsequent loadIndexData() call can retry the fetch.
+        _loadPromise = null;
         console.error('[signal-data] Failed to load index.json:', err.message);
-        throw err;
     }
 }

@@ -431,7 +431,7 @@ export async function flyToSignal(networkId) {
         return;
     }
 
-    const tileKey = getNetworkIdIndex().get(networkId);
+    const tileKey = getNetworkIdIndex()?.get(networkId);
     if (!tileKey) {
         console.warn(`[map-layer] No tile key for networkId ${networkId}`);
         return;

@@ -19,6 +19,7 @@
  */
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_TIMEOUT = 45;
 
 import { map } from './map.js';
 import { getSignalId } from './signal-mapping.js';
@@ -78,7 +79,7 @@ function _buildBatchQuery(unique, bbox) {
     const unions = unique.map(e =>
         `node["${e.refTag}"="${e.networkId}"](${bbox});`
     ).join('');
-    return `[out:json][timeout:45];(${unions});out ids tags;`;
+    return `[out:json][timeout:${OVERPASS_TIMEOUT}];(${unions});out ids tags;`;
 }
 
 /**

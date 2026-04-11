@@ -27,11 +27,11 @@ import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
 import { isSampled } from './map-layer.js';
-import { getFilterData, searchNetworkIds, indexReady } from './signal-data.js';
+import { loadIndexData, getFilterData, searchNetworkIds } from './signal-data.js';
 import { flyToSignal } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
-const _ALL_FILTER_FIELDS = [
+const ALL_FILTER_FIELDS = [
     {
         key: 'signalType', labelKey: 'fields.signalType'
     },
@@ -96,15 +96,6 @@ export function initFilters(onChange) {
     });
 }
 
-/**
- * Fetch and parse the filter index from index.json.
- * Populates _indexValues and _globalCounts for all indexed fields.
- * Also builds the networkId → tileKey map for the globalSearch filter,
- * and initialises the block system from the same index data.
- * @returns {Promise<object|null>}  Raw index data, or null on failure.
- */
-/** Single in-flight promise — prevents duplicate fetches if called more than once. */
-
 
 /**
  * Index a set of normalized signals into per-field value counts.
@@ -116,7 +107,7 @@ export function initFilters(onChange) {
 export function indexSignals(signals) {
     let changed = false;
     for (const s of signals) {
-        _ALL_FILTER_FIELDS.forEach(f => {
+        ALL_FILTER_FIELDS.forEach(f => {
             const v = s.p[f.key];
             if (v) {
                 _counts[f.key].set(v, (_counts[f.key].get(v) || 0) + 1);
@@ -133,22 +124,10 @@ export function indexSignals(signals) {
  * Called at the start of each worker cycle before new data arrives.
  */
 export function resetCounts() {
-    _ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
+    ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
     // _knownValues is intentionally NOT cleared here — values discovered in
     // previous tile loads must remain visible in dropdowns even when a filter
     // causes the worker to exclude groups that would otherwise carry those values.
-}
-
-function _resetSearch(targetField = null) {
-    _defs.forEach(d => {
-        if (!targetField || d.field === targetField) {
-            d.search = '';
-        }
-    });
-}
-
-function _resetKnownValues() {
-    _ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
 }
 
 /**
@@ -240,69 +219,13 @@ export function hasAnyFilters() {
     return _defs.some(d => _activeFilters[d.field]?.size > 0 || d.search.length > 0);
 }
 
-// ===== Internal helpers =====
-
-
-/**
- * Reveal the index-load error indicator in the filter panel.
- */
-function _showIndexError() {
-    document.getElementById('filter-index-error')?.classList.remove('is-hidden');
-}
-
-/**
- * Subscribe to indexReady: populate filter value lists and refresh dropdowns
- * once index.json has finished loading. On failure, show the error indicator.
- */
-function _waitForIndexAndRefresh() {
-    indexReady
-        .then(() => {
-            _parseFieldIndex(getFilterData());
-            _refreshAllDropdowns();
-        })
-        .catch(err => {
-            console.warn('[Filters] Index unavailable:', err.message);
-            _showIndexError();
-        });
-}
-
-function _parseFieldIndex(data) {
-    _ALL_FILTER_FIELDS.forEach(f => {
-        const entry = data[f.key];
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
-        _indexValues[f.key] = Object.keys(entry);
-        _globalCounts[f.key] = new Map(
-            Object.entries(entry).map(([k, v]) =>
-                [k, typeof v === 'object' && v !== null ? v.count : v]
-            )
-        );
-    });
-}
-
-
-
-
-/** Initialise per-field state maps — called once from initFilters(). */
-function _initFieldState() {
-    _ALL_FILTER_FIELDS.forEach(f => {
-        _indexValues[f.key] = [];
-        _counts[f.key] = new Map();
-        _knownValues[f.key] = new Set();
-        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
-    });
-}
-
-function _clearActiveFilters() {
-    for (const key in _activeFilters) delete _activeFilters[key];
-}
-
 /**
  * Return the list of filter fields not yet in use
  * @returns {{ key: string, labelKey: string }[]}
  */
 export function getAvailableFields() {
     const used = new Set(_defs.map(d => d.field));
-    return _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
+    return ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
 }
 
 /**
@@ -323,8 +246,95 @@ export function addFilterField(key) {
     queueMicrotask(() => newDef?.panel?.focusInput());
 }
 
+/**
+ * Return the number of fields that have at least one active filter value.
+ * Used by app.js to update the status bar after any filter change.
+ * @returns {number}
+ */
+export function getActiveFilterCount() {
+    return Object.values(_activeFilters).filter(s => s.size > 0).length;
+}
+
+/**
+ * Return the currently active group preset key, or null when no preset
+ * category is active (e.g. after a manual filter change).
+ * Used by sidebar.js/legend.js to sync the legend indicator after every filter change.
+ * @returns {string|null}
+ */
+export function getActiveGroup() {
+    return _activeGroup;
+}
+
+
+// ===== Private helpers =====
+
+function _resetSearch(targetField = null) {
+    _defs.forEach(d => {
+        if (!targetField || d.field === targetField) {
+            d.search = '';
+        }
+    });
+}
+
+function _resetKnownValues() {
+    ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
+}
+
+/**
+ * Reveal the index-load error indicator in the filter panel.
+ */
+function _showIndexError() {
+    document.getElementById('filter-index-error')?.classList.remove('is-hidden');
+}
+
+/**
+ * Wait for index.json to load, then populate filter value lists and refresh
+ * dropdowns. If the index failed to load, getFilterData() returns null and
+ * the error indicator is shown. Uses the same loadIndexData() promise as
+ * app.js — the fetch is shared and only runs once.
+ */
+function _waitForIndexAndRefresh() {
+    loadIndexData().then(() => {
+        const data = getFilterData();
+        if (!data) {
+            _showIndexError();
+            return;
+        }
+        _parseFieldIndex(data);
+        _refreshAllDropdowns();
+    });
+}
+
+function _parseFieldIndex(data) {
+    ALL_FILTER_FIELDS.forEach(f => {
+        const entry = data[f.key];
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+        _indexValues[f.key] = Object.keys(entry);
+        _globalCounts[f.key] = new Map(
+            Object.entries(entry).map(([k, v]) =>
+                [k, typeof v === 'object' && v !== null ? v.count : v]
+            )
+        );
+    });
+}
+
+
+/** Initialise per-field state maps — called once from initFilters(). */
+function _initFieldState() {
+    ALL_FILTER_FIELDS.forEach(f => {
+        _indexValues[f.key] = [];
+        _counts[f.key] = new Map();
+        _knownValues[f.key] = new Set();
+        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
+    });
+}
+
+function _clearActiveFilters() {
+    for (const key in _activeFilters) delete _activeFilters[key];
+}
+
 function _fieldDef(key) {
-    return _ALL_FILTER_FIELDS.find(f => f.key === key);
+    return ALL_FILTER_FIELDS.find(f => f.key === key);
 }
 
 /**
@@ -431,8 +441,6 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         onOpen: () => _openDropdown(idx),
     };
 }
-
-
 
 
 // ===== Panel callback handlers =====
@@ -701,7 +709,7 @@ function _restoreFilters() {
     const saved = loadFilters();
     if (!saved.length) return;
     for (const { field, values, mappedOnly } of saved) {
-        if (!_ALL_FILTER_FIELDS.some(f => f.key === field)) continue;
+        if (!ALL_FILTER_FIELDS.some(f => f.key === field)) continue;
         if (mappedOnly) _mappedOnly = true;
         if (!_defs.some(d => d.field === field)) _defs.push({ field, search: '' });
         for (const v of values) {
@@ -783,23 +791,4 @@ function _toggle(field, val) {
         _openDropdown(idx);
     }
     _commit();
-}
-
-/**
- * Return the number of fields that have at least one active filter value.
- * Used by app.js to update the status bar after any filter change.
- * @returns {number}
- */
-export function getActiveFilterCount() {
-    return Object.values(_activeFilters).filter(s => s.size > 0).length;
-}
-
-/**
- * Return the currently active group preset key, or null when no preset
- * category is active (e.g. after a manual filter change).
- * Used by sidebar.js/legend.js to sync the legend indicator after every filter change.
- * @returns {string|null}
- */
-export function getActiveGroup() {
-    return _activeGroup;
 }

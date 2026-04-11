@@ -66,7 +66,7 @@ export class PillList {
     hide() { this._el.classList.add('is-hidden'); }
 
 
-    // ===== Private =====
+    // ===== Private helpers =====
 
     _handleMouse(e) {
         this._processTarget(e.target, e.shiftKey, () => e.preventDefault());
