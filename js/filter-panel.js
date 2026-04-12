@@ -280,9 +280,6 @@ export class FilterPanel {
         this.pills.render(values, v => this._translateValue(this.field, v));
     }
 
-    showTags() { this.pills.show(); }
-    hideTags() { this.pills.hide(); }
-
 
     /* ----- Input ----- */
 

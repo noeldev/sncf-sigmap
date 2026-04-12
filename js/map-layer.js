@@ -43,9 +43,10 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
+let _sampled = false;   // true when the current view is a spatial overview sample
+let _popupOpen = false; // true when a Leaflet popup is open
 let _lastGroups = [];   // last rendered groups — used by _getSignalLatlng()
 let _lastUrlKey = '';   // cache key for the last worker run (tile URLs + filter snapshot)
-let _sampled = false;   // true when the current view is a spatial overview sample
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -91,6 +92,13 @@ export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
     // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
     map.on('movestart', closeContextMenu);
+
+    // Prevent tooltips from showing when a popup is open
+    map.on('popupopen', () => { _popupOpen = true; });
+    map.on('popupclose', () => { _popupOpen = false; });
+    map.on('tooltipopen', (e) => {
+        if (_popupOpen) e.tooltip.close();
+    });
 }
 
 /**

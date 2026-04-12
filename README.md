@@ -83,7 +83,7 @@ sidebar.js
 filters.js
   ├── cat-mapping.js     (getCategoryEntries — for _detectActiveGroup)
   ├── map-layer.js       (isSampled, flyToSignal)
-  └── signal-data.js     (getFilterData, searchNetworkIds, indexReady)
+  └── signal-data.js     (loadIndexData, getFilterData, searchNetworkIds)
 
 prefs.js               (single source of truth for all localStorage access)
 markup.js              (pure functions for parsing inline markdown/lists)
@@ -300,7 +300,7 @@ Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 
 ### `data/index.json`
 
-Filter and lookup index produced by TileBuilder. Loaded once at startup by `signal-data.js`, which initialises `block-system.js` and exposes `indexReady` for `filters.js`. Called by `app.js` in parallel with `loadManifest()`.
+Filter and lookup index produced by TileBuilder. Loaded once at startup by `signal-data.js`, which initialises `block-system.js`. Called by `app.js` in parallel with `loadManifest()`; `filters.js` awaits via `loadIndexData()`.
 
 ```json
 {
@@ -336,7 +336,7 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `sign
 | `lineCode` | `filters.js`, `block-system.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the block system dataset (`null` when absent). Populates the Line code filter and the popup *Line name* field. |
 | `blockType` | `block-system.js` | Ordered list of abbreviated block signaling type labels, indexed by position. |
 | `blockSegments` | `block-system.js` | Compact segment array: `[line_code, start_m, end_m, block_idx]`. `start_m` / `end_m` are integer meters from the line origin (e.g. `"069+350"` → `69350`). `block_idx` indexes into `blockType`. Used to resolve the *Block system* field in the popup. |
-| `networkId` | `filters.js` | Tile key → `[networkId, …]` compact spatial index. Used to locate any signal by Network ID across the full dataset. Loaded lazily after the map displays. |
+| `networkId` | `signal-data.js` | Tile key → `[networkId, …]` compact spatial index. Used by `map-layer.js` (`flyToSignal`) and the networkId filter dropdown. |
 
 ## Project structure
 
@@ -379,15 +379,15 @@ sncf-sigmap/
 │   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, collapse
 │   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; Alt/Ctrl/right-click handling
 │   ├── markup.js                 ← Markdown-like markup parser for string compilation
-│   ├── osm-checker.js            ← OSM existence check state machine (no DOM); used by signal-popup.js
-│   ├── overpass.js               ← Overpass API existence check (batch)
+│   ├── osm-checker.js            ← OSM state machine: IN_OSM session cache, NOT_IN_OSM instance cache, auto-retry
+│   ├── overpass.js               ← pure Overpass API client (no cache, no state)
 │   ├── pins.js                   ← pinned signals management, panel, navigation
 │   ├── prefs.js                  ← single source of truth for all localStorage access
 │   ├── progress.js               ← progress overlay and flash messages
 │   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel
-│   ├── signal-data.js            ← index.json loader; exposes indexReady, getFilterData(), getNetworkIdIndex(), searchNetworkIds()
+│   ├── signal-data.js            ← index.json loader; exposes loadIndexData(), getFilterData(), getNetworkIdIndex(), searchNetworkIds()
 │   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
-│   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
+│   ├── signal-popup.js           ← signal popup: two-tab display, OSM/JOSM export, OsmStatusChecker integration
 │   ├── signal-types.js           ← _SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags)
 │   ├── sncf-convert.js           ← SNCF raw data normalization
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)

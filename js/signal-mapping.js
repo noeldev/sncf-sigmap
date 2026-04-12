@@ -103,7 +103,7 @@ function _buildNodeTags(group) {
     return tags;
 }
 
-// ===== Public query functions =====
+// ===== Public API =====
 
 /** Return the display color for any signalType. */
 export function getTypeColor(signalType) {

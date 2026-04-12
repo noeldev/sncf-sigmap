@@ -1,41 +1,49 @@
 /**
- * overpass.js
- * Check whether signals already exist in OpenStreetMap via the Overpass API.
- * Returns the OSM node ID when found so the popup can link to openstreetmap.org/node/<id>.
- * Results are cached in memory for the session.
+ * overpass.js — Pure Overpass API client.
+ *
+ * Constructs and executes Overpass QL queries against the public API.
+ * No caching, no application state — that is the responsibility of osm-checker.js.
  *
  * Public API:
- *   checkSignalGroup(feats, force?)  — check a co-located group in one request
- *   invalidateSignalGroup(feats)     — clear 'not-in-osm' cache entries after export
- *
- * Each signal is checked by its railway:signal:<cat>:ref tag in a single
- * Overpass union query — one clause per supported signal.
- *
- * Result shape per feat:
- *   { status: 'in-osm',      nodeId: number }
- *   { status: 'not-in-osm',  nodeId: null }
- *   { status: 'unsupported', nodeId: null }
- *   { status: 'error',       nodeId: null }
+ *   fetchNodesByRef(queries, signal?) — query OSM nodes by (refTag, networkId) pairs
  */
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const OVERPASS_TIMEOUT = 45;
-
 import { map } from './map.js';
-import { getSignalId } from './signal-mapping.js';
 
 
-// ===== Cache and in-flight state =====
+// ===== Configuration =====
 
-const _cache = new Map();   // cacheKey → result
-const _pending = new Map(); // batchKey → Promise
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_TIMEOUT = 20;   // seconds — passed directly to the Overpass server
 
-// Aborted when a new popup opens before the previous batch resolves,
-// sparing the Overpass server from stale in-flight requests.
-let _batchAbort = null;
 
-// Cache key: "<refTag>:<networkId>"
-function _cacheKey(refTag, networkId) { return `${refTag}:${networkId}`; }
+// ===== Public API =====
+
+/**
+ * Fetch OSM nodes matching an array of (refTag, networkId) pairs.
+ *
+ * @param {Array<{ refTag: string, networkId: string }>} queries
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Map<string, number|null>>}
+ *   Map keyed by "${refTag}:${networkId}":
+ *     number → OSM node ID (signal found in OSM)
+ *     null   → not found
+ */
+export async function fetchNodesByRef(queries, signal) {
+    if (queries.length === 0) return new Map();
+
+    const unique = _deduplicateQueries(queries);
+    const bbox = _viewportBbox();
+    const query = _buildBatchQuery(unique, bbox);
+    const data = await _fetchOverpass(query, signal);
+
+    return _parseResponse(data, unique);
+}
+
+/** Canonical key for a (refTag, networkId) pair. */
+export function getIdKey({ refTag, networkId }) {
+    return `${refTag}:${networkId}`;
+}
 
 
 // ===== Private helpers =====
@@ -46,7 +54,20 @@ function _viewportBbox() {
     return `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
 }
 
-/** Raw Overpass POST. Accepts an optional AbortSignal. */
+/** Deduplicate queries by their cache key. */
+function _deduplicateQueries(queries) {
+    return [...new Map(queries.map(q => [getIdKey(q), q])).values()];
+}
+
+/** Build an Overpass union query — one node clause per unique (refTag, networkId) pair. */
+function _buildBatchQuery(unique, bbox) {
+    const unions = unique.map(q =>
+        `node["${q.refTag}"="${q.networkId}"](${bbox});`
+    ).join('');
+    return `[out:json][timeout:${OVERPASS_TIMEOUT}];(${unions});out ids tags;`;
+}
+
+/** Raw Overpass POST. Throws on non-OK response. */
 async function _fetchOverpass(query, signal) {
     const r = await fetch(OVERPASS_URL, {
         method: 'POST',
@@ -59,119 +80,25 @@ async function _fetchOverpass(query, signal) {
 }
 
 /**
- * Build one descriptor per feat.
- * Feats without a known ref tag get key=null (unsupported).
+ * Parse an Overpass JSON response into a Map of key -> nodeId (or null).
+ * Every queried key is present in the result — null means "not found".
  */
-function _buildEntries(feats) {
-    return feats.map(f => {
-        const refTag = getSignalId(f.p.signalType);
-        if (!refTag || !f.p.networkId) {
-            return { key: null, refTag: null, networkId: null };
-        }
-        return { key: _cacheKey(refTag, f.p.networkId), refTag, networkId: f.p.networkId };
-    });
-}
+function _parseResponse(data, unique) {
+    const result = new Map();
 
-/**
- * Build an Overpass union query — one node clause per unique entry.
- */
-function _buildBatchQuery(unique, bbox) {
-    const unions = unique.map(e =>
-        `node["${e.refTag}"="${e.networkId}"](${bbox});`
-    ).join('');
-    return `[out:json][timeout:${OVERPASS_TIMEOUT}];(${unions});out ids tags;`;
-}
-
-/**
- * Populate _cache from an Overpass response.
- * Matched entries → 'in-osm'. Unmatched → 'not-in-osm'.
- */
-function _updateCacheFromResponse(data, unique) {
-    for (const el of (data.elements || [])) {
-        for (const e of unique) {
-            if (_cache.has(e.key)) continue;
-            if (el.tags?.[e.refTag] === e.networkId) {
-                _cache.set(e.key, { status: 'in-osm', nodeId: el.id });
+    for (const el of (data.elements ?? [])) {
+        for (const q of unique) {
+            if (el.tags?.[q.refTag] === q.networkId) {
+                result.set(getIdKey(q), el.id);
+                break;
             }
         }
     }
-    for (const e of unique) {
-        if (!_cache.has(e.key)) {
-            _cache.set(e.key, { status: 'not-in-osm', nodeId: null });
-        }
-    }
-}
 
-/**
- * Map entries to per-feat result objects once the network promise resolves.
- * @param {Array}                entries
- * @param {false|true|'aborted'} hadError
- */
-function _resolveStatuses(entries, hadError) {
-    return entries.map(e => {
-        if (!e.key) return { status: 'unsupported', nodeId: null };
-        if (hadError === 'aborted') return { status: 'checking', nodeId: null };
-        if (hadError) return { status: 'error', nodeId: null };
-        return _cache.get(e.key) ?? { status: 'not-in-osm', nodeId: null };
-    });
-}
-
-
-// ===== Public API =====
-
-/**
- * Remove 'not-in-osm' cache entries for the given features so that the next
- * popup open triggers a fresh Overpass check.
- * Call after a successful copy or JOSM export.
- */
-export function invalidateSignalGroup(feats) {
-    for (const f of feats) {
-        const refTag = getSignalId(f.p.signalType);
-        if (!refTag || !f.p.networkId) continue;
-        const key = _cacheKey(refTag, f.p.networkId);
-        if (_cache.get(key)?.status === 'not-in-osm') _cache.delete(key);
-    }
-}
-
-/**
- * Check a group of co-located signals in a single Overpass request.
- * Returns Promise<Array<{ status, nodeId }>> — one entry per feat, in order.
- * force=true clears cached results before querying.
- */
-export function checkSignalGroup(feats, force = false) {
-    _batchAbort?.abort();
-    _batchAbort = new AbortController();
-    const { signal } = _batchAbort;
-
-    const entries = _buildEntries(feats);
-    if (force) entries.forEach(e => e.key && _cache.delete(e.key));
-
-    const toFetch = entries.filter(e => e.key && !_cache.has(e.key));
-
-    if (toFetch.length === 0) {
-        return Promise.resolve(_resolveStatuses(entries, false));
+    // Ensure every queried key has an entry (null = not found).
+    for (const q of unique) {
+        if (!result.has(getIdKey(q))) result.set(getIdKey(q), null);
     }
 
-    const unique = [...new Map(toFetch.map(e => [e.key, e])).values()];
-    const bbox = _viewportBbox();
-    const batchKey = '_batch:' + unique.map(e => e.key).join('|');
-
-    if (!_pending.has(batchKey)) {
-        const query = _buildBatchQuery(unique, bbox);
-        const p = _fetchOverpass(query, signal)
-            .then(data => {
-                _updateCacheFromResponse(data, unique);
-                _pending.delete(batchKey);
-                return false;
-            })
-            .catch(err => {
-                _pending.delete(batchKey);
-                if (err.name === 'AbortError') return 'aborted';
-                console.warn('[overpass batch]', err.message);
-                return true;
-            });
-        _pending.set(batchKey, p);
-    }
-
-    return _pending.get(batchKey).then(hadError => _resolveStatuses(entries, hadError));
+    return result;
 }
