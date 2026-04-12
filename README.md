@@ -5,7 +5,7 @@
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9-199900?logo=leaflet&logoColor=white)](https://leafletjs.com/)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/ca46fbb6-49ba-4257-a4c7-77ec6ae5a894/deploy-status)](https://app.netlify.com/projects/sncf-sigmap/deploys)
 
-Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Fixed Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
+Interactive map viewer for the [SNCF Signalisation Permanente](https://data.sncf.com/) (Permanent Signaling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/).
 
 On first visit, all tiles are fetched and cached by the browser. On subsequent visits, if a last position was saved, only the tiles for that area are loaded from cache. At low zoom a spatial sample is displayed for performance; at high zoom the full detail is shown.
 
@@ -21,7 +21,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - Filters by signal type, line code, track name, direction, placement, network ID
 - Network ID filter searches all 123,870 signals; clicking a pill flies the map to that signal with a location marker
 - Active filters persist across sessions and are restored on next visit
-- `Supported types only` toggle to highlight signals already mapped in `signal-mapping.js`
+- `Supported types only` toggle to highlight signal types that have an OSM mapping (defined in `signal-types.js`)
 - **Pinned signals**: Ctrl+click any signal to bookmark it; pinned signals appear in the Filters tab and can be used to fly back to any signal
 - **Context menu**: right-click any signal for quick access to Zoom to, Pin/Unpin, and Properties
 - Alt+click any signal to zoom and center without opening the popup
@@ -76,18 +76,18 @@ sidebar.js
   ├── collapsible-panel.js
   ├── lang-picker.js      (language dropdown)
   ├── legend.js           (category buttons → filterByGroup)
-  ├── filters.js          (initFilters, loadFilterIndex)
+  ├── filters.js          (initFilters)
   ├── filter-toolbar.js   (initFilterToolbar, updateFilterToolbar)
-  └── pins.js             (initPins — after index load)
+  └── pins.js             (initPins — immediate)
 
 filters.js
   ├── cat-mapping.js     (getCategoryEntries — for _detectActiveGroup)
-  ├── map-layer.js       (isSampled, getSignalLatlng)
-  └── map.js             (flyToLocationWithMarker)
+  ├── map-layer.js       (isSampled, flyToSignal)
+  └── signal-data.js     (loadIndexData, getFilterData, searchNetworkIds)
 
 prefs.js               (single source of truth for all localStorage access)
 markup.js              (pure functions for parsing inline markdown/lists)
-translation.js         (uses getLangPref / setLangPref from prefs.js, uses markup.js)```
+translation.js         (uses getLangPref / setLangPref from prefs.js, uses markup.js)
 ```
 
 Tiles are stored as `.json.gz` files but requested by the app as `.json` URLs:
@@ -122,6 +122,30 @@ localhost:8443 {
 }
 ```
 
+
+
+### Testing with Netlify locally
+
+For closer-to-production testing without Caddy, the [Netlify CLI](https://docs.netlify.com/cli/get-started/) can replicate the redirect and header rules from `netlify.toml`:
+
+```
+# Serve locally with Netlify rules (port 8888 by default)
+npm install -g netlify-cli
+netlify login # one-time authentication
+netlify dev
+```
+
+> **Note**: `netlify dev` does not replicate the `.json.gz` tile decompression from `netlify.toml` — tiles will fail to load. Use `netlify deploy` (below) for real-condition testing.
+
+To deploy a live draft for real-condition testing without touching the production URL:
+
+```
+# Creates a draft URL (e.g. https://abc123def456--sncf-sigmap.netlify.app)
+netlify deploy
+```
+
+Push to `main` to trigger an automatic production deploy via the Netlify GitHub integration.
+
 ## First-time setup
 
 ### Generate tiles
@@ -137,9 +161,9 @@ Set the debug profile arguments (*Project → Properties → Debug → Open debu
 
 | Field | Value |
 |-------|-------|
-| Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data\tiles"` |
+| Command line arguments | `-s "C:\path\to\sncf-data" -o "C:\path\to\sncf-sigmap\data"` |
 
-Press **Ctrl+F5**. Output: `data\manifest.json`, `data\index.json`, and ~289 `.json.gz` tile files in `data\tiles\`.
+Press **Ctrl+F5**. Output: `data\manifest.json`, `data\index.json`, and ~289 `.json.gz` tile files in `data\tiles\` (created automatically).
 
 The `tools/TileBuilder/tilebuilder.config.json` file controls the input file names and the block type abbreviation table. Edit it to add new acronyms without recompiling.
 
@@ -251,7 +275,7 @@ Strings containing markup are precompiled to HTML at load time; `data-i18n` elem
 
 ## Signal type mapping
 
-`js/signal-mapping.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
+`js/signal-types.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
 
 ## Data files
 
@@ -276,7 +300,7 @@ Tile index produced by TileBuilder. Loaded once at startup by `tiles.js`.
 
 ### `data/index.json`
 
-Filter and lookup index produced by TileBuilder. Loaded once at startup by `filters.js` (which also initialises `block-system.js` from the same data).
+Filter and lookup index produced by TileBuilder. Loaded once at startup by `signal-data.js`, which initialises `block-system.js`. Called by `app.js` in parallel with `loadManifest()`; `filters.js` awaits via `loadIndexData()`.
 
 ```json
 {
@@ -312,7 +336,7 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `filt
 | `lineCode` | `filters.js`, `block-system.js` | Line code → `{ count, label }`. `count` is the signal count; `label` is the line display name from the block system dataset (`null` when absent). Populates the Line code filter and the popup *Line name* field. |
 | `blockType` | `block-system.js` | Ordered list of abbreviated block signaling type labels, indexed by position. |
 | `blockSegments` | `block-system.js` | Compact segment array: `[line_code, start_m, end_m, block_idx]`. `start_m` / `end_m` are integer meters from the line origin (e.g. `"069+350"` → `69350`). `block_idx` indexes into `blockType`. Used to resolve the *Block system* field in the popup. |
-| `networkId` | `filters.js` | Tile key → `[networkId, …]` compact spatial index. Used to locate any signal by Network ID across the full dataset. Loaded lazily after the map displays. |
+| `networkId` | `signal-data.js` | Tile key → `[networkId, …]` compact spatial index. Used by `map-layer.js` (`flyToSignal`) and the networkId filter dropdown. |
 
 ## Project structure
 
@@ -320,6 +344,7 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `filt
 sncf-sigmap/
 ├── index.html
 ├── netlify.toml                  ← Netlify configuration file (gzip headers for tiles)
+├── robots.txt
 ├── assets/
 │   ├── png/                      ← SNCF logos, favicon, basemap thumbnails
 │   └── svg/                      ← favicon, JOSM, OSM, flag icons
@@ -328,7 +353,7 @@ sncf-sigmap/
 │   ├── filters.css               ← filter panels, dropdowns, pill tags, empty states
 │   ├── map.css                   ← map container, markers, tooltips, statusbar, toolbar, basemap panel
 │   ├── markup.css                ← Markdown-rendered elements styling
-│   ├── panel.css                 ← panel,collapsible panels and subpanels layout styling
+│   ├── panel.css                 ← collapsible panels and subpanels layout styling
 │   ├── popup.css                 ← signal popup (two-tab: Signals + OSM Tags)
 │   └── sidebar.css               ← sidebar layout, tabs, settings, about
 ├── data/                         ← generated by TileBuilder, committed to GitHub
@@ -337,12 +362,12 @@ sncf-sigmap/
 │   └── tiles/
 │       └── *.json.gz
 ├── js/
-│   ├── app.js                    ← boot sequencer; knows only map, sidebar, statusbar, progress
-│   ├── block-system.js           ← line label and block signaling type lookup (called from filters.js)
+│   ├── app.js                    ← boot sequencer; loads manifest + index in parallel, wires map events
+│   ├── block-system.js           ← line label and block signaling type lookup; initialized by signal-data.js
 │   ├── cat-mapping.js            ← application signal categories and colors (no DOM)
 │   ├── collapsible-panel.js      ← cp-panel open/close state, localStorage persistence, ARIA
 │   ├── config.js                 ← static constants (DATA_BASE, TILES_BASE, zoom thresholds…)
-│   ├── config.local.js           ← JAWG_API_KEY (local only)
+│   ├── config.local.js           ← JAWG_API_KEY (local only, git-ignored)
 │   ├── config.local.example.js   ← template for API key, safe to commit
 │   ├── filter-panel.js           ← per-filter DOM panel (label, pills, combo, list)
 │   ├── filter-toolbar.js         ← "Add filter" button and dropdown menu (IoC, no state)
@@ -352,21 +377,25 @@ sncf-sigmap/
 │   ├── legend.js                 ← legend panel DOM builder and category filter shortcuts
 │   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker
 │   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, collapse
-│   ├── map-layer.js              ← signal marker pipeline (worker → render); Alt/Ctrl/right-click handling
-│   ├── markup.js                 ← Markdown-like markup parser for string compilation│   ├── overpass.js               ← Overpass API existence check (batch)
+│   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; Alt/Ctrl/right-click handling
+│   ├── markup.js                 ← Markdown-like markup parser for string compilation
+│   ├── osm-checker.js            ← OSM state machine: IN_OSM session cache, NOT_IN_OSM instance cache, auto-retry
+│   ├── overpass.js               ← pure Overpass API client (no cache, no state)
 │   ├── pins.js                   ← pinned signals management, panel, navigation
 │   ├── prefs.js                  ← single source of truth for all localStorage access
 │   ├── progress.js               ← progress overlay and flash messages
 │   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel
+│   ├── signal-data.js            ← index.json loader; exposes loadIndexData(), getFilterData(), getNetworkIdIndex(), searchNetworkIds()
 │   ├── signal-mapping.js         ← signal type → display category + OSM tag builder
-│   ├── signal-popup.js           ← signal data popup, copy tags, JOSM / OSM export
+│   ├── signal-popup.js           ← signal popup: two-tab display, OSM/JOSM export, OsmStatusChecker integration
+│   ├── signal-types.js           ← _SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags)
 │   ├── sncf-convert.js           ← SNCF raw data normalization
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters)
-│   ├── tiles.js                  ← manifest loader, tile URL calculator
-│   ├── tiles.worker.js           ← tile fetch, normalization, spatial/attribute filtering (Web Worker)
+│   ├── tiles.js                  ← manifest loader, tile URL calculator, tile fetch helpers
+│   ├── tiles-worker.js           ← tile fetch, normalization, filtering, spatial sampling (Web Worker)
+│   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
 │   ├── tooltip.js                ← hover tooltip builder
 │   ├── translation.js            ← i18n: strings loader, t(); uses prefs.js for lang persistence
-│   ├── worker-contract.js        ← worker message types and postMessage helpers
 │   └── ui/
 │       ├── combobox.js           ← search input behavior for filter dropdowns
 │       ├── context-menu.js       ← floating context menu with event delegation and keyboard navigation
@@ -378,9 +407,9 @@ sncf-sigmap/
 └── tools/
     └── TileBuilder/              ← C# tile generator
         ├── AcronymEntry.cs
-        ├── BuildConfig.cs
         ├── BlockProcessor.cs
         ├── BlockResult.cs
+        ├── BuildConfig.cs
         ├── CliOptions.cs
         ├── ConfigLoader.cs
         ├── Constants.cs

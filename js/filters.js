@@ -20,19 +20,18 @@
  *   setSearch(value) to keep the visible input in sync.
  */
 
-import { MIN_SEARCH_THRESHOLD, INDEX_FILE } from './config.js';
+import { MIN_SEARCH_THRESHOLD } from './config.js';
 import { getCategoryEntries } from './cat-mapping.js';
-import { fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
-import { flyToLocationWithMarker } from './map.js';
-import { isSampled, getSignalLatlng } from './map-layer.js';
-import { initBlockSystem } from './block-system.js';
+import { isSampled } from './map-layer.js';
+import { loadIndexData, getFilterData, searchNetworkIds } from './signal-data.js';
+import { flyToSignal } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
-const _ALL_FILTER_FIELDS = [
+const ALL_FILTER_FIELDS = [
     {
         key: 'signalType', labelKey: 'fields.signalType'
     },
@@ -62,8 +61,6 @@ const _ALL_FILTER_FIELDS = [
 const _activeFilters = {};
 
 let _indexValues = {};
-let _networkIdToTile = new Map();  // networkId → tileKey — inverted at load time
-
 let _counts = {};
 let _globalCounts = {};     // per-value counts from index.json (full dataset, always accurate)
 let _knownValues = {};      // accumulated across tile loads; never reset by resetCounts()
@@ -82,7 +79,7 @@ const _tpl = {
 
 };
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 export function initFilters(onChange) {
     _onChange = onChange;
@@ -90,63 +87,31 @@ export function initFilters(onChange) {
     _initFieldState();
     _clearActiveFilters();
     _buildPanels();
+    _restoreFilters();
+    _waitForIndexAndRefresh();
 
     onLangChange(() => {
         _buildPanels();
         _refreshAllTags();
     });
-
-    _restoreFilters();
 }
 
-/**
- * Fetch and parse the filter index from index.json.
- * Populates _indexValues and _globalCounts for all indexed fields.
- * Also builds the networkId → tileKey map for the globalSearch filter,
- * and initialises the block system from the same index data.
- * @returns {Promise<object|null>}  Raw index data, or null on failure.
- */
-/** Single in-flight promise — prevents duplicate fetches if called more than once. */
-let _indexPromise = null;
-
-export function loadFilterIndex() {
-    if (_indexPromise) return _indexPromise;
-    _indexPromise = _doLoadFilterIndex();
-    return _indexPromise;
-}
-
-async function _doLoadFilterIndex() {
-    try {
-        const res = await fetch(INDEX_FILE);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        initBlockSystem(data);
-        _parseFieldIndex(data);
-        _parseNetworkIdIndex(data);
-        _refreshAllDropdowns();
-        return data;
-    } catch (err) {
-        console.warn('[Filters] index.json:', err.message);
-        // Show the warning span already in #filters-empty-state (set via data-i18n).
-        document.getElementById('filter-index-error')?.classList.remove('is-hidden');
-        return null;
-    }
-}
 
 /**
  * Index a set of normalized signals into per-field value counts.
  * Called by map-layer.js after each worker 'done' message.
  * Triggers a refresh of all open filter dropdowns.
- * @param {Array<{p: object}>} signals  Normalized signal objects.
+ *
+ * @param {Array} signals  Flat array of normalized signal objects ({ lat, lng, p }).
  */
 export function indexSignals(signals) {
     let changed = false;
     for (const s of signals) {
-        _ALL_FILTER_FIELDS.forEach(f => {
+        ALL_FILTER_FIELDS.forEach(f => {
             const v = s.p[f.key];
             if (v) {
                 _counts[f.key].set(v, (_counts[f.key].get(v) || 0) + 1);
-                _knownValues[f.key].add(v);   // persist across viewport changes
+                _knownValues[f.key].add(v);
                 changed = true;
             }
         });
@@ -159,22 +124,10 @@ export function indexSignals(signals) {
  * Called at the start of each worker cycle before new data arrives.
  */
 export function resetCounts() {
-    _ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
+    ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
     // _knownValues is intentionally NOT cleared here — values discovered in
     // previous tile loads must remain visible in dropdowns even when a filter
     // causes the worker to exclude groups that would otherwise carry those values.
-}
-
-function _resetSearch(targetField = null) {
-    _defs.forEach(d => {
-        if (!targetField || d.field === targetField) {
-            d.search = '';
-        }
-    });
-}
-
-function _resetKnownValues() {
-    _ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
 }
 
 /**
@@ -266,58 +219,13 @@ export function hasAnyFilters() {
     return _defs.some(d => _activeFilters[d.field]?.size > 0 || d.search.length > 0);
 }
 
-/* ===== Internal helpers ===== */
-
-
-function _parseFieldIndex(data) {
-    _ALL_FILTER_FIELDS.forEach(f => {
-        const entry = data[f.key];
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
-        _indexValues[f.key] = Object.keys(entry);
-        _globalCounts[f.key] = new Map(
-            Object.entries(entry).map(([k, v]) =>
-                [k, typeof v === 'object' && v !== null ? v.count : v]
-            )
-        );
-    });
-}
-
-/**
- * Flatten the tileKey → { networkId → [lat, lng] } index from index.json
- * into a single Map for O(1) lookup by networkId.
- */
-function _parseNetworkIdIndex(data) {
-    if (!data.networkId) return;
-    // index.json: tileKey → [networkId, …]. Build a flat networkId → tileKey Map.
-    _networkIdToTile = new Map();
-    for (const [tileKey, ids] of Object.entries(data.networkId)) {
-        for (const id of ids) _networkIdToTile.set(id, tileKey);
-    }
-    console.info(`[Filters] networkId index: ${_networkIdToTile.size.toLocaleString()} entries`);
-}
-
-
-/** Initialise per-field state maps — called once from initFilters(). */
-function _initFieldState() {
-    _ALL_FILTER_FIELDS.forEach(f => {
-        _indexValues[f.key] = [];
-        _counts[f.key] = new Map();
-        _knownValues[f.key] = new Set();
-        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
-    });
-}
-
-function _clearActiveFilters() {
-    for (const key in _activeFilters) delete _activeFilters[key];
-}
-
 /**
  * Return the list of filter fields not yet in use
  * @returns {{ key: string, labelKey: string }[]}
  */
 export function getAvailableFields() {
     const used = new Set(_defs.map(d => d.field));
-    return _ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
+    return ALL_FILTER_FIELDS.filter(f => !used.has(f.key));
 }
 
 /**
@@ -338,8 +246,95 @@ export function addFilterField(key) {
     queueMicrotask(() => newDef?.panel?.focusInput());
 }
 
+/**
+ * Return the number of fields that have at least one active filter value.
+ * Used by app.js to update the status bar after any filter change.
+ * @returns {number}
+ */
+export function getActiveFilterCount() {
+    return Object.values(_activeFilters).filter(s => s.size > 0).length;
+}
+
+/**
+ * Return the currently active group preset key, or null when no preset
+ * category is active (e.g. after a manual filter change).
+ * Used by sidebar.js/legend.js to sync the legend indicator after every filter change.
+ * @returns {string|null}
+ */
+export function getActiveGroup() {
+    return _activeGroup;
+}
+
+
+// ===== Private helpers =====
+
+function _resetSearch(targetField = null) {
+    _defs.forEach(d => {
+        if (!targetField || d.field === targetField) {
+            d.search = '';
+        }
+    });
+}
+
+function _resetKnownValues() {
+    ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
+}
+
+/**
+ * Reveal the index-load error indicator in the filter panel.
+ */
+function _showIndexError() {
+    document.getElementById('filter-index-error')?.classList.remove('is-hidden');
+}
+
+/**
+ * Wait for index.json to load, then populate filter value lists and refresh
+ * dropdowns. If the index failed to load, getFilterData() returns null and
+ * the error indicator is shown. Uses the same loadIndexData() promise as
+ * app.js — the fetch is shared and only runs once.
+ */
+function _waitForIndexAndRefresh() {
+    loadIndexData().then(() => {
+        const data = getFilterData();
+        if (!data) {
+            _showIndexError();
+            return;
+        }
+        _parseFieldIndex(data);
+        _refreshAllDropdowns();
+    });
+}
+
+function _parseFieldIndex(data) {
+    ALL_FILTER_FIELDS.forEach(f => {
+        const entry = data[f.key];
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+        _indexValues[f.key] = Object.keys(entry);
+        _globalCounts[f.key] = new Map(
+            Object.entries(entry).map(([k, v]) =>
+                [k, typeof v === 'object' && v !== null ? v.count : v]
+            )
+        );
+    });
+}
+
+
+/** Initialise per-field state maps — called once from initFilters(). */
+function _initFieldState() {
+    ALL_FILTER_FIELDS.forEach(f => {
+        _indexValues[f.key] = [];
+        _counts[f.key] = new Map();
+        _knownValues[f.key] = new Set();
+        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
+    });
+}
+
+function _clearActiveFilters() {
+    for (const key in _activeFilters) delete _activeFilters[key];
+}
+
 function _fieldDef(key) {
-    return _ALL_FILTER_FIELDS.find(f => f.key === key);
+    return ALL_FILTER_FIELDS.find(f => f.key === key);
 }
 
 /**
@@ -373,7 +368,7 @@ function _confirmClear() {
     return confirm(t('filter.confirmClear'));
 }
 
-/* ===== Group preset state ===== */
+// ===== Group preset state =====
 
 /**
  * Return true when the given field key is 'signalType'.
@@ -399,7 +394,7 @@ function _clearActiveGroup() {
 }
 
 
-/* ===== Commit helper ===== */
+// ===== Commit helper =====
 
 /**
  * Persist filter state and fire the external change callback.
@@ -413,7 +408,7 @@ function _commit() {
 }
 
 
-/* ===== Panel management ===== */
+// ===== Panel management =====
 
 /**
  * Build the FilterPanel options object for one filter definition.
@@ -448,9 +443,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 }
 
 
-
-
-/* ===== Panel callback handlers ===== */
+// ===== Panel callback handlers =====
 
 /**
  * Ask for user confirmation before executing callback when the given field has
@@ -574,7 +567,7 @@ function _buildPanels() {
     });
 }
 
-/* ===== DOM update helpers ===== */
+// ===== DOM update helpers =====
 
 function _refreshTags(idx) {
     const def = _defs[idx];
@@ -614,7 +607,7 @@ function _refreshAllDropdowns() {
     _defs.forEach((_, i) => _refreshDropdown(i));
 }
 
-/** Render the networkId dropdown — searches the full _networkIdToTile index. */
+/** Render the networkId dropdown — searches the full spatial index via signal-locator.js. */
 function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
     def.panel.setInputPlaceholder(t('dropdown.searchNetworkId'));
     const activeItems = () => [...sel].map(v => ({ v, count: 0, active: true, showDot: false }));
@@ -624,7 +617,7 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
     }
 
     const threshold = fieldMeta.searchThreshold ?? MIN_SEARCH_THRESHOLD;
-    const matched = [..._networkIdToTile.keys()].filter(id => id.startsWith(q));
+    const matched = searchNetworkIds(q);
     if (matched.length > threshold) {
         def.panel.refreshList(activeItems());
         return;
@@ -716,7 +709,7 @@ function _restoreFilters() {
     const saved = loadFilters();
     if (!saved.length) return;
     for (const { field, values, mappedOnly } of saved) {
-        if (!_ALL_FILTER_FIELDS.some(f => f.key === field)) continue;
+        if (!ALL_FILTER_FIELDS.some(f => f.key === field)) continue;
         if (mappedOnly) _mappedOnly = true;
         if (!_defs.some(d => d.field === field)) _defs.push({ field, search: '' });
         for (const v of values) {
@@ -757,31 +750,9 @@ function _persistFilters() {
 }
 
 
-/**
- * Fly to a signal by Network ID and show a location marker.
- * Fast path: signal is in the current viewport — fly immediately.
- * Slow path: fetch the tile from cache, then fly with marker after moveend.
- * Exported so pins.js can reuse it without duplicating the lookup logic.
- *
- * @param {string} networkId
- */
-export async function flyToSignal(networkId) {
-    // Fast path: signal is currently rendered in the viewport.
-    const latlng = getSignalLatlng(networkId);
-    if (latlng) {
-        flyToLocationWithMarker(latlng);
-        return;
-    }
-    // Slow path: fetch tile from cache to get exact coordinates.
-    const tileKey = _networkIdToTile.get(networkId);
-    if (!tileKey) return;
-    const signals = await fetchTileByKey(tileKey);
-    const location = findSignalLocation(signals, networkId);
-    if (location) flyToLocationWithMarker(location);
-}
 
 
-/* ===== State mutations ===== */
+// ===== State mutations =====
 
 function _selectFirst(idx) {
     const firstVal = _defs[idx]?.panel?.getFirstItemVal();
@@ -820,23 +791,4 @@ function _toggle(field, val) {
         _openDropdown(idx);
     }
     _commit();
-}
-
-/**
- * Return the number of fields that have at least one active filter value.
- * Used by app.js to update the status bar after any filter change.
- * @returns {number}
- */
-export function getActiveFilterCount() {
-    return Object.values(_activeFilters).filter(s => s.size > 0).length;
-}
-
-/**
- * Return the currently active group preset key, or null when no preset
- * category is active (e.g. after a manual filter change).
- * Used by sidebar.js/legend.js to sync the legend indicator after every filter change.
- * @returns {string|null}
- */
-export function getActiveGroup() {
-    return _activeGroup;
 }

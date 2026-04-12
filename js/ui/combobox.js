@@ -52,9 +52,17 @@ export class ComboBox {
                     dropdown.focusFirst();
                     break;
                 case 'Enter':
-                case ' ':
                     e.preventDefault();
                     onEnter?.();
+                    break;
+                case ' ':
+                    // For readonly fields (direction, placement) Space opens the dropdown.
+                    // For writable inputs, Space must type normally so text searches with
+                    // spaces (e.g. track names) work correctly.
+                    if (inputEl.readOnly) {
+                        e.preventDefault();
+                        onEnter?.();
+                    }
                     break;
                 case 'Escape':
                     e.preventDefault();

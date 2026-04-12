@@ -71,7 +71,7 @@ export class FilterPanel {
     }
 
 
-    /* ===== Private initialisation ===== */
+    // ===== Private initialisation =====
 
     /**
      * Clone the filter-panel template, apply i18n, and cache element references.
@@ -202,7 +202,7 @@ export class FilterPanel {
     }
 
 
-    /* ===== Public API ===== */
+    // ===== Public API =====
 
     /**
      * Append the panel element to a container. 
@@ -254,8 +254,8 @@ export class FilterPanel {
         for (const { v, count, active, showDot } of items) {
             const item = this._tplItem.content
                 .cloneNode(true).querySelector('.fg-drop-item');
-            item.tabIndex = -1;
-            item.setAttribute('role', 'option');
+            // tabIndex, role, and the aria-selected default are in the template.
+            // Only dynamic values are written here.
             item.setAttribute('aria-selected', String(active));
             item.classList.toggle('active', active);
             item.classList.toggle('mapped', showDot);
@@ -279,9 +279,6 @@ export class FilterPanel {
     refreshTags(values) {
         this.pills.render(values, v => this._translateValue(this.field, v));
     }
-
-    showTags() { this.pills.show(); }
-    hideTags() { this.pills.hide(); }
 
 
     /* ----- Input ----- */

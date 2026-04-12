@@ -14,7 +14,7 @@
 // Application display categories — color palette.
 // Keys are referenced by the 'group' field in signal-mapping.js _SIGNAL_MAPPING.
 // Private; external modules use getColorForCategory() / getCategoryEntries().
-const _CATEGORY_INFO = {
+const CATEGORY_INFO = {
     'main':             '#e00000',
     'distant':          '#ffc010',
     'speedLimit':       '#ff8000',
@@ -39,15 +39,15 @@ const _CATEGORY_INFO = {
  * @returns {string}
  */
 export function getColorForCategory(categoryKey) {
-    return _CATEGORY_INFO[categoryKey] ?? _CATEGORY_INFO['unsupported'];
+    return CATEGORY_INFO[categoryKey] ?? CATEGORY_INFO['unsupported'];
 }
 
 /**
  * Return all category entries as [key, color] pairs.
- * Used by app.js to build the legend without direct access to _CATEGORY_INFO.
+ * Used by app.js to build the legend without direct access to CATEGORY_INFO.
  *
  * @returns {[string, string][]}
  */
 export function getCategoryEntries() {
-    return Object.entries(_CATEGORY_INFO);
+    return Object.entries(CATEGORY_INFO);
 }

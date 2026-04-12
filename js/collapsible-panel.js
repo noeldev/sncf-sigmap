@@ -16,7 +16,7 @@
  *   openPanel(panel)        — force a panel open and persist the open state.
  */
 
-const _STORAGE_KEY = 'panel-states';
+const STORAGE_KEY = 'panel-states';
 
 /** Map of panelId → boolean (true = open). */
 let _states = {};
@@ -71,11 +71,11 @@ export function openPanel(panel) {
     _setOpen(panel, true, true);
 }
 
-/* ===== Private ===== */
+// ===== Private helpers =====
 
 function _loadStates() {
     try {
-        const raw = localStorage.getItem(_STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY);
         _states = raw ? JSON.parse(raw) : {};
     } catch {
         _states = {};
@@ -84,7 +84,7 @@ function _loadStates() {
 
 function _saveStates() {
     try {
-        localStorage.setItem(_STORAGE_KEY, JSON.stringify(_states));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(_states));
     } catch { }
 }
 

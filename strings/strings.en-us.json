@@ -1,9 +1,9 @@
 {
   "page": {
-    "title": "SNCF Fixed Signaling"
+    "title": "SNCF Permanent Signaling"
   },
   "header": {
-    "subtitle1": "Fixed",
+    "subtitle1": "Permanent",
     "subtitle2": "Signaling",
     "loading": "Loading…",
     "beta": "Beta"
@@ -221,7 +221,7 @@
     }
   },
   "about": {
-    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Fixed Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Permanent Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
     "links": {
       "title": "Links"
     },

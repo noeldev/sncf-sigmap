@@ -18,14 +18,14 @@ import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
 import { t } from './translation.js';
 import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
 import { map, flyToLocation } from './map.js';
-import { triggerContextMenuOnFocusedMarker } from './map-layer.js';
+import { showSignalContextMenu } from './map-layer.js';
 
 /**
  * Wire all map toolbar buttons.
  * Must be called after initMap() so that the Leaflet map instance exists.
  */
 // Map button id → action — single source of truth for toolbar wiring.
-const _BTN_ACTIONS = {
+const BTN_ACTIONS = {
     'btn-zoom-in': () => map.zoomIn(),
     'btn-zoom-out': () => map.zoomOut(),
     'btn-reset-view': _resetView,
@@ -42,7 +42,7 @@ export function initMapControls() {
     // Single delegated click on #map-controls handles every toolbar button.
     document.getElementById('map-controls')?.addEventListener('click', e => {
         const btn = e.target.closest('button[id]');
-        if (btn) _BTN_ACTIONS[btn.id]?.();
+        if (btn) BTN_ACTIONS[btn.id]?.();
     });
 
     // Close basemap panel when clicking outside it.
@@ -56,7 +56,7 @@ export function initMapControls() {
     );
 }
 
-/* ===== Private helpers ===== */
+// ===== Private helpers =====
 
 function _toggleSidebar() {
     document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
@@ -246,7 +246,7 @@ export function initKeyboardShortcuts() {
                 // even when keydown is prevented. Swallow it once so only our menu appears.
                 window.addEventListener('contextmenu', evt => evt.preventDefault(),
                     { once: true, capture: true });
-                triggerContextMenuOnFocusedMarker();
+                showSignalContextMenu();
                 return;
             }
         }

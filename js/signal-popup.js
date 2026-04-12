@@ -18,22 +18,22 @@
  */
 
 import { map } from './map.js';
-import { getTypeColor, getOsmNodes, isSupported } from './signal-mapping.js';
+import { getTypeColor, getOsmNodes } from './signal-mapping.js';
 import { t, translateElement, onLangChange } from './translation.js';
-import { checkSignalGroup, invalidateSignalGroup } from './overpass.js';
+import { OsmStatusChecker } from './osm-checker.js';
 import { josmAddNode } from './josm.js';
 import { getLineLabel, getBlockType } from './block-system.js';
 import { getSkipJosmConfirm, getAutoTagsTab } from './prefs.js';
 import { isPinned, togglePin } from './pins.js';
 
 
-/* ===== Template accessor ===== */
+// ===== Template accessor =====
 
 const _tplPopup = () => document.getElementById('tpl-signal-popup');
 const _tplTagRow = () => document.getElementById('tpl-osm-tag-row');
 
 
-/* ===== Contrast helper ===== */
+// ===== Contrast helper =====
 
 function _contrastColor(hex) {
     if (!hex) return '#fff';
@@ -46,6 +46,7 @@ function _contrastColor(hex) {
 
 
 // ===== Tab identifiers =====
+
 const TAB_SIGNALS = 'signals';
 const TAB_TAGS = 'tags';
 
@@ -62,13 +63,14 @@ export function resolveStartTab(flipped) {
 }
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 let _popup = null;     // Leaflet popup instance
 let _popupEl = null;   // live .pu-wrap DOM node
 let _feats = null;
 let _latlng = null;
-let _statuses = null;
+let _osmChecker = null;
+let _preFocusEl = null;   // element that had focus before the popup opened
 let _currentIdx = 0;      // index of the signal shown in the Signals tab
 let _nodes = null;
 let _featToNodeIdx = null;
@@ -77,7 +79,7 @@ let _tagsNodeIdx = 0;      // node index shown in the OSM Tags tab
 let _activeTab = TAB_SIGNALS;
 
 
-/* ===== Language change handling ===== */
+// ===== Language change handling =====
 
 // Re-translate all dynamic popup content when the language changes.
 // Both panels must be refreshed: Signals for direction/placement values,
@@ -90,7 +92,7 @@ onLangChange(() => {
 });
 
 
-/* ===== Public entry point ===== */
+// ===== Public API =====
 
 /**
  * Open the unified popup for a co-located signal group.
@@ -100,6 +102,8 @@ onLangChange(() => {
  * @param {string}          [startTab]  tab to open first — use resolveStartTab()
  */
 export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) {
+    // Save focus origin so it can be restored when the popup closes.
+    _preFocusEl = document.activeElement;
     _initState(latlng, feats, idx, startTab);
     _openPopup();
     _scheduleOsmCheck();
@@ -110,21 +114,24 @@ export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) 
  * Safe to call when no popup is open.
  */
 export function closeSignalPopup() {
-    if (_popup) {
-        _popup.remove();
-        _popup = null;
-        _popupEl = null;
-    }
+    _osmChecker?.abort();
+    _osmChecker = null;
+    _popup?.remove();
+    _popup = null;
+    _popupEl = null;
+    // Restore focus to the marker (or whatever had focus) before the popup opened.
+    _preFocusEl?.focus();
+    _preFocusEl = null;
 }
 
 
-/* ===== Initialisation ===== */
+// ===== Initialisation =====
 
 /**
  * Reset module state for a new popup.
- * Pre-sets _statuses so the Signals panel has the correct initial OSM state:
- *   supported   → 'checking'    (Overpass will update)
- *   unsupported → 'unsupported' (locate button shown immediately)
+ * OsmStatusChecker initialises statuses from the session cache:
+ *   supported   → CHECKING    (Overpass will update)
+ *   unsupported → UNSUPPORTED (OSM indicators hidden)
  */
 function _initState(latlng, feats, idx, startTab) {
     if (_popup) { _popup.remove(); _popup = null; }
@@ -135,11 +142,7 @@ function _initState(latlng, feats, idx, startTab) {
     _tagsNodeIdx = 0;
     _currentNodeIdx = -1;
 
-    _statuses = feats.map(f =>
-        isSupported(f.p.signalType)
-            ? { status: 'checking', nodeId: null }
-            : { status: 'unsupported', nodeId: null }
-    );
+    _osmChecker = new OsmStatusChecker(feats, _onOsmStatusChange);
 
     _computeNodes();
 }
@@ -180,22 +183,26 @@ function _openPopup() {
 }
 
 
-/* ===== OSM check ===== */
+// ===== OSM check =====
+
+/**
+ * Called by OsmStatusChecker when Overpass results arrive.
+ * Reads current status from the checker and refreshes the OSM status row.
+ */
+function _onOsmStatusChange() {
+    if (!_popup?.isOpen() || !_popupEl) return;
+    const idRow = _idRow();
+    if (!idRow) return;
+    _resetOsmStatus(idRow);
+    _applyOsmStatus(idRow, _currentIdx, _feats[_currentIdx]);
+}
 
 /**
  * Fire the Overpass check for any feat still in 'checking' state.
  * Updates the OSM status elements in-place when the result arrives.
  */
-function _scheduleOsmCheck(force = false) {
-    if (!_statuses.some(s => s.status === 'checking')) return;
-    checkSignalGroup(_feats, force).then(results => {
-        _statuses = results;
-        if (!_popup?.isOpen() || !_popupEl) return;
-        const idRow = _idRow();
-        if (!idRow) return;
-        _resetOsmStatus(idRow);
-        _applyOsmStatus(idRow, _statuses[_currentIdx], _feats[_currentIdx]);
-    });
+function _scheduleOsmCheck() {
+    _osmChecker?.check();
 }
 
 /** Shorthand — the networkId row element. */
@@ -214,29 +221,35 @@ function _resetOsmStatus(idRow) {
     idRow.querySelector('.osm-retry')?.classList.add('is-hidden');
 }
 
-function _applyOsmStatus(idRow, { status, nodeId }, feat) {
-    if (status === 'checking') return;   // keep default 'checking' visible
+function _applyOsmStatus(idRow, idx, feat) {
+    if (_osmChecker.isUnsupported(idx)) {
+        // No OSM mapping for this signal type — hide all OSM indicators.
+        idRow.querySelector('.osm-checking').classList.add('is-hidden');
+        return;
+    }
+    if (_osmChecker.isChecking(idx)) return;   // keep default 'checking' spinner visible
 
     idRow.querySelector('.osm-checking').classList.add('is-hidden');
 
-    if (status === 'in-osm') {
+    if (_osmChecker.isInOsm(idx)) {
+        const nodeId = _osmChecker.nodeIdAt(idx);
         const link = idRow.querySelector('.osm-in-osm');
         link.classList.remove('is-hidden');
         link.href = `https://www.openstreetmap.org/node/${nodeId}`;
         const lbl = t('osm.inOsm', nodeId);
         link.title = lbl;
         link.setAttribute('aria-label', lbl);
-    } else if (status === 'not-in-osm' || status === 'unsupported') {
+    } else if (_osmChecker.isNotInOsm(idx)) {
         const link = idRow.querySelector('.osm-locate');
         link.classList.remove('is-hidden');
         link.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
-    } else if (status === 'error') {
+    } else if (_osmChecker.isError(idx)) {
         idRow.querySelector('.osm-retry').classList.remove('is-hidden');
     }
 }
 
 
-/* ===== In-place DOM updates ===== */
+// ===== In-place DOM updates =====
 
 // Fields resolved directly from p — block system fields are resolved separately below.
 // Field rows are read from the DOM template via [data-field] — no hardcoded list needed.
@@ -351,7 +364,7 @@ function _updateNetworkIdRow(s) {
     const idRow = _idRow();
     idRow.querySelector('.pu-val').textContent = s.p.networkId ?? '';
     _resetOsmStatus(idRow);
-    _applyOsmStatus(idRow, _statuses[_currentIdx], s);
+    _applyOsmStatus(idRow, _currentIdx, s);
 }
 
 /** Write the lat/lng coordinate pair to the coords row. */
@@ -412,7 +425,7 @@ function _updateTagsPanel() {
 }
 
 
-/* ===== Tab management ===== */
+// ===== Tab management =====
 
 function _switchTab(tab) {
     _activeTab = tab;
@@ -433,7 +446,7 @@ function _switchTab(tab) {
 }
 
 
-/* ===== Click handler ===== */
+// ===== Click handler =====
 
 /** Step the current signal index by delta (-1 or +1), wrapping around. */
 function _navigateSignal(delta) {
@@ -509,21 +522,17 @@ function _onClick(e) {
             break;
 
         case 'osm-retry':
-            _statuses = _statuses.map(s =>
-                s.status === 'error' ? { status: 'checking', nodeId: null } : s
-            );
-            _resetOsmStatus(_idRow());
-            _scheduleOsmCheck(true);
+            _osmChecker?.retry();
             break;
     }
 }
 
 
-/* ===== Actions ===== */
+// ===== Actions =====
 
 function _copyTags(node, btn) {
     if (!node?.tags?.size) return;
-    invalidateSignalGroup(_feats);
+    _osmChecker?.invalidate();
     const text = [...node.tags.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
     navigator.clipboard.writeText(text)
         .then(() => _flash(btn))
@@ -533,7 +542,7 @@ function _copyTags(node, btn) {
 async function _sendToJOSM(node, btn) {
     if (!node?.tags?.size) return;
 
-    if (!getSkipJosmConfirm() && _statuses?.some(s => s.status === 'in-osm')) {
+    if (!getSkipJosmConfirm() && _osmChecker?.hasAnyInOsm()) {
         const msg = _feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
         if (!confirm(msg)) return;
     }
@@ -543,7 +552,7 @@ async function _sendToJOSM(node, btn) {
 
     try {
         await josmAddNode([lat, _latlng[1]], node.tags);
-        invalidateSignalGroup(_feats);
+        _osmChecker?.invalidate();
         _flash(btn);
     } catch (err) {
         console.warn('[JOSM]', err.message);
@@ -558,7 +567,7 @@ function _flash(btn) {
 }
 
 
-/* ===== Accessibility ===== */
+// ===== Accessibility =====
 
 function _trapFocus(popupEl) {
     if (!popupEl) return;

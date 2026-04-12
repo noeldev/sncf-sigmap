@@ -21,7 +21,7 @@
  *  - Application state      (→ caller)
  */
 
-/* ===== Global shared registry ===== */
+// ===== Global shared registry =====
 
 /** All live Dropdown instances, used by the shared outside-click listener. */
 const _registry = [];
@@ -46,7 +46,7 @@ document.addEventListener('mousedown', e => {
     }
 }, /* capture= */ true);
 
-/* ===== Module-level helpers ===== */
+// ===== Module-level helpers =====
 
 /**
  * Close every currently-open Dropdown instance.
@@ -57,7 +57,7 @@ export function closeAll() {
     for (const dd of _registry) dd.close();
 }
 
-/* ===== Dropdown class ===== */
+// ===== Dropdown class =====
 
 export class Dropdown {
     /**
@@ -166,15 +166,6 @@ export class Dropdown {
         const len = this._input.value.length;
         this._input.setSelectionRange(len, len);
         queueMicrotask(() => { this._programmaticFocus = false; });
-    }
-
-    /**
-     * Update aria-selected on all items.
-     * @param {Set<string>} selectedVals
-     */
-    updateSelection(selectedVals) {
-        for (const item of this._list.querySelectorAll(this._itemSel))
-            item.setAttribute('aria-selected', String(selectedVals.has(item.dataset.val)));
     }
 
     /**

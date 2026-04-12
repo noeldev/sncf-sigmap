@@ -1,5 +1,5 @@
 /**
- * worker-contract.js — Shared message contract for tiles.worker.js.
+ * tiles-worker-contract.js — Shared message contract for tiles.worker.js.
  *
  * Centralises the worker identity token and message helpers so that both
  * the worker and the main thread always agree on the message shape.

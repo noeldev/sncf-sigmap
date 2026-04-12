@@ -28,20 +28,20 @@ import { initCollapsiblePanels, openPanel } from './collapsible-panel.js';
 import { initLangPicker } from './lang-picker.js';
 import { initLegend, updateLegendIndicator } from './legend.js';
 import {
-    initFilters, resetFilters, loadFilterIndex,
+    initFilters, resetFilters,
     hasAnyFilters, getActiveFilterCount
 } from './filters.js';
 import { initFilterToolbar, updateFilterToolbar } from './filter-toolbar.js';
 import { initPins } from './pins.js';
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 /** Map-level refresh callback provided by app.js at init time. */
 let _onRefresh = null;
 
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Initialize all sidebar UI components.
@@ -63,30 +63,22 @@ export function initSidebar({ onRefresh }) {
     _initBehaviorToggles();
     _initFilters();
     _initResetButton();
-    _initFilterIndex();
+    _initPins();
 }
 
 
-/* ===== Filter index loading ===== */
+// ===== Pinned signals panel =====
 
 /**
- * Start the filter index fetch asynchronously — non-blocking.
- * Called from initSidebar; fires _onFilterIndexLoaded when complete.
+ * Initialise the pinned signals panel immediately so saved pins are visible
+ * before the filter index loads. flyToSignal handles missing index gracefully.
  */
-function _initFilterIndex() {
-    loadFilterIndex().then(_onFilterIndexLoaded).catch(console.error);
-}
-
-/**
- * Called when the filter index has finished loading.
- * Initialises the pinned signals panel (requires networkIdToTile to be populated).
- */
-function _onFilterIndexLoaded() {
+function _initPins() {
     initPins({ container: document.getElementById('pinned-container') });
 }
 
 
-/* ===== Filters ===== */
+// ===== Filters =====
 
 function _initFilters() {
     initFilters(_onFiltersChange);
@@ -127,10 +119,10 @@ function _onResetFilters() {
 }
 
 
-/* ===== Behavior toggles ===== */
+// ===== Behavior toggles =====
 
 // Checkbox id → [getter, setter] — single source of truth for behavior toggle wiring.
-const _TOGGLE_PREFS = {
+const TOGGLE_PREFS = {
     'chk-auto-tags-tab': [getAutoTagsTab, setAutoTagsTab],
     'chk-skip-josm-confirm': [getSkipJosmConfirm, setSkipJosmConfirm],
     'chk-remember-position': [getRememberPosition, setRememberPosition],
@@ -138,19 +130,19 @@ const _TOGGLE_PREFS = {
 
 function _initBehaviorToggles() {
     // Initialize checked states.
-    for (const [id, [getter]] of Object.entries(_TOGGLE_PREFS)) {
+    for (const [id, [getter]] of Object.entries(TOGGLE_PREFS)) {
         const el = document.getElementById(id);
         if (el) el.checked = getter();
     }
     // Single delegated change listener on the behavior panel body.
     document.getElementById('settings-behavior-panel-body')?.addEventListener('change', e => {
-        const pair = _TOGGLE_PREFS[e.target.id];
+        const pair = TOGGLE_PREFS[e.target.id];
         if (pair) pair[1](e.target.checked);
     });
 }
 
 
-/* ===== Tabs ===== */
+// ===== Tabs =====
 
 /**
  * Activate a tab panel by its element ID (e.g. 'tab-settings').
@@ -213,7 +205,7 @@ function _initTabLinks() {
 }
 
 
-/* ===== JOSM detection panel ===== */
+// ===== JOSM detection panel =====
 
 async function _refreshJosmStatus() {
     const body = document.getElementById('josm-detect-body');

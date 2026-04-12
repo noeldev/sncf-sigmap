@@ -12,11 +12,11 @@
 
 import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
-import { flyToSignal } from './filters.js';
+import { flyToSignal } from './map-layer.js';
 import { PillList } from './ui/pill-list.js';
 
 
-/* ===== Module state ===== */
+// ===== Module state =====
 
 /** Ordered array of pinned Network IDs — insertion order preserved. */
 let _pins = [];
@@ -34,7 +34,7 @@ let _clearBtn = null;
 let _onPinsChange = null;
 
 
-/* ===== Public API ===== */
+// ===== Public API =====
 
 /**
  * Initialize the pinned signals panel in the sidebar.
@@ -90,7 +90,7 @@ export function togglePin(networkId) {
 }
 
 
-/* ===== Panel build / render ===== */
+// ===== Panel build / render =====
 
 function _buildPanel(container) {
     const tpl = document.getElementById('tpl-pinned-section');

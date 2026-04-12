@@ -1,4 +1,4 @@
-/* ===== filters.css — Filter panels and all child components =====
+/* filters.css — Filter panels and all child components =====
  *
  * Covers: FilterPanel (.filter-panel), combo input, dropdown list items,
  * pills (.fg-tag), "Supported only" toggle, "Add filter" menu,
@@ -11,7 +11,8 @@
 /* ===== Filter index error warning =====
  *
  * Shown inside the Filters tab when index.json fails to load.
- * Placed above the empty-state, translated via data-i18n. */
+ * Placed above the empty-state, translated via data-i18n.
+ */
 
 .filter-index-error {
     display: block;
@@ -431,7 +432,7 @@
     margin-bottom: 4px;
 }
 
-/* Empty state inside the pinned section — slightly tighter top padding */
+/* Empty state inside the pinned section */
 .pinned-section .empty-state {
     padding-top: 6px;
     padding-bottom: 0;

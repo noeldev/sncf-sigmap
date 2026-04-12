@@ -83,7 +83,7 @@ export function initLangPicker() {
 }
 
 
-/* ===== Private ===== */
+// ===== Private helpers =====
 
 /**
  * Sync the language button flag + label with the current language,
