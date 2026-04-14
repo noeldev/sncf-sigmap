@@ -44,12 +44,19 @@ export class PillList {
      * @param {string[]}            values
      * @param {function(string): string} [labelFn]  Maps value → display text.
      */
-    render(values, labelFn = v => v) {
+    render(values, labelFn = v => v, tooltipFn = null) {
         this._el.replaceChildren();
         for (const v of values) {
             const tag = this._tpl.content.cloneNode(true).querySelector('.fg-tag');
             tag.dataset.val = v;
             tag.querySelector('.fg-tag-label').textContent = labelFn(v);
+
+            // When provided, set a native title tooltip on the pill root element.
+            // Used by labelSearch fields (lineCode) to show the full line name on hover.
+            if (tooltipFn) {
+                const tip = tooltipFn(v);
+                if (tip) tag.setAttribute('title', tip);
+            }
 
             if (this._onLabelClick) {
                 tag.classList.add('fg-tag--clickable');

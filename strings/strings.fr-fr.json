@@ -33,7 +33,7 @@
     "signalType": "Type IF",
     "lineCode": "Code ligne",
     "lineName": "Libellé ligne",
-    "blockType": "Mode canton",
+    "blockType": "Mode cantonnement",
     "trackCode": "Code voie",
     "trackName": "Nom voie",
     "direction": "Sens",

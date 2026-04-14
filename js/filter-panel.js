@@ -17,8 +17,8 @@
  *
  * Public API:
  *   panel.appendTo(container)
- *   panel.refreshTags(activeVals)
- *   panel.refreshList(items)        // [{v, count, active, showDot}]
+ *   panel.refreshTags(activeVals, tooltipFn?)   // tooltipFn(val) → string|null
+ *   panel.refreshList(items)  // [{v, count, active, showDot, subtitle?}]
  *   panel.setInputPlaceholder(text)
  *   panel.openDropdown() / panel.closeDropdown() / panel.isOpen()
  *   panel.focusInput() / panel.focusItem(val)
@@ -76,7 +76,7 @@ export class FilterPanel {
     /**
      * Clone the filter-panel template, apply i18n, and cache element references.
      * Also applies field-specific DOM mutations (signalType toggle, minSearch,
-     * readOnly, numericOnly).
+     * readOnly, numericOnly, labelSearch).
      */
     _buildDOM({ tplGroup, fieldKey, fieldMeta, label, isConfirmed, searchValue, mappedOnly }) {
         const panel = tplGroup.content.cloneNode(true).querySelector('.filter-panel');
@@ -135,6 +135,12 @@ export class FilterPanel {
         if (fieldMeta?.numericOnly) {
             this._el.input.inputMode = 'numeric';
             this._el.input.pattern = '[0-9]*';
+        }
+
+        // labelSearch — disable text-transform:uppercase so line label text is
+        // displayed in its natural mixed case while the user types.
+        if (fieldMeta?.labelSearch) {
+            this._el.input.classList.add('fg-search--mixed');
         }
     }
 
@@ -229,10 +235,15 @@ export class FilterPanel {
      * Rebuild the dropdown item list.
      * Renders the no-match placeholder when items is empty.
      *
+     * Item shape: { v, count, active, showDot, subtitle? }
+     *   subtitle  — optional secondary text shown in a smaller, dimmer span inside
+     *               the item. When present, a native title tooltip is also set with
+     *               the full "code — label" string.
+     *
      * Focus restoration: if an item had keyboard focus before the rebuild,
      * queueMicrotask refocuses it after replaceChildren() moves focus to <body>.
      *
-     * @param {Array<{v: string, count: number, active: boolean, showDot: boolean}>} items
+     * @param {Array<{v: string, count: number, active: boolean, showDot: boolean, subtitle?: string|null}>} items
      */
     refreshList(items) {
         const list = this._el.list;
@@ -251,7 +262,7 @@ export class FilterPanel {
             return;
         }
 
-        for (const { v, count, active, showDot } of items) {
+        for (const { v, count, active, showDot, subtitle } of items) {
             const item = this._tplItem.content
                 .cloneNode(true).querySelector('.fg-drop-item');
             // tabIndex, role, and the aria-selected default are in the template.
@@ -262,7 +273,25 @@ export class FilterPanel {
             item.dataset.field = this.field;
             item.dataset.val = v;
             item.querySelector('.fgi-check').classList.toggle('checked', active);
-            item.querySelector('.fgi-name').textContent = this._translateValue(this.field, v);
+
+            const nameEl = item.querySelector('.fgi-name');
+            if (subtitle) {
+                // Rich layout: fixed code + truncated label subtitle.
+                // A native title provides the full "code — label" on hover for
+                // cases where the label is cut by ellipsis.
+                nameEl.classList.add('fgi-name--rich');
+                const codeSpan = document.createElement('span');
+                codeSpan.className = 'fgi-code';
+                codeSpan.textContent = this._translateValue(this.field, v);
+                const subSpan = document.createElement('span');
+                subSpan.className = 'fgi-subtitle';
+                subSpan.textContent = subtitle;
+                nameEl.append(codeSpan, subSpan);
+                item.title = `${v} \u2014 ${subtitle}`;
+            } else {
+                nameEl.textContent = this._translateValue(this.field, v);
+            }
+
             item.querySelector('.fgi-count').textContent = count > 0 ? count.toLocaleString() : '';
             list.appendChild(item);
         }
@@ -275,9 +304,19 @@ export class FilterPanel {
 
     /* ----- Pills ----- */
 
-    /** Rebuild the pill list, displaying translated labels for coded values. */
-    refreshTags(values) {
-        this.pills.render(values, v => this._translateValue(this.field, v));
+    /**
+     * Rebuild the pill list, displaying translated labels for coded values.
+     * @param {string[]}      values
+     * @param {Function|null} [tooltipFn]  Optional: tooltipFn(val) → string|null.
+     *                                     When provided, sets a native title attribute
+     *                                     on each pill for hover information.
+     */
+    refreshTags(values, tooltipFn = null) {
+        this.pills.render(
+            values,
+            v => this._translateValue(this.field, v),
+            tooltipFn,
+        );
     }
 
 

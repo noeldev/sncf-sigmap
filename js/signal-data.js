@@ -23,6 +23,11 @@ import { INDEX_FILE } from './config.js';
 import { initBlockSystem } from './block-system.js';
 
 
+// ===== Precompiled regular expressions =====
+
+const RE_DIACRITIC = /\p{Diacritic}/gu;
+const RE_NUMERIC = /^\d+$/;
+
 // ===== Module state =====
 
 /** @type {object|null}  Cached parsed index.json. */
@@ -109,8 +114,96 @@ export function searchNetworkIds(prefix) {
     return matches;
 }
 
+/**
+ * Return the full label for the given line code, or null when unknown.
+ * Used by filters.js to populate pill tooltips after index.json has loaded.
+ *
+ * @param {string} lineCode  e.g. "395000"
+ * @returns {string|null}    e.g. "Ligne de St-Cyr à Surdon", or null
+ */
+//export function getLineLabel(lineCode) {
+//    if (!_indexData?.lineCode) return null;
+//    const entry = _indexData.lineCode[lineCode];
+//    return entry?.label || null;
+//}
+export function getLineLabel(lineCode) {
+    if (!_indexData?.lineCode) return null;
+    return _indexData.lineCode[lineCode]?.label ?? null;
+}
+
+/**
+ * Search line codes by code fragment or label fragment.
+ * Matching is accent-insensitive and case-insensitive (NFD + uppercase).
+ * Uses String.includes() so partial matches anywhere in the string are found.
+ *
+ * Returns the full list when query is empty or null — the dropdown therefore
+ * always shows something rather than an empty state before the user types.
+ *
+ * @param {string|null} query  Raw search string; may contain accents and any case.
+ * @returns {{ code: string, label: string, count: number }[]}
+ */
+/**
+ * Search line codes by code fragment or label fragment.
+ * Matching is accent-insensitive and case-insensitive.
+ *
+ * @param {string} query - Raw search string (may be empty).
+ * @returns {Array<{code: string, label: string | null, count: number}>}
+ */
+export function searchLineCodes(query) {
+    if (!_indexData?.lineCode) return [];
+
+    const entries = Object.entries(_indexData.lineCode);
+
+    const formatResult = (code, info) => ({
+        code,
+        label: info?.label ?? null,
+        count: info?.count ?? (typeof info === 'number' ? info : 0)
+    });
+
+    // Empty query (returns all entries)
+    if (!query) {
+        return entries.map(([code, info]) => formatResult(code, info));
+    }
+
+    const nq = _normalizeForSearch(query);
+    const isNumericQuery = RE_NUMERIC.test(query); // Digits only
+    const results = [];
+
+    // Active search
+    for (const [code, info] of entries) {
+        if (isNumericQuery) {
+            // Numeric search: match query on code only
+            if (code.startsWith(query)) {
+                results.push(formatResult(code, info));
+            }
+        } else {
+            // Textual search: match query on label only
+            const label = info?.label;
+            if (label && _normalizeForSearch(label).includes(nq)) {
+                results.push(formatResult(code, info));
+            }
+        }
+    }
+
+    return results;
+}
 
 // ===== Private helpers =====
+
+/**
+ * Normalize a string for accent-insensitive, case-insensitive comparison.
+ * Uses Unicode NFD decomposition so that e.g. "é" → "e" + combining accent,
+ * then strips all combining marks via the Unicode Diacritic property.
+ *
+ * Kept private — callers pass raw strings and receive normalized results.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+
+function _normalizeForSearch(str) {
+    return str.toUpperCase().normalize('NFD').replace(RE_DIACRITIC, '');
+}
 
 async function _doLoad() {
     try {
