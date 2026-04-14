@@ -45,17 +45,6 @@ export const SIGNAL_MAPPING = {
             states: "FR:C;FR:VL;FR:RR"
         }
     },
-    "CV": {
-        group: "main",
-        cat: "main",
-        type: "FR:CV",
-        properties: {
-            form: "light",
-            plate: "FR:NF",
-            shape: "FR:C",
-            states: "FR:CV;FR:M"
-        }
-    },
     "S": {
         group: "main",
         cat: "main",
@@ -81,6 +70,19 @@ export const SIGNAL_MAPPING = {
         type: "FR:TLC",
         properties: {
             form: "light"
+        }
+    },
+
+    // Minor signals
+    "CV": {
+        group: "shunting",
+        cat: "minor",
+        type: "FR:CV",
+        properties: {
+            form: "light",
+            plate: "FR:NF",
+            shape: "FR:C",
+            states: "FR:CV;FR:M"
         }
     },
 
