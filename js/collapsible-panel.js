@@ -144,7 +144,7 @@ function _bindEvents() {
 
     sidebar.addEventListener('click', e => {
         // Action buttons inside a summary (e.g. clear-pins, fg-clear, fg-remove) must not toggle.
-        if (e.target.closest('.summary-action-btn, .fg-actions')) return;
+        if (e.target.closest('.summary-action-btn, .fg-actions, .fg-combo-action')) return;
         const summary = e.target.closest('.panel-summary[aria-controls]');
         if (!summary) return;
         const panel = summary.closest('.cp-panel');
@@ -153,7 +153,7 @@ function _bindEvents() {
 
     sidebar.addEventListener('keydown', e => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        if (e.target.closest('.summary-action-btn, .fg-actions')) return;
+        if (e.target.closest('.summary-action-btn, .fg-actions, .fg-combo-action')) return;
         e.preventDefault();
         const panel = e.target.closest('.cp-panel');
         if (panel) _toggle(panel);

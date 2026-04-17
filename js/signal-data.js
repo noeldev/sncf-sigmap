@@ -132,6 +132,18 @@ export function getLineLabel(lineCode) {
 }
 
 /**
+ * Return the precomputed bounding box for the given line code, or null.
+ * Bbox format: [minLng, minLat, maxLng, maxLat]  (GeoJSON / OGC convention).
+ *
+ * @param {string} lineCode
+ * @returns {[number,number,number,number]|null}
+ */
+export function getLineBbox(lineCode) {
+    if (!_indexData?.lineCode) return null;
+    return _indexData.lineCode[lineCode]?.bbox ?? null;
+}
+
+/**
  * Search line codes by code fragment or label fragment.
  * Matching is accent-insensitive and case-insensitive (NFD + uppercase).
  * Uses String.includes() so partial matches anywhere in the string are found.

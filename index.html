@@ -289,7 +289,9 @@
                                             <dt><kbd data-i18n="help.control.mouse.rightClick"></kbd></dt>
                                             <dd data-i18n="help.control.mouse.rightClickDesc"></dd>
                                             <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n="help.control.mouse.filterClickDesc"></dd>
+                                            <dd data-i18n-html="help.control.mouse.filterClickLineDesc"></dd>
+                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
+                                            <dd data-i18n-html="help.control.mouse.filterClickSignalDesc"></dd>
                                             <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd>×</kbd></dt>
                                             <dd data-i18n="help.control.mouse.filterShiftDesc"></dd>
                                         </dl>
@@ -755,12 +757,22 @@
                 <div class="fg-tags"></div>
                 <div class="fg-combo">
                     <div class="fg-combo-input dd-trigger">
-                        <input class="fg-search" type="text" autocomplete="off" spellcheck="false">
-                        <span class="fg-combo-arrow dd-chevron">
-                            <svg width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                        </span>
+                        <input class="fg-search" type="text" autocomplete="off" spellcheck="false"
+                               role="combobox" aria-haspopup="listbox" aria-autocomplete="list">
+                        <button class="fg-combo-clear fg-combo-action is-hidden" type="button"
+                                data-i18n-title="dropdown.clear" data-i18n-aria="dropdown.clear">
+                            <svg class="icon" width="10" height="10" aria-hidden="true">
+                                <use href="#icon-close"></use>
+                            </svg>
+                        </button>
+                        <button class="fg-combo-arrow fg-combo-action" type="button"
+                                data-i18n-title="dropdown.openList" data-i18n-aria="dropdown.openList">
+                            <svg class="icon" width="10" height="10" aria-hidden="true">
+                                <use href="#icon-chevron"></use>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="fg-dropdown dd-panel is-hidden">
+                    <div class="fg-dropdown dd-panel is-hidden" role="listbox">
                         <div class="fg-dropdown-inner"></div>
                     </div>
                 </div>
@@ -790,6 +802,18 @@
         <div class="fg-drop-item" tabindex="-1" role="option" aria-selected="false">
             <span class="fgi-check"></span>
             <span class="fgi-name"></span>
+            <span class="fgi-count"></span>
+        </div>
+    </template>
+
+    <!-- Filter: one dropdown option row (rich) -->
+    <template id="tpl-filter-drop-item-rich">
+        <div class="fg-drop-item" tabindex="-1" role="option" aria-selected="false">
+            <span class="fgi-check"></span>
+            <span class="fgi-name fgi-name--rich">
+                <span class="fgi-code"></span>
+                <span class="fgi-subtitle"></span>
+            </span>
             <span class="fgi-count"></span>
         </div>
     </template>

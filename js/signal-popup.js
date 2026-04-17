@@ -18,7 +18,7 @@
  */
 
 import { map } from './map.js';
-import { getTypeColor, getOsmNodes } from './signal-mapping.js';
+import { getTypeColor, getOsmNodes, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement, onLangChange } from './translation.js';
 import { OsmStatusChecker } from './osm-checker.js';
 import { josmAddNode } from './josm.js';
@@ -104,7 +104,10 @@ onLangChange(() => {
 export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) {
     // Save focus origin so it can be restored when the popup closes.
     _preFocusEl = document.activeElement;
-    _initState(latlng, feats, idx, startTab);
+    // Sort co-located signals by networkId in ascending numeric order so that
+    // the prev/next navigation follows a predictable logical sequence.
+    const sorted = sortSignalsByNetworkId(feats);
+    _initState(latlng, sorted, idx, startTab);
     _openPopup();
     _scheduleOsmCheck();
 }

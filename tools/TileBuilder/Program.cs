@@ -42,9 +42,11 @@ var config = ConfigLoader.Load();
 
 var signalFile = Path.Combine(opts.SourceDir, config.SignalGeojson);
 var blockFile = Path.Combine(opts.SourceDir, config.BlockGeojson);
-Console.WriteLine($"Source dir     : {opts.SourceDir}");
-Console.WriteLine($"Output dir     : {opts.OutputDir}");
-Console.WriteLine($"No-tiles mode  : {opts.NoTiles}");
+var geometryFile = Path.Combine(opts.SourceDir, config.GeometryGeojson);
+
+Console.WriteLine($"Source dir      : {opts.SourceDir}");
+Console.WriteLine($"Output dir      : {opts.OutputDir}");
+Console.WriteLine($"No-tiles mode   : {opts.NoTiles}");
 Console.WriteLine();
 
 if (!File.Exists(signalFile))
@@ -69,6 +71,15 @@ var blockResult = File.Exists(blockFile)
     ? BlockProcessor.Process(blockFile, config.Acronyms)
     : BlockProcessor.Empty;
 
+// ---- Process line geometry (bboxes) ----
+
+var geometryResult = File.Exists(geometryFile)
+    ? GeometryProcessor.Process(geometryFile, signalData.LineCodeCounts.Keys)
+    : GeometryProcessor.Empty;
+
+if (!File.Exists(geometryFile))
+    Console.WriteLine($"  Geometry file not found — bboxes skipped: {geometryFile}");
+
 // ---- Debug: cross-check code_ligne between datasets ----
 
 #if DEBUG
@@ -77,7 +88,7 @@ CrossCheck.LineCode(signalData.LineCodeCounts, blockResult.Lines);
 
 // ---- Write index ----
 
-IndexWriter.Write(opts.OutputDir, signalData, blockResult);
+IndexWriter.Write(opts.OutputDir, signalData, blockResult, geometryResult);
 
 // ---- Summary ----
 
@@ -97,6 +108,7 @@ if (!opts.NoTiles)
 Console.WriteLine($"  Distinct Signals : {signalData.SignalTypeCounts.Count}");
 Console.WriteLine($"  Distinct Lines   : {signalData.LineCodeCounts.Count}");
 Console.WriteLine($"  Block segments   : {blockResult.Segments.Count}");
+Console.WriteLine($"  Line bboxes      : {geometryResult.Bboxes.Count}");
 
 Console.WriteLine($"  Manifest         : {Path.Combine(opts.OutputDir, "manifest.json")}");
 Console.WriteLine($"  Index            : {Path.Combine(opts.OutputDir, "index.json")}");

@@ -1,7 +1,7 @@
 /* filters.css — Filter panels and all child components =====
  *
  * Covers: FilterPanel (.filter-panel), combo input, dropdown list items,
- * pills (.fg-tag), "Supported only" toggle, "Add filter" menu,
+ * tags (.fg-tag), "Supported only" toggle, "Add filter" menu,
  * and empty states for the Filters and Pinned Signals sections.
  *
  * Shared dropdown primitives (.dd-trigger, .dd-panel) and the toolbar
@@ -105,7 +105,7 @@
 }
 
 
-/* ===== Pills (active value tags) ===== */
+/* ===== Active value tags ===== */
 
 .fg-tags {
     display: flex;
@@ -142,7 +142,7 @@
         color: #fff;
     }
 
-/* networkId pills: flyToLocation on label click */
+/* networkId tags: flyToLocation on label click */
 .fg-tag--clickable .fg-tag-label {
     cursor: pointer;
 }
@@ -161,7 +161,7 @@
 }
 
     /* Hover and keyboard focus: distinct background so the button reads as
- * a separate interactive target from the pill itself. */
+ * a separate interactive target from the tag itself. */
     .fg-tag-remove:hover,
     .fg-tag-remove:focus-visible {
         color: #fff;
@@ -211,9 +211,50 @@
         cursor: text;
     }
 
+.fg-combo-clear,
 .fg-combo-arrow {
-    padding-right: 8px;
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 2px;
+    transition: color .15s, background .15s;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
 }
+
+    .fg-combo-clear:hover,
+    .fg-combo-clear:focus-visible,
+    .fg-combo-arrow:hover,
+    .fg-combo-arrow:focus-visible {
+        color: var(--text);
+        background: rgba(255, 255, 255, .06);
+    }
+
+.fg-combo-clear,
+.fg-combo-arrow {
+    margin-right: 3px;
+}
+
+.fg-combo-arrow svg {
+    transform: rotate(90deg);
+    transition: transform .2s ease;
+}
+
+.fg-combo-input.is-open .fg-combo-arrow svg {
+    transform: rotate(-90deg);
+}
+
+    .fg-combo-clear:focus-visible,
+    .fg-combo-arrow:focus-visible {
+        outline: 2px solid var(--accent2);
+        outline-offset: 1px;
+    }
 
 /* readOnly combo (direction, placement) */
 .fg-combo-readonly {
@@ -464,7 +505,7 @@
 .fgi-subtitle {
     flex: 1;
     min-width: 0;
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text2);
     overflow: hidden;
     text-overflow: ellipsis;

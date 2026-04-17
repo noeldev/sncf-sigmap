@@ -22,7 +22,7 @@
  * labelSearch fields (lineCode):
  *   The search is performed against both the code and the line label via
  *   searchLineCodes() in signal-data.js. Accent-insensitive, case-insensitive.
- *   Dropdown items carry a subtitle (line label) for display; pills show a
+ *   Dropdown items carry a subtitle (line label) for display; tags show a
  *   tooltip with the full line name from getLineLabel().
  */
 
@@ -32,12 +32,11 @@ import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
-import { isSampled } from './map-layer.js';
 import {
     loadIndexData, getFilterData,
     searchNetworkIds, getLineLabel, searchLineCodes,
 } from './signal-data.js';
-import { flyToSignal } from './map-layer.js';
+import { isSampled, flyToSignal, flyToLine } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 const ALL_FILTER_FIELDS = [
@@ -45,7 +44,7 @@ const ALL_FILTER_FIELDS = [
         key: 'signalType', labelKey: 'fields.signalType'
     },
     {
-        // labelSearch: true — enables combined code+label search and pill tooltips.
+        // labelSearch: true — enables combined code+label search and tag tooltips.
         // numericOnly is intentionally absent: the input must accept label text.
         key: 'lineCode', labelKey: 'fields.lineCode', labelSearch: true,
     },
@@ -86,6 +85,7 @@ const _tpl = {
     get group() { return document.getElementById('tpl-filter-group'); },
     get tag() { return document.getElementById('tpl-filter-tag'); },
     get item() { return document.getElementById('tpl-filter-drop-item'); },
+    get itemRich() { return document.getElementById('tpl-filter-drop-item-rich'); },
     get noMatch() { return document.getElementById('tpl-filter-no-match'); },
 
 };
@@ -127,6 +127,7 @@ export function indexSignals(signals) {
             }
         });
     }
+
     if (changed) _refreshAllDropdowns();
 }
 
@@ -437,6 +438,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         tplGroup: _tpl.group,
         tplTag: _tpl.tag,
         tplItem: _tpl.item,
+        tplItemRich: _tpl.itemRich,
         tplNoMatch: _tpl.noMatch,
         translateValue: _translateFilterValue,
         // isConfirmed: true when the field already has selected values (e.g. after restore).
@@ -447,8 +449,10 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 
         onActivate: activate,
         onClear: () => _onClear(def, idx),
-        onPillRemove: val => _onPillRemove(def, val),
-        onPillLabelClick: fieldMeta?.globalSearch ? val => flyToSignal(val) : undefined,
+        onTagRemove: val => _onTagRemove(def, val),
+        onTagLabelClick: fieldMeta?.globalSearch
+            ? val => flyToSignal(val) : fieldMeta?.labelSearch
+            ? val => flyToLine(val) : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -491,13 +495,13 @@ function _onClear(def, idx) {
 }
 
 /**
- * onPillRemove handler — toggles the removed value and restores focus to the input.
+ * onTagRemove handler — toggles the removed value and restores focus to the input.
  * @param {{ field: string, panel: FilterPanel }} def
  * @param {string} val
  */
-function _onPillRemove(def, val) {
+function _onTagRemove(def, val) {
     _toggle(def.field, val);
-    // The focused pill button was detached by replaceChildren() inside
+    // The focused tag button was detached by replaceChildren() inside
     // _refreshTags → focus moved to <body>. Restore via microtask.
     queueMicrotask(() => def.panel?.focusInput());
 }
@@ -591,7 +595,7 @@ function _refreshTags(idx) {
     const activeVals = Array.from(_activeFilters[def.field] || []);
     const fieldMeta = _fieldDef(def.field);
 
-    // labelSearch fields expose a tooltip showing the full line label on each pill.
+    // labelSearch fields expose a tooltip showing the full line label on each tag.
     // The callback is declared on the field definition so _refreshTags stays generic.
     const tooltipFn = fieldMeta?.labelSearch ? v => getLineLabel(v) : null;
 

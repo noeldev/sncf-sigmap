@@ -1,8 +1,9 @@
 {
   // SNCF open data file names (relative to --source directory).
   // These are the standard names published on data.sncf.com.
-  "signal_geojson": "signalisation-permanente.geojson",
-  "block_geojson": "mode-de-cantonnement-des-lignes.geojson",
+  //"signal_geojson": "signalisation-permanente.geojson",
+  //"block_geojson": "mode-de-cantonnement-des-lignes.geojson",
+  //"geometry_geojson": "formes-des-lignes-du-rfn.geojson",
 
   // Block type label abbreviation table.
   // Order matters: more specific entries must come before shorter ones that

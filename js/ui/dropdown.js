@@ -2,241 +2,278 @@
  * ui/dropdown.js — Generic, accessible dropdown / listbox controller.
  *
  * Responsibilities:
- * - Outside-click closing via a single shared capture-phase listener.
- * - ARIA bootstrap: role="listbox", aria-expanded, aria-controls,
- *   aria-haspopup, aria-autocomplete on the appropriate element.
- * - Keyboard navigation delegated on listEl (survives replaceChildren()):
- *     ArrowDown / ArrowUp   — navigate; ArrowUp on first → focusInput
- *     PageDown  / PageUp    — jump 8 items
- *     Enter     / Space     — activate item → onActivate callback
- *     Escape                — close, focusInput
- *     Tab / Shift+Tab       — Shift+Tab on first → focusInput; Tab on last → close
- * - Focus helpers: focusItem(val), focusInput()
- * - _programmaticFocus flag — prevents ComboBox.focus handler from
- *   reopening the dropdown after a programmatic focusInput() call.
+ *   - Outside-click closing via a single shared capture-phase listener.
+ *   - "is-open" CSS class on triggerEl — used by CSS to animate chevrons.
+ *   - aria-controls wiring and aria-expanded state management.
+ *   - Keyboard navigation delegated on listEl (survives replaceChildren()):
+ *       ArrowDown / ArrowUp   — navigate items (wraps around)
+ *       PageDown  / PageUp    — jump 8 items
+ *       Enter     / Space     — activate → onActivate callback
+ *       Escape                — close, focusInput
+ *       Tab                   — close
+ *   - Focus helpers: focusFirst(), focusItem(val), focusInput()
+ *   - programmaticFocus getter — lets ComboBox skip re-opening the dropdown
+ *     when focus is restored programmatically (after Escape, tag removal…).
+ *
+ * Static ARIA (role, aria-haspopup, aria-autocomplete) is set in HTML and
+ * intentionally not duplicated here. Only aria-controls (references a
+ * generated id) and aria-expanded (dynamic state) are set by JS.
+ *
+ * Architecture note — # private fields vs. the shared registry:
+ *   The module-level registry listener must inspect instances from outside the
+ *   class and can only call public methods. All private state is therefore
+ *   exposed only through containsTarget() and isOpen(). Every other field
+ *   remains private.
  *
  * Does NOT handle:
- *  - Input search / typing  (→ ComboBox)
- *  - Pill management        (→ PillList)
- *  - Application state      (→ caller)
+ *   - Input search / typing  (→ ComboBox)
+ *   - Tag management        (→ TagList)
+ *   - Application state      (→ caller)
  */
 
-// ===== Global shared registry =====
 
-/** All live Dropdown instances, used by the shared outside-click listener. */
+// ===== Global shared outside-click registry =====
+
+/** All live Dropdown instances — used by the shared outside-click listener. */
 const _registry = [];
 
 /**
- * Single capture-phase mousedown listener shared across all Dropdown instances.
- * Runs BEFORE any item mousedown handler, so the target is still in the DOM
- * even when the handler will call replaceChildren() later.
+ * Single capture-phase mousedown listener shared across all instances.
+ * Runs BEFORE any item mousedown handler so the target is still in the DOM
+ * even if the handler calls replaceChildren() later.
  *
- * Guard: check _dropdown + _trigger (the minimal interactive zone) rather than
- * _panel (the enclosing card), because _panel is typically the full-width filter
- * group — any sidebar click would satisfy panel.contains() and close() would
- * never fire.
+ * Only public API is used here (isOpen, containsTarget) so that # private
+ * fields remain inaccessible from module scope.
  */
 document.addEventListener('mousedown', e => {
     for (const dd of _registry) {
-        if (dd._open &&
-            !dd._dropdown.contains(e.target) &&
-            !dd._trigger.contains(e.target)) {
-            dd.close();
-        }
+        if (dd.isOpen() && !dd.containsTarget(e.target)) dd.close();
     }
 }, /* capture= */ true);
 
-// ===== Module-level helpers =====
 
-/**
- * Close every currently-open Dropdown instance.
- * Use when switching tabs or opening a context menu that must not coexist
- * with an open dropdown.
- */
+// ===== Module-level exports =====
+
+/** Close every currently-open Dropdown (tab switches, context-menu opens…). */
 export function closeAll() {
     for (const dd of _registry) dd.close();
 }
 
+
 // ===== Dropdown class =====
 
 export class Dropdown {
+    // ----- Private fields -----
+    #dropdown;
+    #trigger;
+    #list;
+    #input;
+    #itemSel;
+    #onActivate;
+    #activationFocusMode;
+    #isOpen = false;
+    #programmaticFocus = false;
+    #listKeyHandler;
+
     /**
      * @param {object}   opts
-     * @param {Element}  opts.dropdownEl  — Container toggled via .is-hidden.
-     * @param {Element}  opts.triggerEl   — Button or combo-input wrapper.
-     *                                      Receives ARIA when no input is given.
-     * @param {Element}  opts.listEl      — Listbox (direct parent of items).
-     *                                      Gets role="listbox" and a stable id.
-     * @param {Element} [opts.input]      — Optional <input>: combobox ARIA pattern.
-     *                                      Absent: button ARIA pattern.
-     * @param {string}  [opts.itemSel]    — CSS selector for items. Default '.dd-item'.
-     * @param {Function} opts.onActivate  — (val, item) => void — keyboard activation.
-     *                                      Mouse activation is wired by the caller.
-     * @param {string}  [opts.activationFocusMode]
-     *                                    — 'item' (default): focus stays on toggled item.
-     *                                      'input': focus returns to search input.
+     * @param {Element}  opts.dropdownEl        — Container toggled via .is-hidden.
+     * @param {Element}  opts.triggerEl         — Receives .is-open on open() for CSS animation.
+     * @param {Element}  opts.listEl            — Listbox (direct parent of items).
+     * @param {Element}  [opts.input]           — <input> for combobox, or the trigger
+     *                                            button itself (lang-picker) for focusInput().
+     * @param {string}   [opts.itemSel]         — CSS selector for items. Default '.dd-item'.
+     * @param {Function} opts.onActivate        — (val, item) → void
+     * @param {string}   [opts.activationFocusMode]  'item' | 'input'  (default 'item')
      */
     constructor({ dropdownEl, triggerEl, listEl,
-                  input = null, itemSel = '.dd-item', onActivate,
-                  activationFocusMode = 'item' }) {
-        this._dropdown          = dropdownEl;
-        this._trigger           = triggerEl;
-        this._list              = listEl;
-        this._input             = input;
-        this._itemSel           = itemSel;
-        this._onActivate        = onActivate;
-        this._activationFocusMode = activationFocusMode;
-        this._open              = false;
-        this._programmaticFocus = false;
+        input = null, itemSel = '.dd-item', onActivate,
+        activationFocusMode = 'item' }) {
+        this.#dropdown = dropdownEl;
+        this.#trigger = triggerEl;
+        this.#list = listEl;
+        this.#input = input;
+        this.#itemSel = itemSel;
+        this.#onActivate = onActivate;
+        this.#activationFocusMode = activationFocusMode;
 
-        // ---- ARIA bootstrap ----
-        if (!listEl.id) listEl.id = `dd-list-${Math.random().toString(36).slice(2, 9)}`;
-        listEl.setAttribute('role', 'listbox');
-
-        if (input) {
-            input.setAttribute('role',            'combobox');
-            input.setAttribute('aria-haspopup',   'listbox');
-            input.setAttribute('aria-expanded',   'false');
-            input.setAttribute('aria-controls',   listEl.id);
-            input.setAttribute('aria-autocomplete', 'list');
-            input.setAttribute('autocomplete',    'off');
-        } else {
-            triggerEl.setAttribute('aria-haspopup',  'listbox');
-            triggerEl.setAttribute('aria-expanded',  'false');
-            triggerEl.setAttribute('aria-controls',  listEl.id);
-        }
-
-        // ---- Keyboard handler — delegated on listEl ----
-        // Delegation survives replaceChildren() on individual items.
-        this._listKeyHandler = e => this._onListKey(e);
-        listEl.addEventListener('keydown', this._listKeyHandler);
-
+        this.#bootstrapAria();
+        this.#listKeyHandler = e => this.#onListKey(e);
+        listEl.addEventListener('keydown', this.#listKeyHandler);
         _registry.push(this);
     }
 
-    /* ----- Public API ----- */
 
-    /** Show the dropdown. */
+    // ===== Public API =====
+
     open() {
-        if (this._open) return;
-        this._open = true;
-        this._dropdown.classList.remove('is-hidden');
-        this._setAriaExpanded(true);
+        if (this.#isOpen) return;
+        this.#isOpen = true;
+        this.#dropdown.classList.remove('is-hidden');
+        this.#trigger.classList.add('is-open');
+        this.#setAriaExpanded(true);
     }
 
-    /** Hide the dropdown. */
     close() {
-        if (!this._open) return;
-        this._open = false;
-        this._dropdown.classList.add('is-hidden');
-        this._setAriaExpanded(false);
+        if (!this.#isOpen) return;
+        this.#isOpen = false;
+        this.#dropdown.classList.add('is-hidden');
+        this.#trigger.classList.remove('is-open');
+        this.#setAriaExpanded(false);
     }
 
-    /** Toggle open / close. */
-    toggle() { this._open ? this.close() : this.open(); }
+    toggle() { this.#isOpen ? this.close() : this.open(); }
 
-    /** Whether the dropdown is currently visible. */
-    isOpen() { return this._open; }
+    isOpen() { return this.#isOpen; }
 
-    /** Focus the first item. */
-    focusFirst() { this._items()[0]?.focus(); }
+    /**
+     * True when the given target is inside the dropdown or the trigger.
+     * Used by the shared outside-click registry — the only place that needs
+     * to inspect instance geometry from module scope.
+     * @param {EventTarget} target
+     * @returns {boolean}
+     */
+    containsTarget(target) {
+        return this.#dropdown.contains(target) || this.#trigger.contains(target);
+    }
+
+    focusFirst() { this.#items()[0]?.focus(); }
 
     /**
      * Focus the item whose data-val matches val.
      * Falls back to the first item when val is not found (e.g. after a rebuild).
+     * @param {string|null} val
      */
     focusItem(val) {
         if (val == null) { this.focusFirst(); return; }
-        const sel = `${this._itemSel}[data-val="${CSS.escape(String(val))}"]`;
-        (this._list.querySelector(sel) ?? this._items()[0])?.focus();
+        const sel = `${this.#itemSel}[data-val="${CSS.escape(String(val))}"]`;
+        (this.#list.querySelector(sel) ?? this.#items()[0])?.focus();
     }
 
     /**
-     * Focus the search input with the caret at the end.
-     * No-op for button-triggered dropdowns (no input element).
-     *
-     * Sets _programmaticFocus BEFORE .focus() because .focus() dispatches the
-     * focus event synchronously.  queueMicrotask resets the flag after the
-     * event has been processed, so subsequent user focus events work normally.
+     * Focus the input (or trigger button for lang-picker) with caret at end.
+     * Sets #programmaticFocus BEFORE .focus() so ComboBox's focus handler
+     * skips re-opening the dropdown when focus returns programmatically.
+     * setSelectionRange is only called on elements that support it (<input>).
      */
     focusInput() {
-        if (!this._input) return;
-        this._programmaticFocus = true;
-        this._input.focus();
-        const len = this._input.value.length;
-        this._input.setSelectionRange(len, len);
-        queueMicrotask(() => { this._programmaticFocus = false; });
+        if (!this.#input) return;
+        this.#programmaticFocus = true;
+        this.#input.focus();
+        if (typeof this.#input.setSelectionRange === 'function') {
+            const len = this.#input.value?.length ?? 0;
+            this.#input.setSelectionRange(len, len);
+        }
+        queueMicrotask(() => { this.#programmaticFocus = false; });
     }
 
     /**
-     * Unregister from the outside-click registry and detach the keydown handler.
-     * Call when the panel is removed from the DOM.
+     * Read by ComboBox to skip re-opening on programmatic focus.
+     */
+    get programmaticFocus() { return this.#programmaticFocus; }
+
+    /**
+     * Unregister from the outside-click registry and remove the keydown handler.
+     * Must be called before removing the panel from the DOM.
      */
     destroy() {
         const i = _registry.indexOf(this);
         if (i >= 0) _registry.splice(i, 1);
-        this._list.removeEventListener('keydown', this._listKeyHandler);
+        this.#list.removeEventListener('keydown', this.#listKeyHandler);
     }
 
-    /* ----- Private ----- */
 
-    _items() { return [...this._list.querySelectorAll(this._itemSel)]; }
+    // ===== Private helpers =====
 
-    _setAriaExpanded(value) {
-        (this._input ?? this._trigger)?.setAttribute('aria-expanded', String(value));
+    #items() { return [...this.#list.querySelectorAll(this.#itemSel)]; }
+
+    #setAriaExpanded(value) {
+        (this.#input ?? this.#trigger)?.setAttribute('aria-expanded', String(value));
     }
 
-    _onListKey(e) {
-        const items = this._items();
-        const ci    = items.indexOf(document.activeElement);
+    /**
+     * Set only the attributes that cannot be expressed as static HTML:
+     *   - list id (generated, needed for aria-controls reference)
+     *   - aria-controls (references the generated id)
+     *   - aria-expanded initial state (for <input> elements that don't have it in HTML;
+     *     buttons already carry aria-expanded="false" in the HTML template)
+     *
+     * Static attributes (role, aria-haspopup, aria-autocomplete) are in the HTML
+     * template and are not duplicated here.
+     */
+    #bootstrapAria() {
+        if (!this.#list.id) {
+            this.#list.id = `dd-list-${Math.random().toString(36).slice(2, 9)}`;
+        }
+        const controlTarget = this.#input ?? this.#trigger;
+        controlTarget.setAttribute('aria-controls', this.#list.id);
 
+        // Set aria-expanded only when not already present in HTML.
+        // Buttons (lang-picker) carry it statically; <input> elements do not.
+        if (!controlTarget.hasAttribute('aria-expanded')) {
+            controlTarget.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    /** Dispatch keydown events on the list to focused sub-handlers. */
+    #onListKey(e) {
+        const items = this.#items();
+        const ci = items.indexOf(document.activeElement);
+        if (this.#handleEscape(e)) return;
+        if (this.#handleNavigation(e, items, ci)) return;
+        if (e.key === 'Tab') { this.close(); return; }
+        this.#handleActivation(e, items, ci);
+    }
+
+    /** Escape: close the dropdown and return focus to the input. */
+    #handleEscape(e) {
+        if (e.key !== 'Escape') return false;
+        e.preventDefault();
+        this.close();
+        this.focusInput();
+        return true;
+    }
+
+    /** ArrowDown / ArrowUp / PageDown / PageUp: navigate the item list. */
+    #handleNavigation(e, items, ci) {
+        const last = items.length - 1;
         switch (e.key) {
-            case 'Escape':
-                e.preventDefault();
-                this.close();
-                this.focusInput();
-                break;
-
             case 'ArrowDown':
                 e.preventDefault();
-                (items[ci + 1] ?? items[0])?.focus();   // wrap around
-                break;
-
+                (items[ci + 1] ?? items[0])?.focus();
+                return true;
             case 'ArrowUp':
                 e.preventDefault();
-                (items[ci - 1] ?? items[items.length - 1])?.focus();   // wrap around
-                break;
-
+                (items[ci - 1] ?? items[last])?.focus();
+                return true;
             case 'PageDown':
                 e.preventDefault();
-                items[Math.min(ci + 8, items.length - 1)]?.focus();
-                break;
-
+                items[Math.min(ci + 8, last)]?.focus();
+                return true;
             case 'PageUp':
                 e.preventDefault();
                 items[Math.max(ci - 8, 0)]?.focus();
-                break;
+                return true;
+            default:
+                return false;
+        }
+    }
 
-            case 'Enter':
-            case ' ': {
-                e.preventDefault();
-                if (!items[ci]) break;
-                const val = items[ci].dataset.val;
-                this._onActivate(val, items[ci]);
-                // onActivate may call replaceChildren(), detaching the focused item
-                // and moving browser focus to <body>.  queueMicrotask defers
-                // refocus until after the browser processes that focus-to-body
-                // event — a synchronous .focus() loses the race on Blink / WebKit.
-                // 'input' mode: onActivate (_addExact) owns focus via its own
-                // queueMicrotask; we must not enqueue here to avoid a double-focus.
-                if (this._open && this._activationFocusMode === 'item')
-                    queueMicrotask(() => this.focusItem(val));
-                break;
-            }
-
-            case 'Tab':
-                this.close();
-                break;
+    /**
+     * Enter / Space: activate the focused item.
+     * onActivate may call replaceChildren(), moving focus to <body>.
+     * queueMicrotask defers refocus until the browser processes that event.
+     * 'input' mode: onActivate owns its own refocus — do not double-enqueue.
+     */
+    #handleActivation(e, items, ci) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        const item = items[ci];
+        if (!item) return;
+        const val = item.dataset.val;
+        this.#onActivate(val, item);
+        if (this.#isOpen && this.#activationFocusMode === 'item') {
+            queueMicrotask(() => this.focusItem(val));
         }
     }
 }

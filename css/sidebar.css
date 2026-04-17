@@ -101,6 +101,7 @@
     /* icon-chevron points right by default — rotate 90deg to point down for dropdowns */
     .dd-chevron svg {
         transform: rotate(90deg);
+        transition: transform .2s ease;
     }
 
 .dd-panel {
@@ -393,6 +394,10 @@
     border-radius: var(--radius);
 }
 
+.lang-select-btn.is-open .lang-chevron svg {
+    transform: rotate(-90deg);
+}
+
 .lang-flag-img {
     font-size: 16px;
     line-height: 1;
@@ -400,7 +405,22 @@
 
 .lang-chevron {
     margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border-radius: 2px;
+    transition: background .15s, color .15s;
 }
+
+    .lang-chevron svg {
+        pointer-events: none;
+    }
+
+    .lang-chevron:hover {
+        background: rgba(255, 255, 255, .06);
+        color: var(--text);
+    }
 
 .lang-dropdown {
     /* Visibility managed via .is-hidden (toggled by Dropdown in dropdown.js). */

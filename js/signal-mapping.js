@@ -117,6 +117,17 @@ export function isSupported(signalType) {
 }
 
 /**
+ * Sorts a signal array by networkId in ascending numeric order.
+ * @param {Array} feats - Array of signals with p.networkId
+ * @returns {Array} New sorted array
+ */
+export function sortSignalsByNetworkId(feats) {
+    return [...feats].sort((a, b) =>
+        (a.p.networkId ?? '').localeCompare(b.p.networkId ?? '', undefined, { numeric: true })
+    );
+}
+
+/**
  * Return all signalType keys belonging to the given display group.
  * Used by filters.js to populate a signalType filter from a legend category click.
  * @param {string} group  Group name (e.g. 'main', 'shunting').

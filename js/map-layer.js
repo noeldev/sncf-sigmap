@@ -33,7 +33,7 @@ import { showFlash, showProgress, hideProgress } from './progress.js';
 import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu } from './ui/context-menu.js';
-import { getNetworkIdIndex } from './signal-data.js';
+import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 
 
 // ===== Module state =====
@@ -43,10 +43,10 @@ let _markersLayer = null;
 let _worker = null;
 let _loadPending = false;
 let _loadRunning = false;
-let _sampled = false;   // true when the current view is a spatial overview sample
-let _popupOpen = false; // true when a Leaflet popup is open
-let _lastGroups = [];   // last rendered groups — used by _getSignalLatlng()
-let _lastUrlKey = '';   // cache key for the last worker run (tile URLs + filter snapshot)
+let _sampled = false;       // true when the current view is a spatial overview sample
+let _popupOpen = false;     // true when a Leaflet popup is open
+let _lastGroups = [];       // last rendered groups — used by _getSignalLatlng()
+let _lastUrlKey = '';       // cache key for the last worker run (tile URLs + filter snapshot)
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -112,11 +112,12 @@ export function setManifest(manifest) {
 }
 
 /**
- * Trigger a data fetch/render cycle.
- * When force=false, the call is skipped if the visible tile set is unchanged.
+ * Trigger a data fetch / render cycle.
+ * When force = false, the call is skipped if the visible tile set, viewport,
+ * and active filters are all unchanged since the last run.
  * When a load is already running, the request is queued as a pending load.
  *
- * @param {boolean} [force=false]
+ * @param { boolean } [force = false]
  */
 export function refresh(force = false) {
     if (_loadRunning) {
@@ -137,20 +138,29 @@ export function refresh(force = false) {
         return;
     }
 
-    // Skip the worker run when tile set and active filters are unchanged.
-    // This covers rapid pan/zoom within the same tiles at the same filter state.
-    const urlKey = fetchUrls.join('|') + '|' + JSON.stringify(getActiveFiltersForWorker());
+    // Compute bounds corners once — reused in both urlKey and the worker postMessage.
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+
+    // Skip the worker run when tile set, viewport, and active filters are all unchanged.
+    // Bounds are rounded to 2 decimal places (~1 km) to avoid re-runs from floating-point
+    // drift during micro-pans, while still catching any meaningful viewport change.
+    // Bounds MUST be included: the worker filters signals by viewport, so zooming within
+    // the same 0.5° tile(s) changes which signals are visible even when URLs don't change.
+    const r = v => Math.round(v * 100) / 100;
+    const boundsKey = `${r(sw.lat)},${r(sw.lng)},${r(ne.lat)},${r(ne.lng)}`;
+    const urlKey = fetchUrls.join('|') + '|' + boundsKey + '|'
+        + JSON.stringify(getActiveFiltersForWorker());
     if (!force && urlKey === _lastUrlKey) return;
     _lastUrlKey = urlKey;
     _loadPending = false;
-    _runWorker(bounds, fetchUrls, zoom);
+    _runWorker(bounds, fetchUrls, zoom, sw, ne);
 }
-
 
 /**
  * Return the [lat, lng] of a signal by networkId from the last rendered groups.
  * Returns null when the signal is not currently in the viewport.
- * Used by filters.js to fly to a selected networkId pill without a tile fetch.
+ * Used by filters.js to fly to a selected networkId tag without a tile fetch.
  * @param {string} networkId
  * @returns {[number, number] | null}
  */
@@ -173,7 +183,17 @@ function _terminateWorker() {
     _worker = null;
 }
 
-function _runWorker(bounds, tileUrls, zoom) {
+/**
+ * Terminate the active worker, start a new one, and post the fetch-tiles message.
+ * sw / ne are passed in from refresh() to avoid recomputing them.
+ *
+ * @param {L.LatLngBounds} bounds
+ * @param {string[]}        tileUrls
+ * @param {number}          zoom
+ * @param {L.LatLng}        sw
+ * @param {L.LatLng}        ne
+ */
+function _runWorker(bounds, tileUrls, zoom, sw, ne) {
     _terminateWorker();
     _loadRunning = true;
     showProgress(t('progress.tiles', tileUrls.length));
@@ -185,8 +205,7 @@ function _runWorker(bounds, tileUrls, zoom) {
         _terminateLoad();
         return;
     }
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
+
     const isOverview = zoom < OVERVIEW_MAX_ZOOM;
 
     // Track markers by group key for incremental updates.
@@ -205,7 +224,7 @@ function _runWorker(bounds, tileUrls, zoom) {
         urls: tileUrls,
         activeFilters: getActiveFiltersForWorker(),
         bounds: { swLat: sw.lat, swLng: sw.lng, neLat: ne.lat, neLng: ne.lng },
-        maxSignals: isOverview ? OVERVIEW_MAX_SIGNALS : null,
+        forceOverview: isOverview
     });
 }
 
@@ -215,7 +234,7 @@ function _runWorker(bounds, tileUrls, zoom) {
  */
 function _handleWorkerMessage(e, isOverview, markerMap) {
     if (!isOwnWorkerMessage(e)) return;
-    const { status, msg, groups, loaded, total, sampled } = e.data;
+    const { status, groups, loaded, total, sampled } = e.data;
 
     if (status === 'progress') {
         showProgress(t(e.data.key, ...e.data.args));
@@ -448,6 +467,23 @@ export async function flyToSignal(networkId) {
     const signals = await fetchTileByKey(tileKey);
     const location = findSignalLocation(signals, networkId);
     if (location) flyToLocationWithMarker(location);
+}
+
+/**
+ * Fly to the bounding box of the given line code with a smooth animation.
+ * Uses the precomputed bbox from index.json (set by TileBuilder).
+ * Silently no-ops when the bbox is not available.
+ *
+ * bbox is stored as [[minLat, minLng], [maxLat, maxLng]] (Leaflet LatLngBounds),
+ * so it can be passed directly to flyToBounds() without coordinate conversion.
+ * duration caps the animation so long lines do not animate for too long.
+ *
+ * @param {string} lineCode
+ */
+export function flyToLine(lineCode) {
+    const bbox = getLineBbox(lineCode);
+    if (!bbox) return;
+    map.flyToBounds(bbox, { padding: [40, 40], duration: 1.5 });
 }
 
 /**
