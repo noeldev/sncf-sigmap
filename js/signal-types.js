@@ -261,16 +261,6 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Stop signs
-    "ARRET VOY": {
-        group: "stop",
-        cat: "stop",
-        type: "FR:ARRET_TT",
-        properties: {
-            form: "sign"
-        }
-    },
-
     // Level crossings
     "PN...": {
         group: "crossing",
@@ -460,7 +450,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Stop signs (extended set)
+    // Distant Stop signs
     "ARRET A": {
         group: "stop",
         cat: "stop_distant",
@@ -469,10 +459,28 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    "STOP A": {
+        group: "stop",
+        cat: "stop_distant",
+        type: "FR:STOP_A",
+        properties: {
+            form: "sign"
+        }
+    },
+
+    // Stop signs
     "ARRET": {
         group: "stop",
         cat: "stop",
         type: "FR:ARRET",
+        properties: {
+            form: "sign"
+        }
+    },
+    "ARRET VOY": {
+        group: "stop",
+        cat: "stop",
+        type: "FR:ARRET_TT",
         properties: {
             form: "sign"
         }
