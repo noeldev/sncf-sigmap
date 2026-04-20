@@ -44,10 +44,11 @@ static class ConfigLoader
                 Console.Error.WriteLine($"[Error] Config file is empty or invalid: {path}");
                 Environment.Exit(1);
             }
-            Console.WriteLine($"Config         : {path}");
-            Console.WriteLine($"Acronyms       : {config.Acronyms.Length}");
-            Console.WriteLine($"Signal GeoJSON : {config.SignalGeojson}");
-            Console.WriteLine($"Block GeoJSON  : {config.BlockGeojson}");
+            Console.WriteLine($"Config          : {path}");
+            Console.WriteLine($"Acronyms        : {config.Acronyms.Length}");
+            Console.WriteLine($"Signal GeoJSON  : {config.SignalGeojson}");
+            Console.WriteLine($"Block GeoJSON   : {config.BlockGeojson}");
+            Console.WriteLine($"Geometry GeoJSON: {config.GeometryGeojson}");
             return config;
         }
         catch (JsonException ex)

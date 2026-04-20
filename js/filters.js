@@ -14,10 +14,16 @@
  * All filter values are uppercase (SNCF data convention); the search input
  * is uppercased before comparison so no toLowerCase() is needed.
  *
- * numericOnly fields (lineCode, networkId):
+ * numericOnly fields (networkId):
  *   Non-digit characters are stripped from the query string before it is
- *   stored in def.search and used for filtering.  FilterPanel must expose
+ *   stored in def.search and used for filtering. FilterPanel must expose
  *   setSearch(value) to keep the visible input in sync.
+ *
+ * labelSearch fields (lineCode):
+ *   The search is performed against both the code and the line label via
+ *   searchLineCodes() in signal-data.js. Accent-insensitive, case-insensitive.
+ *   Dropdown items carry a subtitle (line label) for display; tags show a
+ *   tooltip with the full line name from getLineLabel().
  */
 
 import { MIN_SEARCH_THRESHOLD } from './config.js';
@@ -26,9 +32,11 @@ import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
-import { isSampled } from './map-layer.js';
-import { loadIndexData, getFilterData, searchNetworkIds } from './signal-data.js';
-import { flyToSignal } from './map-layer.js';
+import {
+    loadIndexData, getFilterData,
+    searchNetworkIds, getLineLabel, searchLineCodes,
+} from './signal-data.js';
+import { isSampled, flyToSignal, flyToLine } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 const ALL_FILTER_FIELDS = [
@@ -36,7 +44,9 @@ const ALL_FILTER_FIELDS = [
         key: 'signalType', labelKey: 'fields.signalType'
     },
     {
-        key: 'lineCode', labelKey: 'fields.lineCode', numericOnly: true
+        // labelSearch: true — enables combined code+label search and tag tooltips.
+        // numericOnly is intentionally absent: the input must accept label text.
+        key: 'lineCode', labelKey: 'fields.lineCode', labelSearch: true,
     },
     {
         key: 'trackName', labelKey: 'fields.trackName'
@@ -75,6 +85,7 @@ const _tpl = {
     get group() { return document.getElementById('tpl-filter-group'); },
     get tag() { return document.getElementById('tpl-filter-tag'); },
     get item() { return document.getElementById('tpl-filter-drop-item'); },
+    get itemRich() { return document.getElementById('tpl-filter-drop-item-rich'); },
     get noMatch() { return document.getElementById('tpl-filter-no-match'); },
 
 };
@@ -116,6 +127,7 @@ export function indexSignals(signals) {
             }
         });
     }
+
     if (changed) _refreshAllDropdowns();
 }
 
@@ -302,6 +314,7 @@ function _waitForIndexAndRefresh() {
         }
         _parseFieldIndex(data);
         _refreshAllDropdowns();
+        _refreshAllTags();
     });
 }
 
@@ -338,7 +351,10 @@ function _fieldDef(key) {
 }
 
 /**
- * Normalize a string for case-insensitive, accent-insensitive search comparison.
+ * Normalize a string for case-insensitive search comparison.
+ * Used for non-labelSearch fields where values are plain uppercase strings.
+ * labelSearch fields (lineCode) use the accent-aware normalisation inside
+ * searchLineCodes() in signal-data.js.
  */
 function _normalize(str) {
     return str.toUpperCase();
@@ -422,6 +438,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         tplGroup: _tpl.group,
         tplTag: _tpl.tag,
         tplItem: _tpl.item,
+        tplItemRich: _tpl.itemRich,
         tplNoMatch: _tpl.noMatch,
         translateValue: _translateFilterValue,
         // isConfirmed: true when the field already has selected values (e.g. after restore).
@@ -432,8 +449,10 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
 
         onActivate: activate,
         onClear: () => _onClear(def, idx),
-        onPillRemove: val => _onPillRemove(def, val),
-        onPillLabelClick: fieldMeta?.globalSearch ? val => flyToSignal(val) : undefined,
+        onTagRemove: val => _onTagRemove(def, val),
+        onTagLabelClick: fieldMeta?.globalSearch
+            ? val => flyToSignal(val) : fieldMeta?.labelSearch
+            ? val => flyToLine(val) : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -476,13 +495,13 @@ function _onClear(def, idx) {
 }
 
 /**
- * onPillRemove handler — toggles the removed value and restores focus to the input.
+ * onTagRemove handler — toggles the removed value and restores focus to the input.
  * @param {{ field: string, panel: FilterPanel }} def
  * @param {string} val
  */
-function _onPillRemove(def, val) {
+function _onTagRemove(def, val) {
     _toggle(def.field, val);
-    // The focused pill button was detached by replaceChildren() inside
+    // The focused tag button was detached by replaceChildren() inside
     // _refreshTags → focus moved to <body>. Restore via microtask.
     queueMicrotask(() => def.panel?.focusInput());
 }
@@ -572,9 +591,15 @@ function _buildPanels() {
 function _refreshTags(idx) {
     const def = _defs[idx];
     if (!def?.panel) return;
-    // Render the pills and toggle the clear button visibility accordingly
+
     const activeVals = Array.from(_activeFilters[def.field] || []);
-    def.panel.refreshTags(activeVals);
+    const fieldMeta = _fieldDef(def.field);
+
+    // labelSearch fields expose a tooltip showing the full line label on each tag.
+    // The callback is declared on the field definition so _refreshTags stays generic.
+    const tooltipFn = fieldMeta?.labelSearch ? v => getLineLabel(v) : null;
+
+    def.panel.refreshTags(activeVals, tooltipFn);
     def.panel.toggleClearBtn(activeVals.length > 0);
 }
 
@@ -585,8 +610,7 @@ function _refreshAllTags() {
 /**
  * Prepare the filtered, sorted item list and hand it to the panel for rendering.
  * All data logic (merging index + counts, filtering, sorting) stays here;
- * FilterPanel receives a plain [{v, count, active, showDot}] array and renders
- * it without any application knowledge.
+ * FilterPanel receives a plain array and renders it without any application knowledge.
  */
 function _refreshDropdown(idx) {
     const def = _defs[idx];
@@ -629,17 +653,43 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
     );
 }
 
-/** Render a standard dropdown from local counts and the global index. */
+/**
+ * Render a standard dropdown from local counts and the global index.
+ *
+ * labelSearch fields (lineCode) use a dedicated search path: searchLineCodes()
+ * matches both the code and the line label, returning items with a subtitle
+ * property that FilterPanel renders as a small secondary text span.
+ * All other fields use the existing prefix-match path against _candidateValues().
+ */
 function _refreshStandardDropdown(def, fieldMeta, sel, q) {
-    const all = _candidateValues(def);
     const isSignalType = _isSignalType(def.field);
-    const numericSort = def.field === 'lineCode';
+    const isLabelSearch = fieldMeta?.labelSearch === true;
     const isMappedOnly = _mappedOnly && isSignalType;
     // In overview sampling mode use global counts — the spatial sample is not
     // representative of the full dataset, so live counts would be misleading.
     const countMap = isSampled()
         ? (_globalCounts[def.field] ?? _counts[def.field])
         : (_counts[def.field] ?? _globalCounts[def.field]);
+
+    if (isLabelSearch) {
+        // searchLineCodes() returns all entries when q is empty, so the dropdown
+        // always shows a full list rather than an empty state before the user types.
+        const results = searchLineCodes(q);
+        const items = results
+            .map(({ code, label, count }) => ({
+                v: code,
+                subtitle: label || null,
+                count: countMap?.get(code) ?? count ?? 0,
+                active: sel.has(code),
+                showDot: false,
+            }))
+            .sort(_itemSorter(fieldMeta, false, true));
+        def.panel.setInputPlaceholder(t('dropdown.search', results.length));
+        def.panel.refreshList(items);
+        return;
+    }
+
+    const all = _candidateValues(def);
     const nq = _normalize(q);
     const filtered = q ? all.filter(v => _normalize(v).startsWith(nq)) : all;
 
@@ -656,7 +706,7 @@ function _refreshStandardDropdown(def, fieldMeta, sel, q) {
                 active: sel.has(v),
                 showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
             }))
-            .sort(_itemSorter(fieldMeta, isSignalType, numericSort))
+            .sort(_itemSorter(fieldMeta, isSignalType, false))
     );
 }
 
@@ -678,7 +728,7 @@ function _candidateValues(def) {
 
 
 /**
- * Return a comparator for _refreshList item sorting.
+ * Return a comparator for item sorting.
  * Priority: explicit valueOrder > count-descending (signalType) > numeric > alphabetical.
  */
 function _itemSorter(fieldMeta, isSignalType, numericSort) {

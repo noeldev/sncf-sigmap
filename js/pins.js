@@ -13,7 +13,7 @@
 import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
 import { flyToSignal } from './map-layer.js';
-import { PillList } from './ui/pill-list.js';
+import { TagList } from './ui/tag-list.js';
 
 
 // ===== Module state =====
@@ -21,8 +21,8 @@ import { PillList } from './ui/pill-list.js';
 /** Ordered array of pinned Network IDs — insertion order preserved. */
 let _pins = [];
 
-/** PillList instance for the pinned panel. */
-let _pillList = null;
+/** TagList instance for the pinned panel. */
+let _tagList = null;
 
 /** Root section element of the pinned panel. */
 let _sectionEl = null;
@@ -47,8 +47,6 @@ export function initPins({ container, onChange }) {
     _pins = loadPins();
 
     _buildPanel(container);
-    // Wire the clear button inside the pinned panel header.
-    // Use event delegation on the panel's summary rather than a static id.
     document.getElementById('pinned-panel')
         ?.querySelector('[data-action="clear-pins"]')
         ?.addEventListener('click', e => {
@@ -74,7 +72,7 @@ export function isPinned(networkId) {
  */
 export function togglePin(networkId) {
     const idx = _pins.indexOf(networkId);
-    const pinned = idx === -1; // If not found, we are about to pin it
+    const pinned = idx === -1;
 
     if (!pinned) {
         _pins.splice(idx, 1);
@@ -100,7 +98,7 @@ function _buildPanel(container) {
     container.appendChild(section);
     _sectionEl = section;
 
-    _pillList = new PillList({
+    _tagList = new TagList({
         containerEl: section.querySelector('.pinned-tags'),
         template: document.getElementById('tpl-filter-tag'),
         onRemove: networkId => togglePin(networkId),
@@ -114,16 +112,14 @@ function _buildPanel(container) {
     _renderPanel();
 }
 
-/** Rebuild pill list from current _pins. */
+/** Rebuild tag list from current _pins. */
 function _renderPanel() {
-    if (!_pillList) return;
-    _pillList.render(_pins);
+    if (!_tagList) return;
+    _tagList.render(_pins);
 
-    // Show empty state when list is empty
     _sectionEl?.querySelector('.empty-state')
         ?.classList.toggle('is-hidden', _pins.length > 0);
 
-    // Clear button is only useful when there are pins to clear
     if (_clearBtn) _clearBtn.classList.toggle('is-hidden', _pins.length === 0);
 }
 

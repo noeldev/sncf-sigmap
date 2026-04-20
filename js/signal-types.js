@@ -3,8 +3,7 @@
  *
  * The SIGNAL_MAPPING constant is the single source of truth for all
  * signal type metadata: display category, OpenRailwayMap tag category/type,
- * and static tag properties. Extracted from signal-mapping.js to keep that
- * file focused on logic (node conflict resolution, tag building, API).
+ * and static tag properties.
  *
  * Consumed exclusively by signal-mapping.js.
  */
@@ -21,6 +20,17 @@ export const SIGNAL_MAPPING = {
             plate: "FR:NF",
             shape: "FR:C",
             states: "FR:C;FR:VL"
+        }
+    },
+    "CV": {
+        group: "shunting",
+        cat: "main",
+        type: "FR:CV",
+        properties: {
+            form: "light",
+            plate: "FR:NF",
+            shape: "FR:C",
+            states: "FR:CV;FR:M"
         }
     },
     "R30": {
@@ -43,17 +53,6 @@ export const SIGNAL_MAPPING = {
             plate: "FR:NF",
             shape: "FR:H",
             states: "FR:C;FR:VL;FR:RR"
-        }
-    },
-    "CV": {
-        group: "main",
-        cat: "main",
-        type: "FR:CV",
-        properties: {
-            form: "light",
-            plate: "FR:NF",
-            shape: "FR:C",
-            states: "FR:CV;FR:M"
         }
     },
     "S": {
@@ -118,47 +117,51 @@ export const SIGNAL_MAPPING = {
         cat: "speed_limit_distant",
         type: "FR:TIV-D_MOB",
         properties: {
-            form: "light"
+            form: "light",
+            condition: "diverting",
+            speed: "90"
         }
     },
     "TIV R MOB": {
         group: "speedLimit",
         cat: "speed_limit_reminder",
-        type: "FR:TIV-R_MOB",
+        type: "FR:TIV-R",
         properties: {
-            form: "light"
+            form: "light",
+            speed: "90"
         }
     },
     "TIV D FIXE": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-D_FIXE",
+        type: "FR:TIV-D",
         properties: {
             form: "sign",
-            shape: "square"
+            shape: "square",
+            speed: "90"
         }
     },
     "TIVD B FIX": {
         group: "speedLimit",
-        cat: "speed_limit_distant",
-        type: "FR:TIV-D_B_FIXE",
+        cat: "speed_limit_distant:fast",
+        type: "FR:TIV-D_B",
         properties: {
-            type: "FR:B",
-            form: "sign"
+            form: "sign",
+            speed: "120"
         }
     },
     "TIVD C FIX": {
         group: "speedLimit",
-        cat: "speed_limit_distant",
-        type: "FR:TIV-D_C_FIXE",
+        cat: "speed_limit_distant:self",
+        type: "FR:TIV-D_C",
         properties: {
-            type: "FR:C",
-            form: "sign"
+            form: "sign",
+            speed: "120"
         }
     },
     "P": {
         group: "speedLimit",
-        cat: "speed_limit",
+        cat: "speed_limit_distant",
         type: "FR:P",
         properties: {
             form: "sign"
@@ -194,26 +197,28 @@ export const SIGNAL_MAPPING = {
     "TIV PENDIS": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-D",
+        type: "FR:TIV_PENDIS",
         properties: {
             form: "sign",
             shape: "pentagon",
+            speed: "30"
         }
     },
     "TIV PENEXE": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:TIV",
+        type: "FR:TIV_PENEXE",
         properties: {
             form: "sign",
             shape: "pentagon",
-            function: "entry"
+            function: "entry",
+            speed: "30"
         }
     },
     "TIV PENREP": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:TIV",
+        type: "FR:TIV_PENREP",
         properties: {
             form: "sign",
             shape: "pentagon",
@@ -222,10 +227,9 @@ export const SIGNAL_MAPPING = {
     },
     "REPER VIT": {
         group: "speedLimit",
-        cat: "speed_limit",
+        cat: "speed_limit:marker",
         type: "FR:KM",
         properties: {
-            type: "speed_marker",
             form: "sign"
         }
     },
@@ -254,16 +258,6 @@ export const SIGNAL_MAPPING = {
         type: "FR:TLD",
         properties: {
             form: "light"
-        }
-    },
-
-    // Stop signs
-    "ARRET VOY": {
-        group: "stop",
-        cat: "stop",
-        type: "FR:ARRET_TT",
-        properties: {
-            form: "sign"
         }
     },
 
@@ -298,7 +292,7 @@ export const SIGNAL_MAPPING = {
     "CC EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC",
+        type: "FR:CC_EXE",
         properties: {
             type: "power_off",
             form: "sign",
@@ -308,7 +302,7 @@ export const SIGNAL_MAPPING = {
     "CC FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC",
+        type: "FR:CC_FIN",
         properties: {
             type: "power_on",
             form: "sign",
@@ -328,7 +322,7 @@ export const SIGNAL_MAPPING = {
     "BP DIS": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP",
+        type: "FR:BP_DIS",
         properties: {
             type: "pantograph_down_advance",
             form: "sign"
@@ -337,7 +331,7 @@ export const SIGNAL_MAPPING = {
     "BP EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP",
+        type: "FR:BP_EXE",
         properties: {
             type: "pantograph_down",
             form: "sign",
@@ -347,7 +341,7 @@ export const SIGNAL_MAPPING = {
     "BP FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP",
+        type: "FR:BP_FIN",
         properties: {
             type: "pantograph_up",
             form: "sign",
@@ -357,7 +351,7 @@ export const SIGNAL_MAPPING = {
     "FIN CAT": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CAT",
+        type: "FR:FIN_CAT",
         properties: {
             type: "end_of_catenary",
             form: "sign"
@@ -368,7 +362,7 @@ export const SIGNAL_MAPPING = {
         cat: "electricity",
         type: "FR:GIVRE",
         properties: {
-            form: "sign"
+            form: "light"
         }
     },
     "BIMODE A": {
@@ -456,7 +450,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Stop signs (extended set)
+    // Distant Stop signs
     "ARRET A": {
         group: "stop",
         cat: "stop_distant",
@@ -465,6 +459,16 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    "STOP A": {
+        group: "stop",
+        cat: "stop_distant",
+        type: "FR:STOP_A",
+        properties: {
+            form: "sign"
+        }
+    },
+
+    // Stop signs
     "ARRET": {
         group: "stop",
         cat: "stop",
@@ -473,18 +477,18 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
-    "ATC": {
+    "ARRET VOY": {
         group: "stop",
         cat: "stop",
-        type: "FR:ATC",
+        type: "FR:TT",
         properties: {
             form: "sign"
         }
     },
-    "GARE": {
+    "ATC": {
         group: "stop",
         cat: "stop",
-        type: "FR:GARE",
+        type: "FR:ATC",
         properties: {
             form: "sign"
         }
@@ -508,6 +512,14 @@ export const SIGNAL_MAPPING = {
     },
 
     // Station and facilities
+    "GARE": {
+        group: "station",
+        cat: "station_distant",
+        type: "FR:GARE",
+        properties: {
+            form: "sign"
+        }
+    },
     "APPROCHETS": {
         group: "station",
         cat: "station_distant",
@@ -538,6 +550,22 @@ export const SIGNAL_MAPPING = {
         type: "FR:SLD",
         properties: {
             form: "light"
+        }
+    },   
+    "MIBLAN VER": {
+        group: "station",
+        cat: "departure",
+        type: "FR:MIB-MIV",
+        properties: {
+            form: "plate"
+        }
+    },
+    "DD": {
+        group: "station",
+        cat: "departure",
+        type: "FR:DD",
+        properties: {
+            form: "plate"
         }
     },
 

@@ -1,7 +1,7 @@
 /* filters.css — Filter panels and all child components =====
  *
  * Covers: FilterPanel (.filter-panel), combo input, dropdown list items,
- * pills (.fg-tag), "Supported only" toggle, "Add filter" menu,
+ * tags (.fg-tag), "Supported only" toggle, "Add filter" menu,
  * and empty states for the Filters and Pinned Signals sections.
  *
  * Shared dropdown primitives (.dd-trigger, .dd-panel) and the toolbar
@@ -26,12 +26,6 @@
         display: none;
     }
 
-
-/* ===== .filter-panel (was .filter-group) =====
- *
- * Filter panels tile flush inside #filters-container.
- * Border-top between adjacent panels is applied on the header of the
- * second and later panels to avoid a double border at the top. */
 
 /* ===== Filter panels as collapsible subpanels =====
  *
@@ -58,6 +52,12 @@
 .cp-panel--open.filter-panel.cp-panel--sub > .panel-summary {
     border-bottom-color: transparent;
 }
+
+/* ===== Filter panels =====
+ *
+ * Filter panels tile flush inside #filters-container.
+ * Border-top between adjacent panels is applied on the header of the
+ * second and later panels to avoid a double border at the top. */
 
 /* Border separator between adjacent filter panels */
 .filter-panel + .filter-panel {
@@ -105,7 +105,7 @@
 }
 
 
-/* ===== Pills (active value tags) ===== */
+/* ===== Active value tags ===== */
 
 .fg-tags {
     display: flex;
@@ -142,7 +142,7 @@
         color: #fff;
     }
 
-/* networkId pills: flyToLocation on label click */
+/* networkId tags: flyToLocation on label click */
 .fg-tag--clickable .fg-tag-label {
     cursor: pointer;
 }
@@ -161,7 +161,7 @@
 }
 
     /* Hover and keyboard focus: distinct background so the button reads as
- * a separate interactive target from the pill itself. */
+ * a separate interactive target from the tag itself. */
     .fg-tag-remove:hover,
     .fg-tag-remove:focus-visible {
         color: #fff;
@@ -211,9 +211,50 @@
         cursor: text;
     }
 
+.fg-combo-clear,
 .fg-combo-arrow {
-    padding-right: 8px;
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 2px;
+    transition: color .15s, background .15s;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
 }
+
+    .fg-combo-clear:hover,
+    .fg-combo-clear:focus-visible,
+    .fg-combo-arrow:hover,
+    .fg-combo-arrow:focus-visible {
+        color: var(--text);
+        background: rgba(255, 255, 255, .06);
+    }
+
+.fg-combo-clear,
+.fg-combo-arrow {
+    margin-right: 3px;
+}
+
+.fg-combo-arrow svg {
+    transform: rotate(90deg);
+    transition: transform .2s ease;
+}
+
+.fg-combo-input.is-open .fg-combo-arrow svg {
+    transform: rotate(-90deg);
+}
+
+    .fg-combo-clear:focus-visible,
+    .fg-combo-arrow:focus-visible {
+        outline: 2px solid var(--accent2);
+        outline-offset: 1px;
+    }
 
 /* readOnly combo (direction, placement) */
 .fg-combo-readonly {
@@ -436,4 +477,49 @@
 .pinned-section .empty-state {
     padding-top: 6px;
     padding-bottom: 0;
+}
+
+/* ===== Rich dropdown items (.fgi-name--rich) =====
+ *
+ * Used when a dropdown item carries a subtitle (line label text alongside
+ * the line code). Applied via JS on .fgi-name when item.subtitle is set.
+ *
+ * Layout: fixed code span (no shrink) + label span (takes remaining space,
+ * truncates with ellipsis). The parent .fgi-name already provides flex:1
+ * and overflow:hidden from the base rule — these are kept as-is. */
+
+.fgi-name--rich {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+/* Fixed portion — the line code; never truncated */
+.fgi-code {
+    flex-shrink: 0;
+    font-weight: 600;
+}
+
+/* Variable portion — the line label; truncated with ellipsis when too long.
+ * min-width:0 is required to allow a flex child to shrink below its content width. */
+.fgi-subtitle {
+    flex: 1;
+    min-width: 0;
+    font-size: 9px;
+    color: var(--text2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+/* ===== Mixed-case search input =====
+ *
+ * .fg-search applies text-transform:uppercase for fields where values are
+ * always uppercase (signalType, trackName…). labelSearch fields (lineCode)
+ * accept free-text label searches, so the transform is disabled to avoid
+ * showing the user's input in all-caps while they type a line name. */
+
+.fg-search--mixed {
+    text-transform: none;
 }

@@ -12,10 +12,10 @@ using System.Text.Json;
 /// unaffected and retain their original SNCF field names.
 ///
 /// Format:
-///   signalType    — { label: count, … }           all signal type codes with full-dataset counts
-///   lineCode      — { code: { count, label? }, … } signal counts per line; label from block system
-///                   label is absent when the line does not appear in the block system dataset
-///   blockType     — [ "BAL", "BAPR", … ]           block type label by index
+///   signalType    — { label: count, … }                 all signal type codes with full-dataset counts
+///   lineCode      — { code: { count, label?, bbox? }, … } signal counts per line; label from block
+///                   system; bbox from line geometry dataset (absent when line not in geometry file)
+///   blockType     — [ "BAL", "BAPR", … ]                 block type label by index
 ///   blockSegments — [ ["205000", 69350, 72241, 0], … ]
 ///                   field order: line_code, start_m, end_m, block_type_idx
 ///   networkId     — { "3:94": ["10045678", …], … }
@@ -23,16 +23,22 @@ using System.Text.Json;
 /// </summary>
 static class IndexWriter
 {
-    public static void Write(string outputDir, SignalData signalData, BlockResult blockResult)
+    public static void Write(
+        string outputDir,
+        SignalData signalData,
+        BlockResult blockResult,
+        GeometryProcessor.Result geometryResult)
     {
-        // Merge lineCode signal counts with line display names from the block system.
-        // Lines that appear in signals but not in the block system dataset get no label.
+        // Merge lineCode signal counts with line display names from the block system
+        // and bounding boxes from the line geometry dataset.
+        // Lines absent from either optional dataset simply receive null for that field.
         var lineCode = signalData.LineCodeCounts
             .ToDictionary(
                 kv => kv.Key,
                 kv => new LineInfo(
                     Count: kv.Value,
-                    Label: blockResult.Lines.TryGetValue(kv.Key, out string? label) ? label : null));
+                    Label: blockResult.Lines.TryGetValue(kv.Key, out string? label) ? label : null,
+                    Bbox: geometryResult.Bboxes.TryGetValue(kv.Key, out double[][]? bbox) ? bbox : null));
 
         var path = Path.Combine(outputDir, "index.json");
         File.WriteAllText(

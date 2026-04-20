@@ -33,7 +33,7 @@
     "signalType": "Type IF",
     "lineCode": "Code ligne",
     "lineName": "Libellé ligne",
-    "blockType": "Mode canton",
+    "blockType": "Mode cantonnement",
     "trackCode": "Code voie",
     "trackName": "Nom voie",
     "direction": "Sens",
@@ -60,7 +60,9 @@
     "noMatch": "Aucune valeur",
     "remove": "Supprimer le filtre",
     "searchNetworkId": "Saisissez quelques chiffres pour rechercher…",
-    "clickToSelect": "Cliquer pour sélectionner…"
+    "clickToSelect": "Cliquer pour sélectionner…",
+    "clear": "Effacer la recherche",
+    "openList": "Ouvrir la liste"
   },
   "settings": {
     "basemap": "Fond de carte",
@@ -89,8 +91,8 @@
     "signals": "Signaux",
     "filters": "Filtres",
     "zoom": "Zoom",
-    "sampledTitle": "Aperçu — {0} signaux correspondants. Zoom ≥{1} pour le détail complet.",
-    "recordCount": "{0} signaux — {1} tuiles"
+    "recordCount": "{0} signaux — {1} tuiles",
+    "sampledTitle": "Aperçu — {0} signaux correspondants. Zoomez pour tout voir."
   },
   "progress": {
     "index": "Chargement de l'index…",
@@ -123,10 +125,13 @@
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
     "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
-    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?",
+    "fixme": "Spécifications non disponibles : {0}"
   },
   "josm": {
-    "notReachable": "JOSM inaccessible",
+    "notReachable": "JOSM inaccessible: {0}",
+    "notAuthorized": "Télécommande JOSM non autorisée",
+    "error": "JOSM a retourné une erreur HTTP {0}",
     "detect": {
       "title": "JOSM",
       "version": "Version",
@@ -162,7 +167,8 @@
         "content": [
           "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex: *Type IF*, *Code Ligne*).",
           "* **Légende :** Cliquez sur une catégorie pour isoler les signaux correspondants.",
-          "* **ID Réseau :** Filtrez par identifiant, puis cliquez sur la **pastille** pour zoomer sur le signal."
+          "* **ID Réseau :** Filtrez par identifiant, puis cliquez sur la **pastille** pour zoomer sur le signal.",
+          "* **Code ligne :** Filtrez par code ou libellé de ligne, puis cliquez sur la **pastille** pour survoler l'emprise de la ligne sur la carte."
         ]
       },
       "interaction": {
@@ -198,7 +204,8 @@
         "altDesc": "Zoome et centre sur le signal",
         "rightClick": "Clic droit",
         "rightClickDesc": "Ouvre le menu contextuel",
-        "filterClickDesc": "Pastille ID Réseau / signal épinglé — centre la carte sur le signal",
+        "filterClickLineDesc": "Sur une pastille *Code Ligne* : centre la carte sur l'emprise de la ligne",
+        "filterClickSignalDesc": "Sur une pastille *ID Réseau* ou *signal épinglé* : centre la carte sur le signal correspondant",
         "filterShiftDesc": "Supprimer (×) sur une pastille — ferme toutes les autres pastilles"
       },
       "keyboard": {

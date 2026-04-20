@@ -27,7 +27,7 @@
  *       Track code / Track name / Milepost
  */
 
-import { getTypeColor } from './signal-mapping.js';
+import { getTypeColor, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement } from './translation.js';
 
 // Template references — ES modules are deferred, so the DOM is fully parsed
@@ -56,22 +56,23 @@ export function buildTooltip(feats) {
     const groupsContainer = wrap.querySelector('.tt-groups');
     const commonContainer = wrap.querySelector('.tt-common');
 
-    const p0 = feats[0].p;
+    const sorted = sortSignalsByNetworkId(feats);
+    const p0 = sorted[0].p;
     // canGroup: true when all co-located signals share direction and placement
     // — they can be listed in a single block with shared field values at the bottom.
-    const canGroup = feats.every(
+    const canGroup = sorted.every(
         f => f.p.direction === p0.direction && f.p.placement === p0.placement
     );
 
     if (canGroup) {
         // Single block: all type+id rows together; direction+placement go to the bottom section.
-        for (const f of feats) {
+        for (const f of sorted) {
             groupsContainer.appendChild(_makeSigRow(f));
         }
         _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'direction', 'placement', 'milepost']);
     } else {
         // Group by (direction, placement) combination.
-        const groups = _groupByDirectionPlacement(feats);
+        const groups = _groupByDirectionPlacement(sorted);
         let first = true;
 
         for (const groupFeats of groups.values()) {

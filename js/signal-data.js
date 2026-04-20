@@ -21,7 +21,14 @@
 
 import { INDEX_FILE } from './config.js';
 import { initBlockSystem } from './block-system.js';
+import { registerDataTypes } from './signal-mapping.js';
 
+
+// ===== Precompiled regular expressions =====
+
+const RE_DIACRITIC = /\p{Diacritic}/gu;
+const RE_NUMERIC = /^\d+$/;
+const RE_BLANK = / /g;
 
 // ===== Module state =====
 
@@ -109,8 +116,107 @@ export function searchNetworkIds(prefix) {
     return matches;
 }
 
+/**
+ * Return the full label for the given line code, or null when unknown.
+ * Used by filters.js to populate pill tooltips after index.json has loaded.
+ *
+ * @param {string} lineCode  e.g. "395000"
+ * @returns {string|null}    e.g. "Ligne de St-Cyr à Surdon", or null
+ */
+export function getLineLabel(lineCode) {
+    if (!_indexData?.lineCode) return null;
+    return _indexData.lineCode[lineCode]?.label ?? null;
+}
+
+/**
+ * Return the precomputed bounding box for the given line code, or null.
+ * Bbox format: [minLng, minLat, maxLng, maxLat]  (GeoJSON / OGC convention).
+ *
+ * @param {string} lineCode
+ * @returns {[number,number,number,number]|null}
+ */
+export function getLineBbox(lineCode) {
+    if (!_indexData?.lineCode) return null;
+    return _indexData.lineCode[lineCode]?.bbox ?? null;
+}
+
+/**
+ * Search line codes by code fragment or label fragment.
+ * Matching is accent-insensitive and case-insensitive (NFD + uppercase).
+ * Uses String.includes() so partial matches anywhere in the string are found.
+ *
+ * Returns the full list when query is empty or null — the dropdown therefore
+ * always shows something rather than an empty state before the user types.
+ *
+ * @param {string|null} query  Raw search string; may contain accents and any case.
+ * @returns {{ code: string, label: string, count: number }[]}
+ */
+/**
+ * Search line codes by code fragment or label fragment.
+ * Matching is accent-insensitive and case-insensitive.
+ *
+ * @param {string} query - Raw search string (may be empty).
+ * @returns {Array<{code: string, label: string | null, count: number}>}
+ */
+export function searchLineCodes(query) {
+    if (!_indexData?.lineCode) return [];
+
+    const entries = Object.entries(_indexData.lineCode);
+
+    const formatResult = (code, info) => ({
+        code,
+        label: info?.label ?? null,
+        count: info?.count ?? (typeof info === 'number' ? info : 0)
+    });
+
+    // Empty query (returns all entries)
+    if (!query) {
+        return entries.map(([code, info]) => formatResult(code, info));
+    }
+
+    // Strip spaces before deciding the search mode.
+    // "395 " or "100 000" typed with accidental/intentional spaces must still
+    // be treated as a code prefix search, not switch to label search mode.
+    // Spaces are meaningful only in label search (line names contain spaces).
+    const queryDigits = query.replace(RE_BLANK, '');
+    const isNumericQuery = queryDigits.length > 0 && RE_NUMERIC.test(queryDigits);
+    const nq = isNumericQuery ? queryDigits : _normalizeForSearch(query);
+    const results = [];
+
+    for (const [code, info] of entries) {
+        if (isNumericQuery) {
+            // Numeric search: prefix match on the code (spaces stripped from query).
+            if (code.startsWith(nq)) {
+                results.push(formatResult(code, info));
+            }
+        } else {
+            // Textual search: accent-insensitive substring match on the label.
+            const label = info?.label;
+            if (label && _normalizeForSearch(label).includes(nq)) {
+                results.push(formatResult(code, info));
+            }
+        }
+    }
+
+    return results;
+}
 
 // ===== Private helpers =====
+
+/**
+ * Normalize a string for accent-insensitive, case-insensitive comparison.
+ * Uses Unicode NFD decomposition so that e.g. "é" → "e" + combining accent,
+ * then strips all combining marks via the Unicode Diacritic property.
+ *
+ * Kept private — callers pass raw strings and receive normalized results.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+
+function _normalizeForSearch(str) {
+    return str.toUpperCase().normalize('NFD').replace(RE_DIACRITIC, '');
+}
 
 async function _doLoad() {
     try {
@@ -121,6 +227,11 @@ async function _doLoad() {
         // block-system.js needs the full index object — it reads lineCode,
         // blockType, and blockSegments directly by their index.json key names.
         initBlockSystem(_indexData);
+
+        // Make the full list of signalType codes available to signal-mapping.js
+        // so the 'unsupported' group can be enumerated for legend clicks and for
+        // active-group detection in filters.js.
+        registerDataTypes(Object.keys(_indexData.signalType || {}));
 
         console.info('[signal-data] index.json loaded');
     } catch (err) {

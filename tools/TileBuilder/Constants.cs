@@ -29,6 +29,7 @@ internal static class Constants
     /// <summary>Standard SNCF open data file names published on data.sncf.com.</summary>
     internal const string DefaultSignalGeojson = "signalisation-permanente.geojson";
     internal const string DefaultBlockGeojson  = "mode-de-cantonnement-des-lignes.geojson";
+    internal const string DefaultGeometryGeojson = "formes-des-lignes-du-rfn.geojson";
 
     /// <summary>
     /// Default config file path, resolved relative to the executable directory

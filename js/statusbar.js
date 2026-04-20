@@ -9,12 +9,11 @@
  *   initStatusBar()           — cache DOM refs; call once in app.js/_boot().
  *   updateZoomStatus(zoom)    — write zoom level.
  *   updateVisibleCount(n)     — write visible signal count.
- *   setSampledBadge(s, total) — show/hide the overview sample badge.
+ *   setSampledBadge(sampled, total) — show/hide the overview sample badge.
  *   setRecordCount(data)      — store and render the total signal / tile count.
  *   updateFilterCount(n)      — write active filter count.
  */
 
-import { OVERVIEW_MAX_ZOOM } from './config.js';
 import { t, onLangChange } from './translation.js';
 
 const _el = {};
@@ -30,7 +29,6 @@ export function initStatusBar() {
     _el.filters = document.getElementById('st-filters');
     _el.zoom = document.getElementById('st-zoom');
     _el.count = document.getElementById('record-count');
-    // Re-render the record count string whenever the language changes.
     onLangChange(_renderRecordCount);
 }
 
@@ -39,20 +37,24 @@ export function initStatusBar() {
  * @param {number} n
  */
 export function updateVisibleCount(n) {
-    if (_el.visible) _el.visible.textContent = n.toLocaleString();
+    if (_el.visible) {
+        _el.visible.textContent = n.toLocaleString();
+    }
 }
 
 /**
- * Show or hide the overview sample badge with an explanatory tooltip.
- * Must be called before indexSignals() so isSampled() in map-layer.js is current.
- * @param {boolean} sampled  True when results are spatially sampled.
- * @param {number}  [total]  Total matching signal count before sampling.
+* Show or hide the sample badge.
+  *
+ * @param {boolean} sampled    True when results are spatially sampled.
+ * @param {number}  [total]    Total matching signal count before sampling.
  */
 export function setSampledBadge(sampled, total) {
     const el = _el.sampled;
     if (!el) return;
     el.classList.toggle('is-hidden', !sampled);
-    if (sampled && total) el.title = t('status.sampledTitle', total, OVERVIEW_MAX_ZOOM);
+    if (sampled && total) {
+        el.title = t('status.sampledTitle', total.toLocaleString());
+    }
 }
 
 /**
@@ -60,7 +62,9 @@ export function setSampledBadge(sampled, total) {
  * @param {number} n
  */
 export function updateFilterCount(n) {
-    if (_el.filters) _el.filters.textContent = n.toLocaleString();
+    if (_el.filters) {
+        _el.filters.textContent = n.toLocaleString();
+    }
 }
 
 /**
@@ -84,5 +88,7 @@ function _renderRecordCount() {
  * @param {number} zoom
  */
 export function updateZoomStatus(zoom) {
-    if (_el.zoom) _el.zoom.textContent = zoom.toLocaleString();
+    if (_el.zoom) {
+        _el.zoom.textContent = zoom.toLocaleString();
+    }
 }

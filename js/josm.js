@@ -12,6 +12,8 @@
  *   josmGetVersion()           — probe /version, cache on success, retry on error
  */
 
+import { t } from './translation.js';
+
 const JOSM_BASE = 'http://127.0.0.1:8111';
 
 let _version = null;   // cached only on success; null means "retry allowed"
@@ -35,7 +37,12 @@ export async function josmAddNode(latlng, tags) {
         .map(([k, v]) => encodeURIComponent(`${k}=${v}`))
         .join(encodeURIComponent('|'));
     const r = await josmFetch(`/add_node?lat=${latlng[0]}&lon=${latlng[1]}&addtags=${addtags}`);
-    if (!r.ok) throw new Error(`JOSM returned HTTP ${r.status}`);
+    if (!r.ok) {
+        throw new Error(
+            r.status === 403
+            ? t('josm.notAuthorized')
+            : t('josm.error', r.status));
+    }
     return r;
 }
 

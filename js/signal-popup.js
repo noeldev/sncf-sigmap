@@ -18,7 +18,7 @@
  */
 
 import { map } from './map.js';
-import { getTypeColor, getOsmNodes } from './signal-mapping.js';
+import { getTypeColor, getOsmNodes, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement, onLangChange } from './translation.js';
 import { OsmStatusChecker } from './osm-checker.js';
 import { josmAddNode } from './josm.js';
@@ -104,7 +104,10 @@ onLangChange(() => {
 export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) {
     // Save focus origin so it can be restored when the popup closes.
     _preFocusEl = document.activeElement;
-    _initState(latlng, feats, idx, startTab);
+    // Sort co-located signals by networkId in ascending numeric order so that
+    // the prev/next navigation follows a predictable logical sequence.
+    const sorted = sortSignalsByNetworkId(feats);
+    _initState(latlng, sorted, idx, startTab);
     _openPopup();
     _scheduleOsmCheck();
 }
@@ -130,8 +133,8 @@ export function closeSignalPopup() {
 /**
  * Reset module state for a new popup.
  * OsmStatusChecker initialises statuses from the session cache:
- *   supported   → CHECKING    (Overpass will update)
- *   unsupported → UNSUPPORTED (OSM indicators hidden)
+ *   supported → CHECKING (Overpass will update)
+ *   unsupported → UNSUPPORTED  (OSM indicators hidden)
  */
 function _initState(latlng, feats, idx, startTab) {
     if (_popup) { _popup.remove(); _popup = null; }
@@ -222,32 +225,36 @@ function _resetOsmStatus(idRow) {
 }
 
 function _applyOsmStatus(idRow, idx, feat) {
-    if (_osmChecker.isUnsupported(idx)) {
-        // No OSM mapping for this signal type — hide all OSM indicators.
-        idRow.querySelector('.osm-checking').classList.add('is-hidden');
-        return;
-    }
-    if (_osmChecker.isChecking(idx)) return;   // keep default 'checking' spinner visible
+    if (_osmChecker.isChecking(idx)) return; // Keep the default spinner
 
-    idRow.querySelector('.osm-checking').classList.add('is-hidden');
+    idRow.querySelector('.osm-checking')?.classList.add('is-hidden');
+    if (_osmChecker.isUnsupported(idx)) return;  // No mapping, keep everything hidden
+
+    // Helper to display and configure a status element
+    const showTarget = (selector, setupFn = null) => {
+        const el = idRow.querySelector(selector);
+        if (el) {
+            if (setupFn) setupFn(el);
+            el.classList.remove('is-hidden');
+        }
+    };
 
     if (_osmChecker.isInOsm(idx)) {
         const nodeId = _osmChecker.nodeIdAt(idx);
-        const link = idRow.querySelector('.osm-in-osm');
-        link.classList.remove('is-hidden');
-        link.href = `https://www.openstreetmap.org/node/${nodeId}`;
-        const lbl = t('osm.inOsm', nodeId);
-        link.title = lbl;
-        link.setAttribute('aria-label', lbl);
+        showTarget('.osm-in-osm', el => {
+            const lbl = t('osm.inOsm', nodeId);
+            el.href = `https://www.openstreetmap.org/node/${nodeId}`;
+            el.title = lbl;
+            el.setAttribute('aria-label', lbl);
+        });
     } else if (_osmChecker.isNotInOsm(idx)) {
-        const link = idRow.querySelector('.osm-locate');
-        link.classList.remove('is-hidden');
-        link.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
+        showTarget('.osm-locate', el => {
+            el.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
+        });
     } else if (_osmChecker.isError(idx)) {
-        idRow.querySelector('.osm-retry').classList.remove('is-hidden');
+        showTarget('.osm-retry');
     }
 }
-
 
 // ===== In-place DOM updates =====
 
@@ -411,7 +418,10 @@ function _updateTagsPanel() {
         const tplRow = _tplTagRow();
         for (const [k, v] of node.tags.entries()) {
             const row = tplRow.content.cloneNode(true).querySelector('.pu-osm-row');
-            row.querySelector('.pu-osm-key').textContent = k;
+
+            // Inject a zero-width space after colons to allow wrapping in long ORM keys.
+            // This only affects the visual text content of this specific DOM element.
+            row.querySelector('.pu-osm-key').textContent = k.replaceAll(':', '\u200B:');
             row.querySelector('.pu-osm-val').textContent = v;
             frag.appendChild(row);
         }
@@ -541,11 +551,15 @@ function _copyTags(node, btn) {
 
 async function _sendToJOSM(node, btn) {
     if (!node?.tags?.size) return;
+    if (btn.disabled) return;
 
     if (!getSkipJosmConfirm() && _osmChecker?.hasAnyInOsm()) {
         const msg = _feats.length > 1 ? t('osm.warnMulti') : t('osm.warnSingle');
         if (!confirm(msg)) return;
     }
+
+    // Disable the button while the request is pending.
+    btn.disabled = true;
 
     // Small lat offset per node so separately created nodes don't overlap in JOSM.
     const lat = _latlng[0] + node.index * 0.00001;
@@ -556,16 +570,24 @@ async function _sendToJOSM(node, btn) {
         _flash(btn);
     } catch (err) {
         console.warn('[JOSM]', err.message);
-        alert(`${t('josm.notReachable')}: ${err.message}`);
+        const msg = err.message.includes('JOSM')
+                ? err.message
+                : t('josm.notReachable', err.message);
+        alert(msg);
+    } finally {
+        btn.disabled = false;
     }
 }
 
 function _flash(btn) {
     if (!btn) return;
+    if (btn._flashTimer) clearTimeout(btn._flashTimer);
     btn.classList.add('is-flash');
-    setTimeout(() => btn.classList.remove('is-flash'), 2400);
+    btn._flashTimer = setTimeout(() => {
+        btn.classList.remove('is-flash');
+        btn._flashTimer = null;
+    }, 2400);
 }
-
 
 // ===== Accessibility =====
 

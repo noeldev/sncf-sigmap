@@ -60,7 +60,9 @@
     "noMatch": "No matching values",
     "remove": "Remove filter",
     "searchNetworkId": "Type some digits to search…",
-    "clickToSelect": "Click to select…"
+    "clickToSelect": "Click to select…",
+    "clear": "Clear search",
+    "openList": "Open list"
   },
   "settings": {
     "basemap": "Base Map",
@@ -89,8 +91,8 @@
     "signals": "Signals",
     "filters": "Filters",
     "zoom": "Zoom",
-    "sampledTitle": "Overview sample — {0} matching signals. Zoom ≥{1} for full detail.",
-    "recordCount": "{0} signals — {1} tiles"
+    "recordCount": "{0} signals — {1} tiles",
+    "sampledTitle": "Overview sample — {0} matching signals. Zoom in to see all."
   },
   "progress": {
     "index": "Loading index…",
@@ -123,10 +125,13 @@
     "error": "OSM check failed",
     "retry": "Retry OSM check",
     "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
-    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?"
+    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?",
+    "fixme": "Unavailable specifications: {0}"
   },
   "josm": {
-    "notReachable": "JOSM not reachable",
+    "notReachable": "JOSM not reachable: {0}",
+    "notAuthorized": "JOSM remote control not authorized",
+    "error": "JOSM returned HTTP {0}",
     "detect": {
       "title": "JOSM",
       "version": "Version",
@@ -162,7 +167,8 @@
         "content": [
           "* **Filters:** In the [Filters](#tab-filters) tab, use **Add filter** (e.g., *SignalType*, *Line Code*).",
           "* **Legend:** Click a category to isolate matching signals.",
-          "* **Network ID:** Filter by a specific ID, then click the **pill** label to zoom to the signal on the map."
+          "* **Network ID:** Filter by a specific ID, then click the **pill** label to zoom to the signal on the map.",
+          "* **Line code:** Filter by code or line label, then click the **pill** label to fly to the line's extent on the map."
         ]
       },
       "interaction": {
@@ -198,7 +204,8 @@
         "altDesc": "Zoom to and center on the signal",
         "rightClick": "Right-click",
         "rightClickDesc": "Open context menu",
-        "filterClickDesc": "Network ID pill / pinned signal — fly to the signal on the map",
+        "filterClickLineDesc": "On a *Line code* pill: fly to the line's full extent on the map",
+        "filterClickSignalDesc": "On a *Network ID* pill or a *pinned signal*: fly to the signal on the map",
         "filterShiftDesc": "Remove (×) on a pill — close all the other pills"
       },
       "keyboard": {

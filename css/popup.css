@@ -249,6 +249,7 @@
         font-size: 10px;
         white-space: normal;
         word-break: break-word;
+        overflow-wrap: anywhere;
         line-height: 1.4;
         min-width: 0; /* allows flex child to shrink below content size */
     }
@@ -308,23 +309,27 @@ button.pu-osm-btn.osm-retry {
 
 .pu-tags-list {
     display: grid;
-    grid-template-columns: max-content max-content;
-    width: max-content;
+    grid-template-columns: 1fr fit-content(40%);
+    column-gap: 10px;
+    width: 100%;
 }
 
-    .pu-tags-list .pu-osm-row,
     .pu-osm-row {
-        display: grid;
-        grid-template-columns: subgrid;
-        grid-column: 1 / -1;
-        gap: 10px;
-        padding: 3px 0;
-        font-size: 10px;
-        font-family: var(--ff-mono);
-        border-bottom: 1px solid var(--border);
-        align-items: flex-start;
-        white-space: nowrap;
+        display: contents;
     }
+
+.pu-osm-key,
+.pu-osm-val {
+    font-size: 10px;
+    font-family: var(--ff-mono);
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+    align-self: stretch;
+}
 
 .pu-osm-key {
     color: var(--text2);
@@ -441,7 +446,8 @@ span.btn-flash-label {
 .pu-tags-body {
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 3px 0 14px;
+    scrollbar-gutter: stable;
+    padding: 8px 6px 0 14px;
     mask-image: linear-gradient(to bottom, black calc(100% - 2px), transparent calc(100% - 2px));
 }
 
