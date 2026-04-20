@@ -59,6 +59,7 @@ function _buildMenu(items) {
     return menu;
 }
 
+let _menuTimer = null;
 
 /**
  * Show the context menu at viewport coordinates (x, y).
@@ -89,13 +90,17 @@ export function showContextMenu(x, y, items) {
     menu.querySelector('.ctx-item')?.focus();
 
     // Deferred so the triggering event does not immediately close the menu.
-    setTimeout(() => {
+    _menuTimer = setTimeout(() => {
         document.addEventListener('mousedown', _onOutsideMousedown, { capture: true, once: true });
     }, 0);
 }
 
 /** Dismiss the context menu if one is open. */
 export function closeContextMenu() {
+    if (_menuTimer) {
+        clearTimeout(_menuTimer);
+        _menuTimer = null;
+    }
     if (!_menuEl) return;
     _menuEl.remove();
     _menuEl = null;
@@ -119,18 +124,43 @@ function _onMenuMousedown(e) {
     _activateIdx(parseInt(el.dataset.idx, 10), e.shiftKey);
 }
 
-function _onMenuKeydown(e) {
-    const items = [...(_menuEl?.querySelectorAll('.ctx-item') ?? [])];
-    const current = items.indexOf(document.activeElement);
+function _onOutsideMousedown(e) {
+    if (!_menuEl?.contains(e.target)) closeContextMenu();
+}
 
+function _getItems() {
+    return [...(_menuEl?.querySelectorAll('.ctx-item') ?? [])];
+}
+
+function _moveItemFocus(delta) {
+    const items = _getItems();
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement);
+    const newIndex = (current + delta + items.length) % items.length;
+    items[newIndex].focus();
+}
+
+const _nextItem = () => _moveItemFocus(1);
+const _prevItem = () => _moveItemFocus(-1);
+
+function _onMenuKeydown(e) {
     switch (e.key) {
         case 'ArrowDown':
             e.preventDefault();
-            items[(current + 1) % items.length]?.focus();
+            _nextItem();
             break;
         case 'ArrowUp':
             e.preventDefault();
-            items[(current - 1 + items.length) % items.length]?.focus();
+            _prevItem();
+            break;
+        case 'Tab':
+            // Trap focus within the menu
+            e.preventDefault();
+            if (e.shiftKey) {
+                _prevItem();
+            } else {
+                _nextItem();
+            }
             break;
         case 'Enter':
         case ' ': {
@@ -144,8 +174,4 @@ function _onMenuKeydown(e) {
             closeContextMenu();
             break;
     }
-}
-
-function _onOutsideMousedown(e) {
-    if (!_menuEl?.contains(e.target)) closeContextMenu();
 }

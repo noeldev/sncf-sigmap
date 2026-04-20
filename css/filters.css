@@ -27,12 +27,6 @@
     }
 
 
-/* ===== .filter-panel (was .filter-group) =====
- *
- * Filter panels tile flush inside #filters-container.
- * Border-top between adjacent panels is applied on the header of the
- * second and later panels to avoid a double border at the top. */
-
 /* ===== Filter panels as collapsible subpanels =====
  *
  * .filter-panel.cp-panel--sub overrides the generic cp-panel--sub styles
@@ -58,6 +52,12 @@
 .cp-panel--open.filter-panel.cp-panel--sub > .panel-summary {
     border-bottom-color: transparent;
 }
+
+/* ===== Filter panels =====
+ *
+ * Filter panels tile flush inside #filters-container.
+ * Border-top between adjacent panels is applied on the header of the
+ * second and later panels to avoid a double border at the top. */
 
 /* Border separator between adjacent filter panels */
 .filter-panel + .filter-panel {

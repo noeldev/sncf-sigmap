@@ -132,9 +132,9 @@ The **OSM existence check** queries the [Overpass API](https://overpass-api.de/)
 | … | Check in progress |
 | ↻ | Check failed — click to retry |
 
-Results are cached for the session. Unsupported signal types skip the Overpass check and show the locate button immediately.
+Results are cached for the session. Unknown signal types skip the Overpass check and show the locate button immediately.
 
-The **Signal Node** badge at the bottom shows which OSM node the signal maps to (`X / N` when the group produces multiple nodes). Click it or the **OSM Tags** tab to switch to the export view. Unsupported types show **N/A**.
+The **Signal Node** badge at the bottom shows which OSM node the signal maps to (`X / N` when the group produces multiple nodes). Click it or the **OSM Tags** tab to switch to the export view. Unknown types show **N/A**.
 
 ### OSM Tags tab
 

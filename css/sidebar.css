@@ -192,9 +192,8 @@
 
 /* ===== Interactive legend items =====
  *
- * Each legend row is a <button> — keyboard focus, Enter/Space, and :disabled
- * are handled natively. No role or tabindex management needed in JS.
- * Unsupported categories receive the disabled attribute: no cursor, no hover.
+ * Each legend row is a <button> — keyboard focus, Enter/Space are handled
+ * natively. No role or tabindex management needed in JS.
  *
  * border-left: 3px solid transparent reserves space so the is-active indicator
  * does not cause a layout shift when the border becomes visible. */
@@ -217,22 +216,18 @@
     transition: all 0.2s ease;
 }
 
-    .legend-item:not(:disabled):hover {
+    .legend-item:hover {
         background: rgba(255, 255, 255, .05);
         color: var(--text);
     }
 
-    .legend-item:not(:disabled):focus-visible {
+    .legend-item:focus-visible {
         outline: 2px solid var(--accent2);
         outline-offset: 1px;
     }
 
-    .legend-item:not(:disabled):active {
+    .legend-item:active {
         background: rgba(255, 255, 255, .09);
-    }
-
-    .legend-item:disabled {
-        cursor: default;
     }
 
     /* Active legend group: left accent bar using the dot color via currentColor
@@ -244,7 +239,7 @@
     }
 
 /* Dim siblings on hover to draw attention to the hovered category. */
-.legend-panel-body:hover .legend-item:not(:disabled):not(:hover) {
+.legend-panel-body:hover .legend-item:not(:hover) {
     opacity: .5;
     transition: opacity .15s, background .15s, color .15s;
 }

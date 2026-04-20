@@ -20,12 +20,12 @@
  *   This module owns the application data pipeline built on top of that map.
  */
 
-import { OVERVIEW_MAX_ZOOM, OVERVIEW_MAX_SIGNALS } from './config.js';
+import { OVERVIEW_MAX_ZOOM } from './config.js';
 import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
 import { getTileUrlsForBounds, fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
-import { getTypeColor } from './signal-mapping.js';
+import { getPrimaryTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
 import { t, onLangChange } from './translation.js';
 import { isOwnWorkerMessage } from './tiles-worker-contract.js';
@@ -396,7 +396,8 @@ function _showContextMenuAt(x, y, lat, lng, all) {
  * @returns {L.Marker}
  */
 function _makeMarker(lat, lng, all, display) {
-    const color = getTypeColor(display[0].p.signalType);
+    const types = display.map(s => s.p.signalType);
+    const color = getPrimaryTypeColor(types);
     const count = display.length;
     const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
     const marker = L.marker([lat, lng], { icon })

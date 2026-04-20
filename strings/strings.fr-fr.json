@@ -125,10 +125,13 @@
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
     "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
-    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?",
+    "fixme": "Spécifications non disponibles : {0}"
   },
   "josm": {
-    "notReachable": "JOSM inaccessible",
+    "notReachable": "JOSM inaccessible: {0}",
+    "notAuthorized": "Télécommande JOSM non autorisée",
+    "error": "JOSM a retourné une erreur HTTP {0}",
     "detect": {
       "title": "JOSM",
       "version": "Version",

@@ -161,7 +161,7 @@ export const SIGNAL_MAPPING = {
     },
     "P": {
         group: "speedLimit",
-        cat: "speed_limit",
+        cat: "speed_limit_distant",
         type: "FR:P",
         properties: {
             form: "sign"
@@ -362,7 +362,7 @@ export const SIGNAL_MAPPING = {
         cat: "electricity",
         type: "FR:GIVRE",
         properties: {
-            form: "sign"
+            form: "light"
         }
     },
     "BIMODE A": {
@@ -480,7 +480,7 @@ export const SIGNAL_MAPPING = {
     "ARRET VOY": {
         group: "stop",
         cat: "stop",
-        type: "FR:ARRET_TT",
+        type: "FR:TT",
         properties: {
             form: "sign"
         }
@@ -489,14 +489,6 @@ export const SIGNAL_MAPPING = {
         group: "stop",
         cat: "stop",
         type: "FR:ATC",
-        properties: {
-            form: "sign"
-        }
-    },
-    "GARE": {
-        group: "stop",
-        cat: "stop",
-        type: "FR:GARE",
         properties: {
             form: "sign"
         }
@@ -520,6 +512,14 @@ export const SIGNAL_MAPPING = {
     },
 
     // Station and facilities
+    "GARE": {
+        group: "station",
+        cat: "station_distant",
+        type: "FR:GARE",
+        properties: {
+            form: "sign"
+        }
+    },
     "APPROCHETS": {
         group: "station",
         cat: "station_distant",
@@ -550,6 +550,22 @@ export const SIGNAL_MAPPING = {
         type: "FR:SLD",
         properties: {
             form: "light"
+        }
+    },   
+    "MIBLAN VER": {
+        group: "station",
+        cat: "departure",
+        type: "FR:MIB-MIV",
+        properties: {
+            form: "plate"
+        }
+    },
+    "DD": {
+        group: "station",
+        cat: "departure",
+        type: "FR:DD",
+        properties: {
+            form: "plate"
         }
     },
 

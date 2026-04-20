@@ -17,7 +17,8 @@
 const SHOW_DELAY_MS = 250;
 
 const _el = {};
-let _showTimer = null;
+let _showTimer = null;  // showProgress
+let _flashTimer = null; // showFlash
 let _pendingMsg = '';
 
 /**
@@ -56,11 +57,12 @@ export function showProgress(msg = '') {
  * @param {number} [durationMs=1500]
  */
 export function showFlash(msg, durationMs = 1500) {
-    if (_showTimer) { clearTimeout(_showTimer); _showTimer = null; }
+    _clearTimer();
+    if (_flashTimer) clearTimeout(_flashTimer);
     _el.overlay?.classList.add('no-spinner');
     _el.overlay?.classList.remove('hidden');
     if (_el.msg) _el.msg.textContent = msg;
-    setTimeout(() => {
+    _flashTimer = setTimeout(() => {
         _el.overlay?.classList.add('hidden');
         _el.overlay?.classList.remove('no-spinner');
         if (_el.msg) _el.msg.textContent = '';
@@ -71,11 +73,15 @@ export function showFlash(msg, durationMs = 1500) {
  * Cancel any pending show and hide the overlay immediately.
  */
 export function hideProgress() {
+    _clearTimer();
+    _el.overlay?.classList.add('hidden');
+    if (_el.msg) _el.msg.textContent = '';
+    _pendingMsg = '';
+}
+
+function _clearTimer() {
     if (_showTimer) {
         clearTimeout(_showTimer);
         _showTimer = null;
     }
-    _el.overlay?.classList.add('hidden');
-    if (_el.msg) _el.msg.textContent = '';
-    _pendingMsg = '';
 }

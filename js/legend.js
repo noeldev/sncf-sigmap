@@ -6,9 +6,6 @@
  * Exposes updateLegendIndicator() so the sidebar can sync the active-category
  * highlight after every filter change.
  *
- * Unsupported categories (no mapped signal types) receive the disabled
- * attribute — hover, click, and keyboard activation are suppressed natively.
- *
  * Public API:
  *   initLegend()            — build DOM and wire buttons; call once from sidebar.js.
  *   updateLegendIndicator() — sync .is-active class with the current group preset.
@@ -27,10 +24,8 @@ export function initLegend() {
     _buildLegend();
 
     // Single delegated click on the container — survives replaceChildren() in _buildLegend.
-    // Disabled buttons carry the HTML disabled attribute and never reach this handler
-    // because Leaflet / browsers do not fire click on disabled <button> elements.
     document.getElementById('legend-body')?.addEventListener('click', e => {
-        const btn = e.target.closest('.legend-item[data-type]:not([disabled])');
+        const btn = e.target.closest('.legend-item[data-type]');
         if (btn) filterByGroup(btn.dataset.type);
     });
 
@@ -93,12 +88,7 @@ function _buildLegend() {
         btn.dataset.type = key;
         btn.querySelector('.legend-dot').style.backgroundColor = color;
         btn.querySelector('.legend-label').textContent = t(`cat.${key}`);
-
-        if (getTypesByGroup(key).length === 0) {
-            btn.disabled = true;
-        } else {
-            btn.title = t('legend.clickToFilter');
-        }
+        btn.title = t('legend.clickToFilter');
 
         container.appendChild(btn);
     }
