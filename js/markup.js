@@ -24,12 +24,15 @@
 
 // ===== Precompiled regular expressions =====
 
+const RE_HEADING = /^(#{2,3}) (.+)/; // Combined H2 and H3 for single-pass evaluation
 const RE_BOLD = /\*\*([^*]+)\*\*/g;
 const RE_ITALIC = /\*([^*]+)\*/g;
 const RE_LINK = /\[([^\]]+)\]\(([^)]+)\)/g;
-const RE_HEADING = /^(#{2,3}) (.+)/; // Combined H2 and H3 for single-pass evaluation
 const RE_LIST_ITEM = /^( *)\* (.+)/;
 const RE_TRAILING_SPACES = /  \n/g;
+
+// Matches #, *, newline, or the link sequence ](
+const RE_MARKUP = /[#*\n]|\]\(/;
 
 // ===== Inline markup conversion (pure function) =====
 
@@ -204,14 +207,13 @@ function parseMultiline(str) {
 // ===== Public API =====
 
 /**
- * Return true when the string contains at least one recognised markup pattern.
- * @param {string} str
+ * Check if a string contains Markdown-like markup or line breaks.
+ * @param {any} str - The string to check.
  * @returns {boolean}
  */
 export function isMarkup(str) {
     if (typeof str !== 'string') return false;
-    // Presence of bold, italic, link, or line break (triggers multiline parsing)
-    return str.includes('*') || str.includes('](') || str.includes('\n');
+    return RE_MARKUP.test(str);
 }
 
 /**

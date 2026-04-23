@@ -4,10 +4,11 @@
  * Tab "Signals" — SNCF open data fields for the current signal,
  *                 OSM existence check per signal, Signal Node counter.
  * Tab "OSM Tags" — generated OSM tags for the current node,
+ *                  OSM diff toggle (GitHub-style) when divergences exist,
  *                  Copy tags and Open in JOSM actions.
  *
  * A single Leaflet popup is opened and its content updated in-place on
- * every navigation / tab switch — no popup is replaced or re-opened.
+ * every navigation / tab switch.
  *
  * NOTE — unfiltered features:
  *   openSignalPopup() always receives the COMPLETE set of co-located features
@@ -18,14 +19,16 @@
  */
 
 import { map } from './map.js';
-import { getTypeColor, getOsmNodes, sortSignalsByNetworkId } from './signal-mapping.js';
+import { getTypeColor, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement, onLangChange } from './translation.js';
 import { OsmStatusChecker } from './osm-checker.js';
 import { josmAddNode } from './josm.js';
 import { getLineLabel, getBlockType } from './block-system.js';
 import { getSkipJosmConfirm, getAutoTagsTab } from './prefs.js';
-import { isPinned, togglePin } from './pins.js';
+import { isPinned, togglePin, onPinsChange } from './pins.js';
+import { computeTagDiff } from './osm-diff.js';
 
+let _unsubscribePins = null;
 
 // ===== Template accessor =====
 
@@ -65,18 +68,17 @@ export function resolveStartTab(flipped) {
 
 // ===== Module state =====
 
-let _popup = null;     // Leaflet popup instance
-let _popupEl = null;   // live .pu-wrap DOM node
+let _popup = null;        // Leaflet popup instance
+let _popupEl = null;      // live .pu-wrap DOM node
 let _feats = null;
 let _latlng = null;
 let _osmChecker = null;
 let _preFocusEl = null;   // element that had focus before the popup opened
 let _currentIdx = 0;      // index of the signal shown in the Signals tab
-let _nodes = null;
-let _featToNodeIdx = null;
-let _currentNodeIdx = -1;  // node index of the currently displayed signal
-let _tagsNodeIdx = 0;      // node index shown in the OSM Tags tab
+let _currentNodeIdx = -1; // node index of the currently displayed signal
+let _tagsNodeIdx = 0;     // node index shown in the OSM Tags tab
 let _activeTab = TAB_SIGNALS;
+let _diffActive = false;  // OSM diff toggle state — resets on each popup open
 
 
 // ===== Language change handling =====
@@ -86,30 +88,48 @@ let _activeTab = TAB_SIGNALS;
 // Tags for the node counter label.
 // Guard: no-op when no popup is open.
 onLangChange(() => {
-    if (!_popup?.isOpen() || !_popupEl) return;
-    _updateSignalsPanel();
-    _updateTagsPanel();
+    if (_isSignalPopupOpen()) {
+        _updateSignalsPanel();
+        _updateTagsPanel();
+    }
 });
 
 
 // ===== Public API =====
 
 /**
- * Open the unified popup for a co-located signal group.
+ * Open the popup for a co-located signal group.
  * @param {[number,number]} latlng
  * @param {object[]}        feats
  * @param {number}          [idx=0]     initial signal index
  * @param {string}          [startTab]  tab to open first — use resolveStartTab()
  */
 export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) {
+    // Initialize module state.
+    _latlng = latlng;
+    _currentIdx = idx;
+    _tagsNodeIdx = 0;
+    _currentNodeIdx = -1;
+    _diffActive = false;
+
     // Save focus origin so it can be restored when the popup closes.
     _preFocusEl = document.activeElement;
+
     // Sort co-located signals by networkId in ascending numeric order so that
     // the prev/next navigation follows a predictable logical sequence.
-    const sorted = sortSignalsByNetworkId(feats);
-    _initState(latlng, sorted, idx, startTab);
-    _openPopup();
-    _scheduleOsmCheck();
+    _feats = sortSignalsByNetworkId(feats);
+    _initOsmChecker(_feats);
+
+    // Build the popup content and open it on the map.
+    _createPopupContent();
+    _attachPopupEvents();
+    _updateSignalsPanel();
+    _updateTagsPanel();
+    _switchTab(startTab ?? TAB_SIGNALS);
+    _popup.openOn(map);
+
+    // Subscribe to pin changes so the pin button stays in sync.
+    _subscribeToPins();
 }
 
 /**
@@ -117,72 +137,61 @@ export function openSignalPopup(latlng, feats, idx = 0, startTab = TAB_SIGNALS) 
  * Safe to call when no popup is open.
  */
 export function closeSignalPopup() {
+    if (_unsubscribePins) _unsubscribePins();
+    _unsubscribePins = null;
+
     _osmChecker?.abort();
     _osmChecker = null;
+
     _popup?.remove();
     _popup = null;
     _popupEl = null;
+
     // Restore focus to the marker (or whatever had focus) before the popup opened.
     _preFocusEl?.focus();
     _preFocusEl = null;
 }
 
 
-// ===== Initialisation =====
+// ===== Initialization =====
 
-/**
- * Reset module state for a new popup.
- * OsmStatusChecker initialises statuses from the session cache:
- *   supported → CHECKING (Overpass will update)
- *   unsupported → UNSUPPORTED  (OSM indicators hidden)
- */
-function _initState(latlng, feats, idx, startTab) {
-    if (_popup) { _popup.remove(); _popup = null; }
-    _feats = feats;
-    _latlng = latlng;
-    _currentIdx = idx;
-    _activeTab = startTab ?? TAB_SIGNALS;
-    _tagsNodeIdx = 0;
-    _currentNodeIdx = -1;
-
-    _osmChecker = new OsmStatusChecker(feats, _onOsmStatusChange);
-
-    _computeNodes();
+function _isSignalPopupOpen() {
+    return _popup?.isOpen() && _popupEl;
 }
 
-/** Recompute OSM node groups from the current feature list. */
-function _computeNodes() {
-    const result = getOsmNodes(_feats);
-    _nodes = result.nodes;
-    _featToNodeIdx = result.featToNodeIdx;
-}
-
-function _openPopup() {
+function _createPopupContent() {
     const wrap = _tplPopup().content.cloneNode(true).querySelector('.pu-wrap');
-    translateElement(wrap);
-    _popupEl = wrap;
-
-    _updateSignalsPanel();
-    _updateTagsPanel();
-    _switchTab(_activeTab);
-
+    _popup?.remove();
     _popup = L.popup({
-
         autoPan: true,
         closeButton: false,
         className: 'pu-leaflet',
     }).setLatLng(_latlng).setContent(wrap);
+    _popupEl = wrap;
+}
 
-    // Register BEFORE openOn() — Leaflet fires 'popupopen' synchronously.
-    map.once('popupopen', () => {
-        const el = _popup?.getElement();
-        if (!el) return;
-        el.addEventListener('click', _onClick);
-        _trapFocus(el);
-        _initKeyboard(el);
+function _attachPopupEvents() {
+    if (!_popupEl) return;
+    _popupEl.addEventListener('click', _onClick);
+    _trapFocus(_popupEl);
+    _initKeyboard(_popupEl);
+
+    // Single cleanup path: covers the close button, Escape, autoClose
+    // (click on the map), and the context-menu close in map-layer.js.
+    map.once('popupclose', closeSignalPopup);
+}
+
+function _subscribeToPins() {
+    if (_unsubscribePins) _unsubscribePins();
+    _unsubscribePins = onPinsChange(() => {
+        if (_isSignalPopupOpen()) _updatePinButton();
     });
+}
 
-    _popup.openOn(map);
+/** Fire the Overpass check for any feat still in 'checking' state. */
+function _initOsmChecker(feats) {
+    _osmChecker = new OsmStatusChecker(feats, _onOsmStatusChange);
+    _osmChecker?.check();
 }
 
 
@@ -190,22 +199,18 @@ function _openPopup() {
 
 /**
  * Called by OsmStatusChecker when Overpass results arrive.
- * Reads current status from the checker and refreshes the OSM status row.
+ * Refreshes the OSM status row on the Signals panel and re-renders the
+ * Tags panel so the diff toggle can appear / disappear as results arrive.
  */
 function _onOsmStatusChange() {
     if (!_popup?.isOpen() || !_popupEl) return;
     const idRow = _idRow();
-    if (!idRow) return;
-    _resetOsmStatus(idRow);
-    _applyOsmStatus(idRow, _currentIdx, _feats[_currentIdx]);
-}
-
-/**
- * Fire the Overpass check for any feat still in 'checking' state.
- * Updates the OSM status elements in-place when the result arrives.
- */
-function _scheduleOsmCheck() {
-    _osmChecker?.check();
+    if (idRow) {
+        _resetOsmStatus(idRow);
+        _applyOsmStatus(idRow, _currentIdx, _feats[_currentIdx]);
+    }
+    // OSM tags feed the diff toggle and diff rows — refresh the Tags panel too.
+    _updateTagsPanel();
 }
 
 /** Shorthand — the networkId row element. */
@@ -228,7 +233,6 @@ function _applyOsmStatus(idRow, idx, feat) {
     if (_osmChecker.isChecking(idx)) return; // Keep the default spinner
 
     idRow.querySelector('.osm-checking')?.classList.add('is-hidden');
-    if (_osmChecker.isUnsupported(idx)) return;  // No mapping, keep everything hidden
 
     // Helper to display and configure a status element
     const showTarget = (selector, setupFn = null) => {
@@ -239,7 +243,12 @@ function _applyOsmStatus(idRow, idx, feat) {
         }
     };
 
-    if (_osmChecker.isInOsm(idx)) {
+    if (_osmChecker.isUnsupported(idx) ||
+        _osmChecker.isNotInOsm(idx)) {
+        showTarget('.osm-locate', el => {
+            el.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
+        });
+    } else if (_osmChecker.isInOsm(idx)) {
         const nodeId = _osmChecker.nodeIdAt(idx);
         showTarget('.osm-in-osm', el => {
             const lbl = t('osm.inOsm', nodeId);
@@ -247,29 +256,14 @@ function _applyOsmStatus(idRow, idx, feat) {
             el.title = lbl;
             el.setAttribute('aria-label', lbl);
         });
-    } else if (_osmChecker.isNotInOsm(idx)) {
-        showTarget('.osm-locate', el => {
-            el.href = `https://www.openstreetmap.org/?mlat=${feat.lat.toFixed(6)}&mlon=${feat.lng.toFixed(6)}&zoom=18`;
-        });
     } else if (_osmChecker.isError(idx)) {
         showTarget('.osm-retry');
     }
 }
 
+
 // ===== In-place DOM updates =====
 
-// Fields resolved directly from p — block system fields are resolved separately below.
-// Field rows are read from the DOM template via [data-field] — no hardcoded list needed.
-
-/**
- * Update every element in the Signals tab panel for _currentIdx.
- * Does not touch the OSM Tags panel.
- *
- * lineName and blockType are not in tile data; they are resolved
- * at display time via the block-system module (index.json lookup). A shallow
- * displayProps object merges p with the two resolved values so the DATA_FIELDS
- * loop can treat all fields uniformly without mutating the original p.
- */
 /**
  * Update a nav counter label and control arrow button visibility.
  * Shared by signal navigation (Signals tab) and node navigation (Tags tab) —
@@ -293,33 +287,20 @@ function _updateSignalsPanel() {
     const s = _feats[_currentIdx];
     const p = s.p;
 
+    _updateSignalNavHeader(p, _feats.length);
     _updateSignalColor(p);
-    _updateNavHeader(p, _feats.length);
+    _updatePinButton();
     _updateDataRows(p);
     _updateNetworkIdRow(s);
     _updateCoords(s);
-    _updateNodeBadge(s);
-    _updatePinButton();
+    _updateNodeBadge();
+
     // Re-translate labels last — .pu-label elements carry data-i18n;
     // .pu-val elements do not, so content written above is preserved.
     translateElement(_popupEl);
 }
 
 /** Set the --signal-color and --signal-contrast CSS variables on the popup. */
-/** Sync the pin button state with the current signal's pin status. */
-function _updatePinButton() {
-    const networkId = _feats?.[_currentIdx]?.p?.networkId;
-    const pinned = networkId ? isPinned(networkId) : false;
-    const label = t(pinned ? 'pinned.unpin' : 'pinned.pin');
-    // Both tab panels have a pin button — update all of them.
-    _popupEl?.querySelectorAll('[data-action="pin"]').forEach(btn => {
-        btn.classList.toggle('is-pinned', pinned);
-        btn.title = label;
-        btn.setAttribute('aria-label', label);
-        btn.setAttribute('aria-pressed', String(pinned));
-    });
-}
-
 function _updateSignalColor(p) {
     const color = getTypeColor(p.signalType);
     _popupEl.style.setProperty('--signal-color', color);
@@ -327,7 +308,7 @@ function _updateSignalColor(p) {
 }
 
 /** Update the signal nav header: counter label, arrow button visibility, type badge. */
-function _updateNavHeader(p, total) {
+function _updateSignalNavHeader(p, total) {
     _updateNavCounter(
         _popupEl.querySelector('.pu-nav-label'),
         'nav-prev', 'nav-next',
@@ -377,61 +358,152 @@ function _updateNetworkIdRow(s) {
 /** Write the lat/lng coordinate pair to the coords row. */
 function _updateCoords(s) {
     _popupEl.querySelector('.pu-row[data-field="coords"] .pu-val').textContent =
-        `${s.lat.toFixed(6)}  ${s.lng.toFixed(6)}`;
+        `${s.lat.toFixed(6)}  ${s.lng.toFixed(6)}`;
 }
 
-function _updateNodeBadge(s) {
-    const nodeIdx = _featToNodeIdx?.get(s);
-    _currentNodeIdx = nodeIdx ?? -1;
+function _updateNodeBadge() {
+    // Update the OSM node index associated with the current signal
+    const nodeIdx = _osmChecker.getNodeIdxForSignal(_currentIdx);
+    const nodeCount = _osmChecker.getNodeCount();
     const nodeCounter = _popupEl.querySelector('.pu-node-counter');
-
-    if (nodeIdx === undefined) {
+    if (nodeIdx === undefined || nodeIdx === -1) {
         nodeCounter.textContent = t('popup.nodeNA');
     } else {
-        nodeCounter.textContent = t('popup.navLabel', nodeIdx + 1, _nodes.length);
+        nodeCounter.textContent = t('popup.navLabel', nodeIdx + 1, nodeCount);
         // Sync Tags tab to the node of the currently displayed signal.
         _tagsNodeIdx = nodeIdx;
+    }
+    _currentNodeIdx = nodeIdx;
+}
+
+/** Sync the pin button state with the current signal's pin status. */
+function _updatePinButton() {
+    const feat = _feats[_currentIdx];
+    const networkId = feat?.p?.networkId;
+    const pinned = networkId ? isPinned(networkId) : false;
+    const label = t(pinned ? 'pinned.unpin' : 'pinned.pin');
+    const btn = _popupEl?.querySelector('[data-action="pin"]');
+    if (btn) {
+        btn.classList.toggle('is-pinned', pinned);
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('aria-pressed', String(pinned));
     }
 }
 
 /**
  * Update every element in the OSM Tags tab panel for _tagsNodeIdx.
  * Does not touch the Signals panel.
+ *
+ * The OSM diff toggle button is shown only when the node's OSM tags differ
+ * from the app-generated tags. When active, the tag list is rendered in
+ * GitHub-style with removed/added rows; otherwise the normal list is shown.
  */
 function _updateTagsPanel() {
-    if (!_popupEl) return;
-    const total = _nodes.length;
-    const node = total > 0 ? _nodes[_tagsNodeIdx] : null;
+    if (!_popupEl || !_osmChecker) return;
 
-    // Node navigation — uses same _updateNavCounter as signal nav
+    const total = _osmChecker.getNodeCount();
+    const node = total > 0 ? _osmChecker.getNode(_tagsNodeIdx) : null;
+    const hasNode = node?.tags?.size > 0;
+    const osmTags = _osmChecker.getOsmTagsForNode(_tagsNodeIdx);
+    const divergent = computeTagDiff(node?.tags, osmTags);
+    const hasDiff = divergent !== null;
+
+    _updateTagsNav(total);
+    _updateDiffButton(hasDiff);
+    _renderTagsList(node, divergent);
+    _updateFooterButtons(hasNode);
+}
+
+function _updateTagsNav(total) {
     _updateNavCounter(
         _popupEl.querySelector('.pu-tags-node-label'),
         'tags-prev', 'tags-next',
         _tagsNodeIdx, total
     );
+}
 
-    // Tags list
-    const list = _popupEl.querySelector('.pu-tags-list');
-    list.replaceChildren();
-    if (node?.tags?.size) {
-        const frag = document.createDocumentFragment();
-        const tplRow = _tplTagRow();
-        for (const [k, v] of node.tags.entries()) {
-            const row = tplRow.content.cloneNode(true).querySelector('.pu-osm-row');
+/** Sync the diff toggle button visibility and active state with current diff data. */
+function _updateDiffButton(hasDiff) {
+    const btn = _popupEl.querySelector('[data-action="toggle-diff"]');
+    if (!btn) return;
+    btn.classList.toggle('is-hidden', !hasDiff);
+    const active = _diffActive && hasDiff;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-pressed', String(active));
+    // Title/aria-label reflect the next action the button will trigger.
+    const label = t(active ? 'osm.diffHide' : 'osm.diffShow');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+}
 
-            // Inject a zero-width space after colons to allow wrapping in long ORM keys.
-            // This only affects the visual text content of this specific DOM element.
-            row.querySelector('.pu-osm-key').textContent = k.replaceAll(':', '\u200B:');
-            row.querySelector('.pu-osm-val').textContent = v;
-            frag.appendChild(row);
-        }
-        list.appendChild(frag);
-    }
-
-    // Footer buttons
-    const hasNode = !!node?.tags?.size;
+function _updateFooterButtons(hasNode) {
     _popupEl.querySelector('[data-action="copy"]').disabled = !hasNode;
     _popupEl.querySelector('[data-action="josm"]').disabled = !hasNode;
+}
+
+/** Tag list rendering — full switch between normal and diff modes. */
+function _renderTagsList(node, divergent) {
+    const list = _popupEl.querySelector('.pu-tags-list');
+    list.replaceChildren();
+    if (!node?.tags?.size) return;
+    const hasDiff = divergent !== null;
+    const frag = (_diffActive && hasDiff)
+        ? _renderDiffList(node.tags, divergent)
+        : _renderNormalList(node.tags);
+    list.appendChild(frag);
+}
+
+/**
+ * Render the tag list in GitHub-style diff mode.
+ *
+ * Order preserves the natural insertion order of `generated`:
+ *   - unchanged keys render as a single normal row,
+ *   - mismatched keys render as (removed OSM row, added generated row),
+ *   - keys generated but missing in OSM render as a single added row,
+ *   - keys only present in OSM (stale) are appended last as removed rows.
+ */
+function _renderDiffList(generated, divergent) {
+    const frag = document.createDocumentFragment();
+
+    // Pass 1 — iterate generated in its natural insertion order.
+    for (const [k, expected] of generated) {
+        if (divergent.has(k)) {
+            const { actual } = divergent.get(k);
+            if (actual !== null) frag.appendChild(_makeTagRow(k, actual, 'diff-removed'));
+            frag.appendChild(_makeTagRow(k, expected, 'diff-added'));
+        } else {
+            frag.appendChild(_makeTagRow(k, expected));
+        }
+    }
+
+    // Pass 2 — stale OSM-only keys appended at the end.
+    for (const [k, { expected, actual }] of divergent) {
+        if (expected === null) frag.appendChild(_makeTagRow(k, actual, 'diff-removed'));
+    }
+
+    return frag;
+}
+
+/** Render the generated tag list as-is, in insertion order. */
+function _renderNormalList(generated) {
+    const frag = document.createDocumentFragment();
+    for (const [k, v] of generated) frag.appendChild(_makeTagRow(k, v));
+    return frag;
+}
+
+
+/**
+ * Build one tag row from the template. Optional variant adds a diff class
+ * ('diff-removed' / 'diff-added'); CSS handles the +/− prefix via ::before.
+ */
+function _makeTagRow(key, value, variant = null) {
+    const row = _tplTagRow().content.cloneNode(true).querySelector('.pu-osm-row');
+    if (variant) row.classList.add(variant);
+    // Zero-width space allows wrapping in long OSM keys or values.
+    row.querySelector('.pu-osm-key').textContent = key.replaceAll(':', '\u200B:');
+    row.querySelector('.pu-osm-val').textContent = value.replaceAll(';', ';\u200B');
+    return row;
 }
 
 
@@ -461,7 +533,6 @@ function _switchTab(tab) {
 /** Step the current signal index by delta (-1 or +1), wrapping around. */
 function _navigateSignal(delta) {
     _currentIdx = (_currentIdx + delta + _feats.length) % _feats.length;
-    _computeNodes();
     _updateSignalsPanel();
     _updateTagsPanel();
 }
@@ -469,7 +540,8 @@ function _navigateSignal(delta) {
 
 /** Step the tags node index by delta (-1 or +1), wrapping around. */
 function _navigateNode(delta) {
-    _tagsNodeIdx = (_tagsNodeIdx + delta + _nodes.length) % _nodes.length;
+    let nodeCount = _osmChecker.getNodeCount();
+    _tagsNodeIdx = (_tagsNodeIdx + delta + nodeCount) % nodeCount;
     _updateTagsPanel();
 }
 
@@ -485,14 +557,12 @@ function _onClick(e) {
             const networkId = _feats?.[_currentIdx]?.p?.networkId;
             if (networkId) {
                 togglePin(networkId);
-                _updatePinButton();
             }
             break;
         }
 
         case 'close':
-            _popup?.remove();
-            _popup = null;
+            _popup?.remove(); // triggers popupclose → closeSignalPopup()
             break;
 
         case 'nav-prev':
@@ -523,12 +593,17 @@ function _onClick(e) {
             _navigateNode(+1);
             break;
 
+        case 'toggle-diff':
+            _diffActive = !_diffActive;
+            _updateTagsPanel();
+            break;
+
         case 'copy':
-            _copyTags(_nodes[_tagsNodeIdx], btn);
+            _copyTags(_osmChecker.getNode(_tagsNodeIdx), btn);
             break;
 
         case 'josm':
-            _sendToJOSM(_nodes[_tagsNodeIdx], btn);
+            _sendToJOSM(_osmChecker.getNode(_tagsNodeIdx), btn);
             break;
 
         case 'osm-retry':
@@ -571,8 +646,8 @@ async function _sendToJOSM(node, btn) {
     } catch (err) {
         console.warn('[JOSM]', err.message);
         const msg = err.message.includes('JOSM')
-                ? err.message
-                : t('josm.notReachable', err.message);
+            ? err.message
+            : t('josm.notReachable', err.message);
         alert(msg);
     } finally {
         btn.disabled = false;
@@ -607,8 +682,7 @@ function _initKeyboard(popupEl) {
     popupEl.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             e.stopPropagation();
-            _popup?.remove();
-            _popup = null;
+            _popup?.remove(); // triggers popupclose → closeSignalPopup()
             return;
         }
 
@@ -617,7 +691,6 @@ function _initKeyboard(popupEl) {
             e.stopPropagation();
             e.preventDefault();
             _currentIdx = (_currentIdx + (e.key === 'ArrowRight' ? 1 : -1) + _feats.length) % _feats.length;
-            _computeNodes();
             _updateSignalsPanel();
             _updateTagsPanel();
             return;

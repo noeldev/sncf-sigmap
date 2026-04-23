@@ -12,7 +12,6 @@
  */
 
 import { getCategoryEntries } from './cat-mapping.js';
-import { getTypesByGroup } from './signal-mapping.js';
 import { filterByGroup, getActiveGroup } from './filters.js';
 import { t, onLangChange } from './translation.js';
 

@@ -87,7 +87,7 @@
     height: 20px;
     width: auto;
 }
-    
+
 .pu-brand-logo {
     object-fit: contain;
     pointer-events: none;
@@ -305,7 +305,14 @@ button.pu-osm-btn.osm-retry {
     }
 
 
-/* ===== OSM Tags panel — tag list ===== */
+/* ===== OSM Tags panel — tag list =====
+ *
+ * The list is a 2-column CSS grid. Each .pu-osm-row is a subgrid that spans
+ * both parent columns and inherits their widths (including fit-content(40%)
+ * on the value column). Being a real box (not display:contents), each row
+ * can carry its own background, border and ::before pseudo-elements — which
+ * is what makes GitHub-style diff rendering possible.
+ */
 
 .pu-tags-list {
     display: grid;
@@ -314,16 +321,18 @@ button.pu-osm-btn.osm-retry {
     width: 100%;
 }
 
-    .pu-osm-row {
-        display: contents;
-    }
+.pu-osm-row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--border);
+}
 
 .pu-osm-key,
 .pu-osm-val {
     font-size: 10px;
     font-family: var(--ff-mono);
     padding: 3px 0;
-    border-bottom: 1px solid var(--border);
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -338,6 +347,89 @@ button.pu-osm-btn.osm-retry {
 .pu-osm-val {
     color: var(--text);
 }
+
+
+/* ===== OSM Tags diff mode — GitHub-style rows ===== */
+
+.pu-osm-row.diff-added .pu-osm-key,
+.pu-osm-row.diff-removed .pu-osm-key {
+    display: flex;
+    align-items: center;
+}
+
+.pu-osm-key::before {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.pu-osm-row.diff-removed {
+    background: rgba(248, 81, 73, .15);
+}
+
+    .pu-osm-row.diff-removed .pu-osm-key,
+    .pu-osm-row.diff-removed .pu-osm-val {
+        color: #ff7b72;
+    }
+
+        .pu-osm-row.diff-removed .pu-osm-key::before {
+            content: "−";
+        }
+
+.pu-osm-row.diff-added {
+    background: rgba(46, 160, 67, .15);
+}
+
+    .pu-osm-row.diff-added .pu-osm-key,
+    .pu-osm-row.diff-added .pu-osm-val {
+        color: #3fb950;
+    }
+
+        .pu-osm-row.diff-added .pu-osm-key::before {
+            content: "+";
+        }
+
+    .pu-osm-row.diff-added .pu-osm-key,
+    .pu-osm-row.diff-removed .pu-osm-key {
+        align-self: flex-start;
+        display: flex;
+        align-items: flex-start;
+    }
+
+.pu-osm-key::before {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ===== OSM diff toggle button — Tags tab nav ===== */
+
+.pu-diff-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text3);
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .2s, background .2s, border-color .2s;
+    flex-shrink: 0;
+}
+
+    .pu-diff-btn:hover {
+        color: var(--text);
+        background: rgba(255,255,255,.06);
+    }
+
+    .pu-diff-btn.is-active {
+        color: var(--accent2);
+        border-color: var(--accent2);
+    }
 
 
 /* ===== Footer action buttons =====

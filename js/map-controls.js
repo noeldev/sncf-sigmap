@@ -59,8 +59,23 @@ export function initMapControls() {
 // ===== Private helpers =====
 
 function _toggleSidebar() {
-    document.getElementById('sidebar')?.classList.toggle('sidebar-closed');
-    setTimeout(() => map.invalidateSize(), 210);
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    sidebar.classList.toggle('sidebar-closed');
+
+    let invalidated = false;
+    const invalidate = () => {
+        if (invalidated) return;
+        invalidated = true;
+        sidebar.removeEventListener('transitionend', invalidate);
+        map.invalidateSize();
+    };
+
+    sidebar.addEventListener('transitionend', invalidate, { once: true });
+
+    // Fallback for reduced-motion settings or interrupted transitions.
+    setTimeout(invalidate, 300);
 }
 
 /** Return to the initial map extent. */

@@ -14,6 +14,7 @@ import { t, translateElement, onLangChange } from './translation.js';
 import { savePins, loadPins } from './prefs.js';
 import { flyToSignal } from './map-layer.js';
 import { TagList } from './ui/tag-list.js';
+import { Observable } from './utils/observable.js';
 
 
 // ===== Module state =====
@@ -30,30 +31,32 @@ let _sectionEl = null;
 /** Clear-all button in the pinned panel summary. */
 let _clearBtn = null;
 
-/** Callback to fire when pins change (e.g. to re-render pin button states). */
-let _onPinsChange = null;
+/** Observable for pin changes */
+const _pinsChange = new Observable();
 
 
 // ===== Public API =====
 
 /**
  * Initialize the pinned signals panel in the sidebar.
- * @param {object}   opts
- * @param {Element}  opts.container        — Element to append the panel to.
- * @param {Function} [opts.onChange]       — Called after any pin change.
+ *
+ * Subscribe to pin changes via onPinsChange() after initialisation.
+ *
+ * @param {object}  opts
+ * @param {Element} opts.container — Element to append the panel to.
  */
-export function initPins({ container, onChange }) {
-    _onPinsChange = onChange ?? null;
+export function initPins({ container }) {
     _pins = loadPins();
-
     _buildPanel(container);
-    document.getElementById('pinned-panel')
-        ?.querySelector('[data-action="clear-pins"]')
-        ?.addEventListener('click', e => {
-            e.stopPropagation();
-            _onClearAll();
-        });
-    onLangChange(() => _renderPanel());
+    _bindEvents();
+}
+
+/**
+ * Register a callback invoked after any pin change.
+ * @param {Function} fn
+ */
+export function onPinsChange(fn) {
+    return _pinsChange.subscribe(fn);
 }
 
 /**
@@ -81,14 +84,19 @@ export function togglePin(networkId) {
     }
 
     savePins(_pins);
+
     _renderPanel();
-    _onPinsChange?.();
+    _notifyPinsChange();
 
     return pinned;
 }
 
 
-// ===== Panel build / render =====
+// ===== Private helpers =====
+
+function _notifyPinsChange() {
+    _pinsChange.notify();
+}
 
 function _buildPanel(container) {
     const tpl = document.getElementById('tpl-pinned-section');
@@ -112,6 +120,15 @@ function _buildPanel(container) {
     _renderPanel();
 }
 
+function _bindEvents() {
+    _clearBtn?.addEventListener('click', e => {
+        e.stopPropagation();
+        _onClearAll();
+    });
+
+    onLangChange(() => _renderPanel());
+}
+
 /** Rebuild tag list from current _pins. */
 function _renderPanel() {
     if (!_tagList) return;
@@ -120,7 +137,7 @@ function _renderPanel() {
     _sectionEl?.querySelector('.empty-state')
         ?.classList.toggle('is-hidden', _pins.length > 0);
 
-    if (_clearBtn) _clearBtn.classList.toggle('is-hidden', _pins.length === 0);
+    _clearBtn?.classList.toggle('is-hidden', _pins.length === 0);
 }
 
 function _onClearAll() {
@@ -129,5 +146,5 @@ function _onClearAll() {
     _pins = [];
     savePins(_pins);
     _renderPanel();
-    _onPinsChange?.();
+    _notifyPinsChange();
 }

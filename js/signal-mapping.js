@@ -254,7 +254,7 @@ export function getTypesByGroup(group) {
  * @param {string[]} allTypes - List of all signal types in the dataset.
  */
 export function registerDataTypes(allTypes) {
-    _typesByGroupCache().set('unsupported', allTypes.filter(t => !SIGNAL_MAPPING[t]));
+    _typesByGroupCache().set('unsupported', allTypes.filter(type => !SIGNAL_MAPPING[type]));
 }
 
 /** @type {Map<string, string[]> | null} */
@@ -352,7 +352,6 @@ export function getOsmNodes(feats) {
     // Remap node indices to follow original order
     const indexRemap = new Map();
     for (const feat of feats) {
-        if (!rawNodeIdx.has(feat)) continue;
         const old = rawNodeIdx.get(feat);
         if (!indexRemap.has(old)) indexRemap.set(old, indexRemap.size);
     }
