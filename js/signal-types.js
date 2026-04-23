@@ -17,7 +17,6 @@ export const SIGNAL_MAPPING = {
         type: "FR:CARRE",
         properties: {
             form: "light",
-            plate: "FR:NF",
             shape: "FR:C",
             states: "FR:C;FR:VL"
         }
@@ -28,7 +27,6 @@ export const SIGNAL_MAPPING = {
         type: "FR:CV",
         properties: {
             form: "light",
-            plate: "FR:NF",
             shape: "FR:C",
             states: "FR:CV;FR:M"
         }
@@ -39,7 +37,6 @@ export const SIGNAL_MAPPING = {
         type: "FR:CARRE",
         properties: {
             form: "light",
-            plate: "FR:NF",
             shape: "FR:F",
             states: "FR:C;FR:VL;FR:R"
         }
@@ -50,7 +47,6 @@ export const SIGNAL_MAPPING = {
         type: "FR:CARRE",
         properties: {
             form: "light",
-            plate: "FR:NF",
             shape: "FR:H",
             states: "FR:C;FR:VL;FR:RR"
         }
@@ -549,6 +545,7 @@ export const SIGNAL_MAPPING = {
         cat: "departure",
         type: "FR:SLD",
         properties: {
+            type: "await",
             form: "light"
         }
     },   
@@ -557,6 +554,7 @@ export const SIGNAL_MAPPING = {
         cat: "departure",
         type: "FR:MIB-MIV",
         properties: {
+            type: "allow",
             form: "plate"
         }
     },
@@ -565,6 +563,7 @@ export const SIGNAL_MAPPING = {
         cat: "departure",
         type: "FR:DD",
         properties: {
+            type: "request",
             form: "plate"
         }
     },

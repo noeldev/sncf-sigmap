@@ -26,6 +26,7 @@
  *   onPrefsChange(fn)        — register a listener called after any preference changes
  */
 
+import { Observable } from './utils/observable.js';
 
 // ---- Namespaced localStorage wrapper ----
 
@@ -62,7 +63,7 @@ class Storage {
 }
 
 const _s = new Storage();
-const _listeners = [];
+const _prefsChange = new Observable();
 
 function _getBool(key, def) {
     const v = _s.get(key);
@@ -71,9 +72,8 @@ function _getBool(key, def) {
 
 function _setBool(key, v) {
     _s.set(key, v);
-    _listeners.forEach(fn => fn());
+    _prefsChange.notify();
 }
-
 
 // ---- Public API ----
 
@@ -206,9 +206,10 @@ export function loadPins() {
 }
 
 /**
-* Register a callback invoked after any boolean preference changes.
-* @param {Function} fn
-*/
+ * Register a callback invoked after any boolean preference changes.
+ * @param {Function} fn
+ * @returns {Function} Unsubscribe function.
+ */
 export function onPrefsChange(fn) {
-    _listeners.push(fn);
+    return _prefsChange.subscribe(fn);
 }

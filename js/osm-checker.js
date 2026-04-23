@@ -1,12 +1,12 @@
 /**
  * osm-checker.js — OSM existence state machine with caching and automatic retry.
  *
- * Manages the lifecycle of checking whether a group of co-located signals
- * already exists in OpenStreetMap. Delegates network requests to overpass.js
- * and notifies the caller of state changes via a callback.
+ * Manages the lifecycle of checking whether a signal or a group of co-located
+ * signals already exists in OpenStreetMap. Delegates network requests to
+ * overpass.js and notifies the caller of state changes via a callback.
  *
  * Cache strategy:
- *   - IN_OSM results are cached permanently for the session.
+ *   - IN_OSM results are cached permanently for the session (id + tags).
  *   - NOT_IN_OSM results are cached for the lifetime of the current popup instance.
  *   - ERROR results are never cached; they trigger automatic retries.
  *   - Unsupported signals (no OSM mapping) are never sent to Overpass.
@@ -16,13 +16,25 @@
  *   check()       — start or restart the Overpass check
  *   retry()       — force a fresh check (clears NOT_IN_OSM instance cache)
  *   invalidate()  — alias for retry(); call after a successful JOSM/copy export
- *   abort()       — stop retries when the popup closes
+ *   abort()       — stop retries and cancel pending fetch when the popup closes
  *   isChecking(idx) / isInOsm(idx) / isNotInOsm(idx) / isUnsupported(idx) / isError(idx)
- *   nodeIdAt(idx) / hasAnyInOsm()
+ *   nodeIdAt(idx) / getOsmTags(idx) / hasAnyInOsm()
+ *   getNodeCount()
+ *   getNode(idx)
+ *   getNodeIdxForSignal(signalIdx)
+ *   getOsmTagsForNode(nodeIdx)
  */
 
 import { getIdKey, fetchNodesByRef } from './overpass.js';
-import { getSignalId, isSupported } from './signal-mapping.js';
+import { getSignalId, isSupported, getOsmNodes } from './signal-mapping.js';
+
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 2000;
+
+/** Half-width of the Overpass query bbox around a signal group.
+ *  0.001 decimal degrees ≈ 111 m at the equator — a comfortable margin
+ *  for co-located signals while keeping Overpass queries cheap. */
+const BBOX_HALF_DELTA_DEG = 0.001;
 
 // ===== OSM status constants =====
 
@@ -34,12 +46,21 @@ const OSM_STATUS = {
     ERROR: 'error',
 };
 
-const _makeStatus = (status, nodeId = null) => ({ status, nodeId });
+/**
+ * Build a status record from an Overpass cache entry.
+ * @param {string} status
+ * @param {{ id: number, tags: object } | null} [entry]
+ */
+const _makeStatus = (status, entry = null) => ({
+    status,
+    nodeId: entry?.id ?? null,
+    osmTags: entry?.tags ?? null,
+});
 
-const MAX_RETRIES = 5;
-const RETRY_DELAY = 10; // seconds
-
-/** Permanent session-level cache: signals known to be IN_OSM never need rechecking. */
+/**
+ * Permanent session-level cache: key -> { id, tags }.
+ * IN_OSM signals never need re-checking.
+ */
 const _inOsmCache = new Map();
 
 
@@ -54,6 +75,9 @@ export class OsmStatusChecker {
     #notInOsmKeys = new Set();
     #erroredKeys = new Set();
     #statuses;
+    #nodes;
+    #featToNodeIdx;
+    #abortController = null;
 
     /**
      * @param {object[]} feats           Normalized signal features to check.
@@ -62,10 +86,15 @@ export class OsmStatusChecker {
     constructor(feats, onStatusChange) {
         this.#feats = feats;
         this.#onStatusChange = onStatusChange;
-        // Initialise from session cache so IN_OSM signals display immediately.
+
+        // Centralize grouping of signals into OSM nodes (masts)
+        const result = getOsmNodes(feats);
+        this.#nodes = result.nodes;
+        this.#featToNodeIdx = result.featToNodeIdx;
+
+        // Initialize statuses using session cache (IN_OSM) and instance-level caches
         this.#statuses = feats.map(f => this.#resolveStatus(f));
     }
-
 
     // ===== Public API =====
 
@@ -73,12 +102,18 @@ export class OsmStatusChecker {
     async check() {
         this.#clearRetryTimer();
         this.#retryCount = 0;
-        if (this.#statuses.some(s => this.#isError(s))) {
-            this.#statuses = this.#statuses.map(s =>
-                this.#isError(s) ? _makeStatus(OSM_STATUS.CHECKING) : s
-            );
-            this.#notify();
+
+        // Abort any in-flight request before starting a new one
+        if (this.#abortController) {
+            this.#abortController.abort();
         }
+        this.#abortController = new AbortController();
+
+        // Reset error statuses to CHECKING
+        this.#statuses = this.#statuses.map(s =>
+            this.#isError(s) ? _makeStatus(OSM_STATUS.CHECKING) : s
+        );
+        this.#notify();
         await this.#attemptCheck();
     }
 
@@ -90,11 +125,17 @@ export class OsmStatusChecker {
     }
 
     /** Alias for retry() — call after a successful copy or JOSM export. */
-    invalidate() { this.retry(); }
+    invalidate() {
+        this.retry();
+    }
 
-    /** Stop any pending retry timers when the popup closes. */
+    /** Stop any pending retry timers and cancel in-flight fetches. Called when popup closes. */
     abort() {
         this.#clearRetryTimer();
+        if (this.#abortController) {
+            this.#abortController.abort();
+            this.#abortController = null;
+        }
         this.#onStatusChange = null;
     }
 
@@ -109,9 +150,39 @@ export class OsmStatusChecker {
     /** OSM node ID for the signal at index idx, or null when not in OSM. */
     nodeIdAt(idx) { return this.#statuses[idx]?.nodeId ?? null; }
 
+    /** OSM tags object for the signal at index idx, or null when not in OSM / still checking. */
+    getOsmTags(idx) { return this.#statuses[idx]?.osmTags ?? null; }
+
     /** True when any signal in this group has been found in OSM. */
     hasAnyInOsm() { return this.#statuses.some(s => this.#isInOsm(s)); }
 
+    /** Number of OSM nodes (masts) in the current group. */
+    getNodeCount() { return this.#nodes.length; }
+
+    /** Return the node (with .tags) at the given index. */
+    getNode(idx) { return this.#nodes[idx]; }
+
+    /** For a given signal index, return the index of the OSM node it belongs to. */
+    getNodeIdxForSignal(signalIdx) {
+        const feat = this.#feats[signalIdx];
+        return this.#featToNodeIdx.get(feat) ?? -1;
+    }
+
+    /**
+     * Get OSM tags for a node (mast) by looking at any signal belonging to that node.
+     * @param {number} nodeIdx
+     * @returns {object|null}
+     */
+    getOsmTagsForNode(nodeIdx) {
+        for (let i = 0; i < this.#feats.length; i++) {
+            const feat = this.#feats[i];
+            if (this.#featToNodeIdx.get(feat) === nodeIdx) {
+                const tags = this.getOsmTags(i);
+                if (tags) return tags;
+            }
+        }
+        return null;
+    }
 
     // ===== Private status predicates =====
 
@@ -120,7 +191,6 @@ export class OsmStatusChecker {
     #isNotInOsm(s) { return s.status === OSM_STATUS.NOT_IN_OSM; }
     #isUnsupported(s) { return s.status === OSM_STATUS.UNSUPPORTED; }
     #isError(s) { return s.status === OSM_STATUS.ERROR; }
-
 
     // ===== Private helpers =====
 
@@ -139,9 +209,25 @@ export class OsmStatusChecker {
         return _makeStatus(OSM_STATUS.CHECKING);
     }
 
+    /**
+     * Generate a micro-bbox centered on the current signal group coordinates.
+     * Used to restrict Overpass queries instead of fetching the whole viewport.
+     * @returns {string|null} "S,W,N,E" format or null if no features exist.
+     */
+    #getSignalBbox() {
+        if (!this.#feats || this.#feats.length === 0) return null;
+        // Co-located signals share the same coordinates; use the first one.
+        const lat = this.#feats[0].lat;
+        const lng = this.#feats[0].lng;
+        const d = BBOX_HALF_DELTA_DEG;
+        return `${lat - d},${lng - d},${lat + d},${lng + d}`;
+    }
+
     async #attemptCheck() {
         const { toFetch, entries } = this.#prepareFetchList();
-        if (toFetch.length > 0) await this.#fetchAndUpdateCaches(toFetch, entries);
+        if (toFetch.length > 0) {
+            await this.#fetchAndUpdateCaches(toFetch, entries);
+        }
         this.#rebuildStatuses();
         this.#notify();
         this.#scheduleRetryIfNeeded();
@@ -173,11 +259,13 @@ export class OsmStatusChecker {
      */
     async #fetchAndUpdateCaches(toFetch, entries) {
         try {
-            const results = await fetchNodesByRef(toFetch);
+            const bbox = this.#getSignalBbox();
+            const results = await fetchNodesByRef(toFetch, bbox, this.#abortController?.signal);
+
             for (const { key } of entries) {
-                const nodeId = results.get(key);
-                if (nodeId) {
-                    _inOsmCache.set(key, nodeId);
+                const entry = results.get(key);
+                if (entry) {
+                    _inOsmCache.set(key, entry);
                     this.#erroredKeys.delete(key);
                 } else {
                     this.#notInOsmKeys.add(key);
@@ -185,6 +273,7 @@ export class OsmStatusChecker {
                 }
             }
         } catch (err) {
+            if (err.name === 'AbortError') return; // Request cancelled intentionally, ignore.
             console.warn('[osm-checker] batch failed:', err.message);
             for (const { key } of entries) this.#erroredKeys.add(key);
         }
@@ -198,13 +287,19 @@ export class OsmStatusChecker {
     #scheduleRetryIfNeeded() {
         if (this.#retryCount >= MAX_RETRIES) return;
         if (!this.#statuses.some(s => this.#isError(s))) return;
+
         this.#retryCount++;
-        this.#retryTimer = setTimeout(() => this.#attemptCheck(), RETRY_DELAY * 1000);
+        this.#retryTimer = setTimeout(() => this.#attemptCheck(), RETRY_DELAY);
     }
 
     #clearRetryTimer() {
-        if (this.#retryTimer) { clearTimeout(this.#retryTimer); this.#retryTimer = null; }
+        if (this.#retryTimer) {
+            clearTimeout(this.#retryTimer);
+            this.#retryTimer = null;
+        }
     }
 
-    #notify() { this.#onStatusChange?.(); }
+    #notify() {
+        this.#onStatusChange?.();
+    }
 }

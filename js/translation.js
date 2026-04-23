@@ -27,7 +27,7 @@
 
 import { getLangPref, setLangPref } from './prefs.js';
 import { isMarkup, toHtml } from './markup.js';
-
+import { Observable } from './utils/observable.js';
 
 // ===== Precompiled regular expressions =====
 
@@ -48,6 +48,8 @@ const LANG_INFO = {
         'fr-FR': { label: 'Français', flag: 'flag-fr.svg' },
     },
 };
+
+const _langChange = new Observable();
 
 let _strings = {};
 
@@ -245,17 +247,17 @@ export function translateElement(root) {
  */
 export function translateAll() {
     translateElement(document.documentElement);
+    _langChange.notify();
     document.documentElement.lang = _lang;
-    _langListeners.forEach(fn => fn());
 }
 
 /**
  * Register a callback invoked after every language change.
  * @param {Function} fn
  */
-const _langListeners = [];
+
 export function onLangChange(fn) {
-    _langListeners.push(fn);
+    return _langChange.subscribe(fn);
 }
 
 

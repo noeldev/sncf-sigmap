@@ -43,7 +43,8 @@ export function initLangPicker() {
 // ===== Private helpers =====
 
 function _createDropdown(dropdown, btn) {
-    // _activate is module-level; dd is passed explicitly to avoid a closure.
+    // _activate is module-level so it stays reusable and testable in isolation;
+    // `dd` is forwarded explicitly rather than captured through module state.
     const dd = new Dropdown({
         dropdownEl: dropdown,
         triggerEl: btn,

@@ -124,6 +124,8 @@
     "inOsm": "Déjà présent dans OpenStreetMap — Nœud #{0}",
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
+    "diffShow": "Afficher les différences OSM",
+    "diffHide": "Masquer les différences OSM",
     "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
     "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?",
     "fixme": "Spécifications non disponibles : {0}"

@@ -16,7 +16,7 @@
  *   loadIndexData()          — fetch index.json, initialize dependent modules; resolves to null on failure
  *   getFilterData()          — { signalType, lineCode, …} or null if index not loaded
  *   getNetworkIdIndex()      — Map<networkId, tileKey>, or null if index not loaded
- *   searchNetworkIds(prefix) — string[] of networkIds starting with prefix
+ *   searchNetworkIds(prefix) — string[] of networkIds starting with prefix (binary search)
  */
 
 import { INDEX_FILE } from './config.js';
@@ -37,6 +37,9 @@ let _indexData = null;
 
 /** @type {Promise<void>|null}  In-flight (or completed) fetch promise. */
 let _loadPromise = null;
+
+/** @type {string[]} Strictly lexicographically sorted IDs for binary search */
+let _sortedNetworkIds = [];   // flat, sorted list of all networkIds
 
 
 // ===== Public API =====
@@ -99,21 +102,25 @@ export function getNetworkIdIndex() {
 
 /**
  * Return all known networkIds that start with the given prefix.
- * Used by the networkId filter dropdown to populate search suggestions.
- * Returns an empty array when the index is not yet loaded or prefix is empty.
- *
+ * Uses a binary search (B-tree search logic) for O(log n) performance.
  * @param {string} prefix
  * @returns {string[]}
  */
 export function searchNetworkIds(prefix) {
-    if (!_indexData?.networkId || !prefix) return [];
-    const matches = [];
-    for (const ids of Object.values(_indexData.networkId)) {
-        for (const id of ids) {
-            if (id.startsWith(prefix)) matches.push(id);
+    if (!_sortedNetworkIds.length || !prefix) return [];
+
+    const startIdx = _findFirstPrefixIndex(prefix);
+    if (startIdx === -1) return [];
+
+    const results = [];
+    for (let i = startIdx; i < _sortedNetworkIds.length; i++) {
+        if (_sortedNetworkIds[i].startsWith(prefix)) {
+            results.push(_sortedNetworkIds[i]);
+        } else {
+            break;
         }
     }
-    return matches;
+    return results;
 }
 
 /**
@@ -142,17 +149,6 @@ export function getLineBbox(lineCode) {
 
 /**
  * Search line codes by code fragment or label fragment.
- * Matching is accent-insensitive and case-insensitive (NFD + uppercase).
- * Uses String.includes() so partial matches anywhere in the string are found.
- *
- * Returns the full list when query is empty or null — the dropdown therefore
- * always shows something rather than an empty state before the user types.
- *
- * @param {string|null} query  Raw search string; may contain accents and any case.
- * @returns {{ code: string, label: string, count: number }[]}
- */
-/**
- * Search line codes by code fragment or label fragment.
  * Matching is accent-insensitive and case-insensitive.
  *
  * @param {string} query - Raw search string (may be empty).
@@ -162,7 +158,6 @@ export function searchLineCodes(query) {
     if (!_indexData?.lineCode) return [];
 
     const entries = Object.entries(_indexData.lineCode);
-
     const formatResult = (code, info) => ({
         code,
         label: info?.label ?? null,
@@ -203,19 +198,48 @@ export function searchLineCodes(query) {
 
 // ===== Private helpers =====
 
-/**
- * Normalize a string for accent-insensitive, case-insensitive comparison.
- * Uses Unicode NFD decomposition so that e.g. "é" → "e" + combining accent,
- * then strips all combining marks via the Unicode Diacritic property.
- *
- * Kept private — callers pass raw strings and receive normalized results.
- *
- * @param {string} str
- * @returns {string}
- */
-
 function _normalizeForSearch(str) {
     return str.toUpperCase().normalize('NFD').replace(RE_DIACRITIC, '');
+}
+
+function _buildNetworkIdIndex() {
+    if (!_indexData?.networkId) {
+        _sortedNetworkIds = [];
+        return;
+    }
+    const allIds = new Set();
+    for (const ids of Object.values(_indexData.networkId)) {
+        for (const id of ids) allIds.add(id);
+    }
+
+    _sortedNetworkIds = [...allIds].sort();
+}
+
+/**
+ * Perform a binary search (B-tree search) to find
+ * the first occurrence of a prefix in _sortedNetworkIds.
+ * @param {string} prefix
+ * @returns {number} The first index found, or -1.
+ */
+function _findFirstPrefixIndex(prefix) {
+    let left = 0;
+    let right = _sortedNetworkIds.length - 1;
+    let foundIndex = -1;
+
+    while (left <= right) {
+        const mid = (left + right) >> 1;
+        const val = _sortedNetworkIds[mid];
+
+        if (val.startsWith(prefix)) {
+            foundIndex = mid;
+            right = mid - 1; // Look further left for the absolute first match
+        } else if (val < prefix) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    return foundIndex;
 }
 
 async function _doLoad() {
@@ -223,6 +247,9 @@ async function _doLoad() {
         const res = await fetch(INDEX_FILE);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         _indexData = await res.json();
+
+        // Build the networkId index and sorted array for fast lookup and search.
+        _buildNetworkIdIndex();
 
         // block-system.js needs the full index object — it reads lineCode,
         // blockType, and blockSegments directly by their index.json key names.

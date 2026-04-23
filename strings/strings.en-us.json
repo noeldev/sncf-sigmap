@@ -124,6 +124,8 @@
     "inOsm": "Already in OpenStreetMap — Node #{0}",
     "error": "OSM check failed",
     "retry": "Retry OSM check",
+    "diffShow": "Show OSM differences",
+    "diffHide": "Hide OSM differences",
     "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
     "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?",
     "fixme": "Unavailable specifications: {0}"
