@@ -13,8 +13,8 @@
  * No map state, no tile data, no worker interaction.
  *
  * Public API:
- *   initSidebar({ onRefresh })
- *     onRefresh({ filterCount? }) — called after filter changes.
+ *   initSidebar(onRefresh)
+ *     onRefresh(filterCount) — called after filter changes.
  */
 
 import { t } from './translation.js';
@@ -48,11 +48,10 @@ let _onRefresh = null;
  * Must be called after the DOM is ready and initMap() has resolved
  * (refreshBasemapLabels needs the tile layers to exist).
  *
- * @param {object}   opts
- * @param {Function} opts.onRefresh  Called after any filter change that needs a map refresh.
- *                                   Receives { filterCount?: number }.
+ * @param {Function} onRefresh  Called after any filter change that needs a map refresh.
+ *                              Receives the active filter count as a number.
  */
-export function initSidebar({ onRefresh }) {
+export function initSidebar(onRefresh) {
     _onRefresh = onRefresh;
     initCollapsiblePanels();
     initLangPicker();
@@ -74,7 +73,8 @@ export function initSidebar({ onRefresh }) {
  * before the filter index loads. flyToSignal handles missing index gracefully.
  */
 function _initPins() {
-    initPins({ container: document.getElementById('pinned-container') });
+    const container = document.getElementById('pinned-container');
+    initPins(container);
 }
 
 
@@ -93,7 +93,7 @@ function _onFiltersChange() {
     _updateResetButton();
     updateLegendIndicator();
     updateFilterToolbar();
-    _onRefresh({ filterCount: getActiveFilterCount() });
+    _onRefresh(getActiveFilterCount());
 }
 
 /** Sync the Reset button's disabled state with whether any filters are active. */

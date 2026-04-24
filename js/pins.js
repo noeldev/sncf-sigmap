@@ -42,10 +42,9 @@ const _pinsChange = new Observable();
  *
  * Subscribe to pin changes via onPinsChange() after initialisation.
  *
- * @param {object}  opts
- * @param {Element} opts.container — Element to append the panel to.
+ * @param {HTMLElement} container — Element to append the panel to.
  */
-export function initPins({ container }) {
+export function initPins(container) {
     _pins = loadPins();
     _buildPanel(container);
     _bindEvents();
