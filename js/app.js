@@ -36,7 +36,7 @@ async function _boot() {
     await loadStrings(getLang());
     await initMap();
     initKeyboardShortcuts();
-    initSidebar({ onRefresh: _onSidebarRefresh });
+    initSidebar(_onSidebarRefresh);
     initStatusBar();
     initProgress();
     translateAll();
@@ -45,12 +45,11 @@ async function _boot() {
 
 /**
  * Called by sidebar.js after any filter change that needs a map refresh.
- * @param {object}  event
- * @param {number} [event.filterCount]  Active filter count, when provided.
+ * @param {number} [filterCount]  Active filter count, when provided.
  */
-function _onSidebarRefresh({ filterCount }) {
+function _onSidebarRefresh(filterCount) {
     refresh(true);
-    if (filterCount !== undefined) updateFilterCount(filterCount);
+    updateFilterCount(filterCount);
 }
 
 

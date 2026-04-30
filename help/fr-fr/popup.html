@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Propriétés du signal — Aide</title>
+    <link rel="icon" type="image/svg+xml" href="../../assets/svg/favicon.svg">
+    <link rel="icon" type="image/png" href="../../assets/png/favicon.png" sizes="512x512">
+    <link rel="stylesheet" href="../help.css">
+</head>
+<body>
+    <header class="help-header">
+        <a class="help-back" href="index.html">←</a>
+        <span class="help-title">Propriétés du signal</span>
+    </header>
+
+    <details open>
+        <summary>Propriétés du signal</summary>
+        <div class="section-body">
+            <p>La fenêtre propose deux onglets :</p>
+            <ul>
+                <li><strong>Signaux</strong> — Données d'infrastructure. Utilisez les flèches si plusieurs signaux sont au même endroit. Près de l'<strong>ID Réseau</strong>, cliquez sur le <strong>logo OSM</strong> pour afficher les informations du nœud dans <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap</a>, ou sur <strong>Localiser sur OpenStreetMap</strong> s'il n'est pas encore cartographié.</li>
+                <li><strong>Tags OSM</strong> — Affichez, copiez ou ouvrez les tags dans l'<a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">éditeur JOSM</a>.</li>
+            </ul>
+            <p>Le bouton <strong>Épingler</strong> (en haut de la fenêtre) permet de garder un signal en référence.</p>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Mode Diff OSM</summary>
+        <div class="section-body">
+            <p>Lorsqu'un signal existe déjà dans OpenStreetMap, l'onglet <em>Tags OSM</em> compare les tags générés à ceux intégrés à OSM, avec le code couleur suivant :</p>
+            <ul>
+                <li><span class="sample-removed">− railway:*</span> — valeurs présentes uniquement dans OSM, ou en conflit avec la valeur générée.<br />
+                Clic droit → <strong>Fusionner</strong> pour remplacer la valeur générée par celle d'OSM.</li>
+                <li><span class="sample-added">+ railway:*</span> — valeurs générées par l'app absentes d'OSM, ou en conflit avec OSM.</li>
+                <li><span class="sample-modified">~ railway:*</span> — valeurs fusionnées depuis OSM depuis l'ouverture de la fenêtre.<br />
+                Clic droit → <strong>Annuler</strong> pour restaurer la valeur générée.</li>
+            </ul>
+            <p>Clic droit n'importe où dans la liste pour <strong>Tout fusionner</strong> et <strong>Tout annuler</strong>, le cas échéant.</p>
+            <p>Les tags générés suivent les spécifications <a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a>.<br />
+            <em>Note : Fonctionnalité expérimentale (spécifications en cours d'élaboration).</em></p>
+            <p>Certaines valeurs (ex. <em>form</em>, <em>states</em>, <em>speed</em>) sont définies par défaut lorsqu'elles ne sont pas disponibles dans les <a href="https://data.sncf.com" target="_blank" rel="noopener">données ouvertes SNCF</a>. Les tags OSM issus de relevés terrain peuvent être plus précis et peuvent dans ce cas être fusionnés.</p>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Export</summary>
+        <div class="section-body">
+            <p>Les boutons <strong>Copier les tags</strong> et <strong>Ouvrir dans JOSM</strong> exportent les tags cibles actuels (y compris les valeurs fusionnées depuis OSM). Les tags sont triés par ordre alphabétique à l'export ; les clés auxiliaires comme <code>source</code> apparaissent à la fin.</p>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Interaction dans le popup</summary>
+        <div class="section-body">
+            <h2>Souris</h2>
+            <table class="shortcut-table">
+                <tr><th>Action</th><th>Effet</th></tr>
+                <tr><td>Clic droit sur une ligne tag</td><td>Ouvre le menu contextuel Fusionner / Annuler (mode Diff)</td></tr>
+                <tr><td>Clic droit sur la liste</td><td>Tout fusionner / Tout annuler (le cas échéant)</td></tr>
+            </table>
+
+            <h2>Clavier</h2>
+            <table class="shortcut-table">
+                <tr><th>Raccourci</th><th>Effet</th></tr>
+                <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Navigue entre les signaux co-localisés (onglet <strong>Signaux</strong>)</td></tr>
+                <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Navigue entre les différents noeuds (onglet <strong>Tags OSM</strong>)</td></tr>
+                <tr><td><kbd>Maj</kbd>+<kbd>F10</kbd></td><td>Ouvre le menu contextuel sur la ligne Tag OSM sélectionnée</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>Copie les tags dans le presse-papiers</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Ouvre dans JOSM</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Annule la dernière modification (mode Diff)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>Rétablit la dernière modification annulée (mode Diff)</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Ouvre cette page d'aide</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <script type="module" src="../help.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Map &amp; Controls — Help</title>
+    <link rel="icon" type="image/svg+xml" href="../../assets/svg/favicon.svg">
+    <link rel="icon" type="image/png" href="../../assets/png/favicon.png" sizes="512x512">
+    <link rel="stylesheet" href="../help.css">
+</head>
+<body>
+    <header class="help-header">
+        <a class="help-back" href="index.html">←</a>
+        <span class="help-title">Map &amp; Controls</span>
+    </header>
+
+    <details open>
+        <summary>Finding signals</summary>
+        <div class="section-body">
+            <ul>
+                <li><strong>Filters:</strong> In the <a href="#" data-app-tab="tab-filters">Filters</a> tab, use <strong>Add filter</strong> (e.g. Signal type, Line code).</li>
+                <li><strong>Legend:</strong> Click a category to isolate matching signals.</li>
+                <li><strong>Network ID:</strong> Filter by a specific ID, then click the <strong>pill</strong> label to zoom to the signal on the map.</li>
+                <li><strong>Line code:</strong> Filter by code or line label, then click the <strong>pill</strong> label to fly to the line's extent on the map.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Map interaction</summary>
+        <div class="section-body">
+            <ul>
+                <li><strong>Controls:</strong> Right-click a signal for the context menu or use the keyboard shortcuts below.</li>
+                <li><strong>Visibility:</strong> All signals appear at zoom 10+. Below this, a spatial sample is used to maintain readability (active filters still apply).</li>
+                <li><strong>Persistence:</strong> Filters, pinned signals, map position, and settings are saved across sessions.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Mouse</summary>
+        <div class="section-body">
+            <table class="shortcut-table">
+                <tr><th>Action</th><th>Effect</th></tr>
+                <tr><td>Wheel</td><td>Zoom in / out</td></tr>
+                <tr><td>Click</td><td>Open the signal popup (SNCF data + OSM tags)</td></tr>
+                <tr><td><kbd>Shift</kbd> + Click</td><td>Open popup on the alternate default tab (see <a href="#" data-app-tab="tab-settings">Settings</a>)</td></tr>
+                <tr><td><kbd>Ctrl</kbd> + Click</td><td>Pin / unpin the signal; pinned signals appear in <a href="#" data-app-tab="tab-filters">Filters</a></td></tr>
+                <tr><td><kbd>Alt</kbd> + Click</td><td>Zoom to and center on the signal</td></tr>
+                <tr><td>Right-click</td><td>Open context menu</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Keyboard</summary>
+        <div class="section-body">
+            <table class="shortcut-table">
+                <tr><th>Shortcut</th><th>Effect</th></tr>
+                <tr><td><kbd>+</kbd> / <kbd>−</kbd></td><td>Zoom in / out</td></tr>
+                <tr><td><kbd>Home</kbd></td><td>Reset to initial map extent</td></tr>
+                <tr><td><kbd>F11</kbd></td><td>Toggle fullscreen</td></tr>
+                <tr><td><kbd>B</kbd></td><td>Open / close basemap picker</td></tr>
+                <tr><td><kbd>L</kbd></td><td>Show my location</td></tr>
+                <tr><td><kbd>S</kbd></td><td>Toggle sidebar</td></tr>
+                <tr><td><kbd>T</kbd></td><td>Collapse / expand map toolbar</td></tr>
+                <tr><td><kbd>Shift</kbd>+<kbd>F10</kbd></td><td>Open context menu on focused signal</td></tr>
+                <tr><td><kbd>Enter</kbd></td><td>Open signal popup (Properties)</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Open help</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <script type="module" src="../help.js"></script>
+</body>
+</html>

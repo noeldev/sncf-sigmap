@@ -1,0 +1,306 @@
+/* help.css — Standalone styling for the help pages */
+
+@import url('../css/tokens.css');
+
+/* Reset + page layout */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    background: var(--panel);
+    color: var(--text);
+    font-family: var(--ff-sans);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+body {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 32px 60px;
+}
+
+
+/* Header */
+
+.help-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border2);
+    margin-bottom: 24px;
+}
+
+.help-back {
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 13px;
+    font-family: var(--ff-mono);
+    padding: 4px 8px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: color .15s, background .15s;
+}
+
+    .help-back:hover {
+        color: var(--text);
+        background: var(--panel2);
+        text-decoration: none;
+    }
+
+.help-title {
+    font-size: 16px;
+    font-weight: 600;
+    font-family: var(--ff-mono);
+    letter-spacing: .3px;
+}
+
+/* Footer — credits on index pages */
+
+.help-footer {
+    margin-top: 32px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+    .help-footer p {
+        font-size: 11px;
+        color: var(--text3);
+        margin: 0;
+    }
+
+/* Hub cards */
+
+.help-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.help-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px;
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color .2s, transform .15s;
+    cursor: pointer;
+}
+
+    .help-card:hover {
+        border-color: var(--accent2);
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+
+.help-card-title {
+    font-family: var(--ff-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent2);
+}
+
+.help-card-desc {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.5;
+}
+
+
+/* Collapsible sections — <details> / <summary> */
+
+details {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+
+    details[open] {
+        border-color: var(--border2);
+    }
+
+summary {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent2);
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    background: var(--panel2);
+}
+
+    summary::before {
+        content: '▸ ';
+        display: inline-block;
+        width: 1.2em;
+        transition: transform .15s;
+    }
+
+    details[open] > summary::before {
+        content: '▾ ';
+    }
+
+    summary:hover {
+        background: var(--panel3);
+    }
+
+    /* Remove the browser default marker */
+    summary::-webkit-details-marker {
+        display: none;
+    }
+
+.section-body {
+    padding: 6px 14px 14px;
+}
+
+
+/* Content */
+
+h2 {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 16px 0 8px;
+}
+
+p {
+    margin-bottom: 10px;
+    color: var(--text2);
+}
+
+ul {
+    margin: 0 0 12px;
+    padding-left: 20px;
+}
+
+li {
+    margin-bottom: 6px;
+    color: var(--text2);
+}
+
+strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+em {
+    color: var(--text2);
+}
+
+code {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--panel2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+}
+
+kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    color: var(--text);
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    line-height: 1.4;
+}
+
+a {
+    color: var(--accent2);
+    text-decoration: none;
+}
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+/* App-tab links styled as interactive */
+[data-app-tab] {
+    cursor: pointer;
+    border-bottom: 1px dotted var(--accent2);
+}
+
+    [data-app-tab]:hover {
+        text-decoration: none;
+        border-bottom-style: solid;
+    }
+
+
+/* Diff color samples */
+
+.sample-removed,
+.sample-added,
+.sample-modified {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.sample-removed {
+    color: #ff7b72;
+    background: rgba(248, 81, 73, .15);
+}
+
+.sample-added {
+    color: #3fb950;
+    background: rgba(46, 160, 67, .15);
+}
+
+.sample-modified {
+    color: #f0b429;
+    background: rgba(210, 153, 34, .15);
+}
+
+
+/* Shortcut table */
+
+.shortcut-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 12px;
+    font-size: 13px;
+}
+
+    .shortcut-table th {
+        text-align: left;
+        font-family: var(--ff-mono);
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border2);
+    }
+
+    .shortcut-table td {
+        padding: 5px 8px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text2);
+    }
+
+        .shortcut-table td:first-child {
+            white-space: nowrap;
+            width: 160px;
+        }

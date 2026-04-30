@@ -23,11 +23,15 @@
  *   translateAll()         — apply translations to the full live document
  *   onLangChange(fn)       — register a listener called after lang change
  *   buildLangOptions(el)   — populate a dropdown <ul> from LANG_INFO
+ *   openHelpPage(page)     — open a help page in the dedicated help tab
  */
 
 import { getLangPref, setLangPref } from './prefs.js';
 import { isMarkup, toHtml } from './markup.js';
 import { Observable } from './utils/observable.js';
+
+/** Browser tab name — ensures all help links reuse the same tab. */
+const HELP_WINDOW = 'sncf-sigmap-help';
 
 // ===== Precompiled regular expressions =====
 
@@ -258,6 +262,22 @@ export function translateAll() {
 
 export function onLangChange(fn) {
     return _langChange.subscribe(fn);
+}
+
+
+// ===== Help page opener =====
+
+/**
+ * Open a standalone help page in a dedicated browser tab.
+ * The locale path segment is derived from the current app language so the
+ * help page always matches the app's active locale.
+ *
+ * @param {string} page  Page name without extension (e.g. 'map', 'popup').
+ *                       Use 'index' for the help hub.
+ */
+export function openHelpPage(page) {
+    const locale = _lang.toLowerCase();
+    window.open(`help/${locale}/${page}.html`, HELP_WINDOW);
 }
 
 

@@ -1,5 +1,5 @@
 /**
- * ui/context-menu.js — Floating context menu for map markers.
+ * context-menu.js — Floating context menu for map markers.
  *
  * Uses <template> elements from index.html and event delegation on the menu.
  * Closes on Escape, outside mousedown, map movestart, or closeContextMenu().
@@ -12,7 +12,7 @@
  * Separator:  the string 'separator'
  */
 
-import { translateElement } from '../translation.js';
+import { translateElement } from './translation.js';
 
 let _menuEl = null;
 let _actions = null;   // parallel array to .ctx-item NodeList — action per item

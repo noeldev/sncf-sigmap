@@ -13,11 +13,12 @@
  * No map state, no tile data, no worker interaction.
  *
  * Public API:
- *   initSidebar({ onRefresh })
- *     onRefresh({ filterCount? }) — called after filter changes.
+ *   initSidebar(onRefresh)
+ *     onRefresh(filterCount) — called after filter changes.
  */
 
 import { t } from './translation.js';
+import { onHelpSwitchTabCommand } from './help-channel.js';
 import {
     getAutoTagsTab, setAutoTagsTab,
     getSkipJosmConfirm, setSkipJosmConfirm,
@@ -48,11 +49,10 @@ let _onRefresh = null;
  * Must be called after the DOM is ready and initMap() has resolved
  * (refreshBasemapLabels needs the tile layers to exist).
  *
- * @param {object}   opts
- * @param {Function} opts.onRefresh  Called after any filter change that needs a map refresh.
- *                                   Receives { filterCount?: number }.
+ * @param {Function} onRefresh  Called after any filter change that needs a map refresh.
+ *                              Receives the active filter count as a number.
  */
-export function initSidebar({ onRefresh }) {
+export function initSidebar(onRefresh) {
     _onRefresh = onRefresh;
     initCollapsiblePanels();
     initLangPicker();
@@ -64,6 +64,7 @@ export function initSidebar({ onRefresh }) {
     _initFilters();
     _initResetButton();
     _initPins();
+    _initHelpChannel();
 }
 
 
@@ -74,7 +75,8 @@ export function initSidebar({ onRefresh }) {
  * before the filter index loads. flyToSignal handles missing index gracefully.
  */
 function _initPins() {
-    initPins({ container: document.getElementById('pinned-container') });
+    const container = document.getElementById('pinned-container');
+    initPins(container);
 }
 
 
@@ -93,7 +95,7 @@ function _onFiltersChange() {
     _updateResetButton();
     updateLegendIndicator();
     updateFilterToolbar();
-    _onRefresh({ filterCount: getActiveFilterCount() });
+    _onRefresh(getActiveFilterCount());
 }
 
 /** Sync the Reset button's disabled state with whether any filters are active. */
@@ -235,4 +237,18 @@ function _updateJosmFields({ version, protocolMajor, protocolMinor, port }) {
     document.getElementById('josm-val-version').textContent = version;
     document.getElementById('josm-val-protocol').textContent = `${protocolMajor}.${protocolMinor}`;
     document.getElementById('josm-val-port').textContent = port;
+}
+
+
+// ===== Help =====
+
+/**
+ * Listen for commands from the external help pages via BroadcastChannel.
+ * Currently supports:
+ *   { type: 'switch-tab', tab: 'tab-filters' }
+ */
+function _initHelpChannel() {
+    onHelpSwitchTabCommand(tab => {
+        _switchToTab(tab);
+    });
 }

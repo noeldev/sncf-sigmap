@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SNCF permanent railway signaling viewer — open data, OSM integration.">
-    <title data-i18n="page.title">SNCF Permanent Signaling</title>
+    <meta name="description" content="Interactive map viewer for the SNCF Signalisation Permanente (Permanent Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via JOSM Remote Control.">
+    <meta name="keywords" content="SNCF,signalisation permanente,permanent signaling,signalisation ferroviaire,railway signaling,OpenStreetMap,OSM,intégration,cartographie ferroviaire,JOSM,remote control,cantonnement,block systems,export tags,mapping tool,France">
+    <title data-i18n="page.title">SNCF Permanent Signalling</title>
     <link rel="icon" type="image/svg+xml" href="assets/svg/favicon.svg">
     <link rel="icon" type="image/png" href="assets/png/favicon.png" sizes="512x512">
     <!-- Leaflet 1.9.4 — SRI hashes sourced from cdnjs -->
@@ -19,8 +20,38 @@
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/filters.css">
     <link rel="stylesheet" href="css/map.css">
+    <link rel="stylesheet" href="css/context-menu.css">
     <link rel="stylesheet" href="css/popup.css">
-    <link rel="stylesheet" href="css/markup.css">
+    <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "SNCF Permanent Signalling Viewer",
+          "alternateName": "SNCF Signalisation Permanente",
+          "description": "Interactive map viewer for the SNCF Signalisation Permanente (Permanent Signalling) open dataset, with OpenStreetMap integration. Signals can be exported as OSM tags to the clipboard or via JOSM Remote Control.",
+          "url": "https://sncf-sigmap.netlify.app/",
+          "applicationCategory": "Mapping, Transportation",
+          "operatingSystem": "Web",
+          "inLanguage": ["fr", "en"],
+          "audience": {
+            "@type": "Audience",
+            "audienceType": "OpenStreetMap contributors, railway enthusiasts"
+          },
+          "keywords": "SNCF, signalisation permanente, permanent signaling, OpenStreetMap, OSM, JOSM, remote control, export tags, mapping tool",
+          "creator": {
+            "@type": "Organization",
+            "name": "SNCF Réseau"
+          },
+          "provider": {
+            "@type": "Person",
+            "name": "Noël Danjou"
+          },
+          "license": "https://opendatacommons.org/licenses/odbl/1.0/",
+          "datePublished": "2026-04-30",
+          "softwareVersion": "1.0",
+          "featureList": "Carte interactive, filtres par type de signal, épingles, export JOSM, copie des tags OSM, vérification de présence OSM, géolocalisation."
+        }
+    </script>
 </head>
 <body>
 
@@ -48,7 +79,6 @@
             <nav id="sidebar-tabs" role="tablist">
                 <button class="stab active" role="tab" aria-selected="true" aria-controls="tab-filters" data-tab="filters" data-i18n="tabs.filters">Filters</button>
                 <button class="stab" role="tab" aria-selected="false" aria-controls="tab-settings" data-tab="settings" data-i18n="tabs.settings">Settings</button>
-                <button class="stab" role="tab" aria-selected="false" aria-controls="tab-help" data-tab="help" data-i18n="tabs.help">Help</button>
                 <button class="stab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about" data-i18n="tabs.about">About</button>
             </nav>
 
@@ -199,145 +229,6 @@
                 </div>
             </div>
 
-            <!-- Help -->
-            <div id="tab-help" class="tab-panel" role="tabpanel">
-                <div class="panels-scroll">
-                    <!-- Short intro paragraph -->
-                    <div class="panel-body">
-                        <p class="panel-text" data-i18n-html="help.intro"></p>
-                    </div>
-
-                    <!-- Getting Started -->
-                    <div class="cp-panel info-panel" id="help-gs-panel">
-                        <div class="panel-summary" role="button" tabindex="0"
-                             aria-expanded="false" aria-controls="help-gs-panel-body">
-                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                            <span data-i18n="help.getStarted.title"></span>
-                        </div>
-                        <div class="cp-body" id="help-gs-panel-body" hidden>
-                            <div class="panel-body">
-
-                                <!-- Finding signals -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-finding-panel">
-                                    <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="help-gs-finding-body">
-                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="help.getStarted.finding.title"></span>
-                                    </div>
-                                    <div class="cp-body" id="help-gs-finding-body">
-                                        <div class="markup" data-i18n-html="help.getStarted.finding.content"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Map interaction -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-interaction-panel">
-                                    <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="help-gs-interaction-body">
-                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="help.getStarted.interaction.title"></span>
-                                    </div>
-                                    <div class="cp-body" id="help-gs-interaction-body">
-                                        <div class="markup" data-i18n-html="help.getStarted.interaction.content"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Signal properties -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-gs-properties-panel">
-                                    <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="help-gs-properties-body">
-                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="help.getStarted.properties.title"></span>
-                                    </div>
-                                    <div class="cp-body" id="help-gs-properties-body">
-                                        <div class="markup" data-i18n-html="help.getStarted.properties.content"></div>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Controls: keyboard + mouse reference -->
-                    <div class="cp-panel cp-panel--open info-panel" id="help-control-panel">
-                        <div class="panel-summary" role="button" tabindex="0"
-                             aria-expanded="true" aria-controls="help-control-panel-body">
-                            <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                            <span data-i18n="help.control.title"></span>
-                        </div>
-                        <div class="cp-body" id="help-control-panel-body">
-                            <div class="panel-body shortcuts-body">
-
-                                <!-- Mouse interactions sub-panel -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-control-mouse-panel">
-                                    <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="help-control-mouse-body">
-                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="help.control.mouse.title"></span>
-                                    </div>
-                                    <div class="cp-body" id="help-control-mouse-body">
-                                        <dl class="shortcuts-grid">
-                                            <dt><kbd data-i18n="help.control.mouse.scroll"></kbd></dt>
-                                            <dd data-i18n="help.control.mouse.scrollDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n="help.control.mouse.clickDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n-html="help.control.mouse.shiftDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.ctrl"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n-html="help.control.mouse.ctrlDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.alt"></kbd>&thinsp;+&thinsp;<kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n="help.control.mouse.altDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.mouse.rightClick"></kbd></dt>
-                                            <dd data-i18n="help.control.mouse.rightClickDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n-html="help.control.mouse.filterClickLineDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.mouse.click"></kbd></dt>
-                                            <dd data-i18n-html="help.control.mouse.filterClickSignalDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd>×</kbd></dt>
-                                            <dd data-i18n="help.control.mouse.filterShiftDesc"></dd>
-                                        </dl>
-                                    </div>
-                                </div>
-
-                                <!-- Keyboard shortcuts sub-panel -->
-                                <div class="cp-panel cp-panel--open cp-panel--sub" id="help-control-keyboard-panel">
-                                    <div class="panel-summary" role="button" tabindex="0"
-                                         aria-expanded="true" aria-controls="help-control-keyboard-body">
-                                        <svg class="panel-arrow" width="10" height="10" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                                        <span data-i18n="help.control.keyboard.title"></span>
-                                    </div>
-                                    <div class="cp-body" id="help-control-keyboard-body">
-                                        <dl class="shortcuts-grid">
-                                            <dt><kbd>+</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyZoomInDesc"></dd>
-                                            <dt><kbd>-</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyZoomOutDesc"></dd>
-                                            <dt><kbd>↖</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyResetDesc"></dd>
-                                            <dt><kbd>F11</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyFullscreenDesc"></dd>
-                                            <dt><kbd>B</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyBasemapDesc"></dd>
-                                            <dt><kbd>L</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyGeolocateDesc"></dd>
-                                            <dt><kbd>S</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keySidebarDesc"></dd>
-                                            <dt><kbd>T</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyToolbarDesc"></dd>
-                                            <dt><kbd>☰</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyContextMenuDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.shift"></kbd>&thinsp;+&thinsp;<kbd>F10</kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyContextMenuDesc"></dd>
-                                            <dt><kbd data-i18n="help.control.keyboard.enter"></kbd></dt>
-                                            <dd data-i18n="help.control.keyboard.keyPropertiesDesc"></dd>
-                                        </dl>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div id="tab-about" class="tab-panel" role="tabpanel">
                 <div class="panels-scroll">
                     <!-- Short intro paragraph -->
@@ -356,10 +247,7 @@
                             <div class="panel-body">
                                 <ul class="about-links panel-text">
                                     <li><a href="https://data.sncf.com/" target="_blank" rel="noopener">SNCF Open Data</a></li>
-                                    <li><a href="https://data.sncf.com/explore/dataset/mode-de-cantonnement-des-lignes/" target="_blank" rel="noopener">SNCF — Mode de cantonnement des lignes</a></li>
-                                    <li><a href="https://openrailwaymap.app/" target="_blank" rel="noopener">OpenRailwayMap</a></li>
                                     <li><a href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France" target="_blank" rel="noopener">OpenRailwayMap — Tagging in France</a></li>
-                                    <li><a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener">JOSM editor</a></li>
                                     <li><a href="https://noeldev.github.io/FrenchRailwaySignalling/" target="_blank" rel="noopener">JOSM Presets — French Railway Signalling</a></li>
                                 </ul>
                             </div>
@@ -398,7 +286,6 @@
                             <div class="panel-text">
                                 <span data-i18n="about.credits.site"></span><br>
                                 <span data-i18n-html="about.credits.data"></span><br>
-                                <span data-i18n-html="about.credits.maps"></span>
                             </div>
                         </div>
                     </div>
@@ -446,6 +333,11 @@
                             data-i18n-title="ctrl.basemap" title="Base map">
                         <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-layers"></use></svg>
                     </button>
+                    <div class="mc-sep"></div>
+                    <button id="btn-help" class="mc-btn"
+                            data-i18n-title="ctrl.help" title="Help">
+                        <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-help"></use></svg>
+                    </button>
                     <div class="mc-sep mc-sep-collapse"></div>
                     <button id="btn-controls-toggle" class="mc-btn mc-collapse-btn"
                             data-i18n-title="ctrl.collapse" title="Collapse toolbar">
@@ -490,11 +382,11 @@
     <template id="tpl-signal-popup">
         <div class="pu-wrap">
 
-            <!-- ===== Panels grid: both panels occupy the same grid area so the
-                 popup dimensions are always set by the larger (Tags) panel. ===== -->
+            <!-- Panels grid: both panels occupy the same grid area so the
+                 popup dimensions are always set by the larger (Tags) panel. -->
             <div class="pu-panels-grid">
 
-                <!-- ===== Tab panel: Signals ===== -->
+                <!-- Tab panel: Signals -->
                 <div class="pu-tab-panel" id="pu-panel-signals" role="tabpanel" data-tab="signals">
 
                     <div class="pu-nav">
@@ -520,6 +412,10 @@
                                     aria-pressed="false"
                                     data-i18n-title="pinned.pin" data-i18n-aria="pinned.pin">
                                 <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-pin"></use></svg>
+                            </button>
+                            <button class="pu-close-btn" data-action="help"
+                                    data-i18n-title="ctrl.help" data-i18n-aria="ctrl.help">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-help"></use></svg>
                             </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
@@ -602,7 +498,7 @@
                     </div>
 
                 </div><!-- /tab-panel[signals] -->
-                <!-- ===== Tab panel: OSM Tags ===== -->
+                <!-- Tab panel: OSM Tags -->
                 <div class="pu-tab-panel" id="pu-panel-tags" role="tabpanel" data-tab="tags">
 
                     <div class="pu-nav">
@@ -624,10 +520,9 @@
                             </button>
                         </div>
                         <div class="pu-nav-right">
-                            <button class="pu-diff-btn is-hidden" data-action="toggle-diff"
-                                    aria-pressed="false"
-                                    data-i18n-title="osm.diffShow" data-i18n-aria="osm.diffShow">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-diff"></use></svg>
+                            <button class="pu-close-btn" data-action="help"
+                                    data-i18n-title="ctrl.help" data-i18n-aria="ctrl.help">
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-help"></use></svg>
                             </button>
                             <button class="pu-close-btn" data-action="close"
                                     data-i18n-title="popup.close" data-i18n-aria="popup.close">
@@ -659,7 +554,7 @@
                 </div><!-- /tab-panel[tags] -->
 
             </div><!-- /pu-panels-grid -->
-            <!-- ===== Bottom tab bar ===== -->
+            <!-- Bottom tab bar -->
             <div class="pu-tabs-bar" role="tablist">
                 <button class="pu-tab-btn active" role="tab" aria-selected="true"
                         aria-controls="pu-panel-signals" data-tab="signals" data-action="tab-signals"
@@ -860,7 +755,7 @@
         </button>
     </template>
 
-    <!-- Context menu — cloned by ui/context-menu.js -->
+    <!-- Context menu — cloned by context-menu.js -->
     <template id="tpl-ctx-menu">
         <div class="ctx-menu" role="menu"></div>
     </template>
@@ -950,16 +845,6 @@
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </symbol>
-        <!-- Diff — OSM tag diff toggle in popup -->
-        <symbol id="icon-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <!-- Top row: '+' prefix + bar -->
-            <line x1="3" y1="7" x2="6" y2="7" />
-            <line x1="4.5" y1="5.5" x2="4.5" y2="8.5" />
-            <line x1="9" y1="7" x2="21" y2="7" />
-            <!-- Bottom row: '−' prefix + bar -->
-            <line x1="3" y1="17" x2="6" y2="17" />
-            <line x1="9" y1="17" x2="21" y2="17" />
-        </symbol>
         <!-- Pin / bookmark — signal pin button in popup -->
         <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="17" x2="12" y2="22" />
@@ -979,8 +864,13 @@
             <polyline points="15 3 21 3 21 9" />
             <line x1="10" y1="14" x2="21" y2="3" />
         </symbol>
+        <!-- Help — question mark circle (toolbar + popup) -->
+        <symbol id="icon-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+        </symbol>
     </svg>
-
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

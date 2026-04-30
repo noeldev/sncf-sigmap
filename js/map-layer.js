@@ -23,7 +23,7 @@
 import { OVERVIEW_MAX_ZOOM } from './config.js';
 import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
 import { getTileUrlsForBounds, fetchTileByKey, findSignalLocation } from './tiles.js';
-import { getActiveFiltersForWorker, indexSignals, resetCounts } from './filters.js';
+import { getActiveFiltersForWorker, indexSignals, resetLiveCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
 import { getPrimaryTypeColor } from './signal-mapping.js';
 import { buildTooltip } from './tooltip.js';
@@ -32,7 +32,7 @@ import { isOwnWorkerMessage } from './tiles-worker-contract.js';
 import { showFlash, showProgress, hideProgress } from './progress.js';
 import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
-import { showContextMenu, closeContextMenu } from './ui/context-menu.js';
+import { showContextMenu, closeContextMenu } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 
 
@@ -279,7 +279,7 @@ function _terminateLoad() {
 function _onWorkerDone(groups, sampled, total) {
     _lastGroups = groups;
     _sampled = sampled;     // must precede indexSignals so isSampled() is current
-    resetCounts();
+    resetLiveCounts();
     setSampledBadge(sampled, total);
     indexSignals(groups.flatMap(g => g.all));
     _renderGroups(groups);
@@ -401,7 +401,7 @@ function _makeMarker(lat, lng, all, display) {
     const count = display.length;
     const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
     const marker = L.marker([lat, lng], { icon })
-        .bindTooltip(buildTooltip(display), {
+        .bindTooltip(() => buildTooltip(display), {
             direction: 'top',
             offset: [0, -6],
             className: 'sig-tooltip',

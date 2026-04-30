@@ -1,18 +1,17 @@
 {
   "page": {
-    "title": "SNCF Permanent Signaling"
+    "title": "SNCF Permanent Signalling"
   },
   "header": {
     "subtitle1": "Permanent",
-    "subtitle2": "Signaling",
+    "subtitle2": "Signalling",
     "loading": "Loading…",
     "beta": "Beta"
   },
   "tabs": {
     "filters": "Filters",
     "settings": "Settings",
-    "about": "About",
-    "help": "Help"
+    "about": "About"
   },
   "buttons": {
     "addFilter": "+ Add filter",
@@ -85,7 +84,8 @@
     "collapse": "Collapse toolbar (T)",
     "expand": "Expand toolbar (T)",
     "geolocateUnavailable": "Geolocation not available.",
-    "geolocateError": "Location error: {0}"
+    "geolocateError": "Location error: {0}",
+    "help": "Help (?)"
   },
   "status": {
     "signals": "Signals",
@@ -124,8 +124,6 @@
     "inOsm": "Already in OpenStreetMap — Node #{0}",
     "error": "OSM check failed",
     "retry": "Retry OSM check",
-    "diffShow": "Show OSM differences",
-    "diffHide": "Hide OSM differences",
     "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
     "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?",
     "fixme": "Unavailable specifications: {0}"
@@ -160,77 +158,8 @@
     "miscellaneous": "Miscellaneous",
     "unsupported": "Unsupported types"
   },
-  "help": {
-    "intro": "Discover how to navigate the map and find signals using filters, the legend, and available [Controls](#panel:help-control-panel).",
-    "getStarted": {
-      "title": "Getting started",
-      "finding": {
-        "title": "Finding signals",
-        "content": [
-          "* **Filters:** In the [Filters](#tab-filters) tab, use **Add filter** (e.g., *SignalType*, *Line Code*).",
-          "* **Legend:** Click a category to isolate matching signals.",
-          "* **Network ID:** Filter by a specific ID, then click the **pill** label to zoom to the signal on the map.",
-          "* **Line code:** Filter by code or line label, then click the **pill** label to fly to the line's extent on the map."
-        ]
-      },
-      "interaction": {
-        "title": "Map interaction",
-        "content": [
-          "* **Controls:** Right-click a signal for the context menu or use keyboard shortcuts.",
-          "* **Visibility:** All signals appear at zoom 10+. Below this, a spatial sample is used to maintain readability (active filters still apply).",
-          "* **Persistence:** Filters, pinned signals, map position, and settings are saved across sessions."
-        ]
-      },
-      "properties": {
-        "title": "Signal Properties",
-        "content": [
-          "The popup presents two tabs:",
-          "* **Signals:** Infrastructure data. Use the arrows to navigate between co-located signals.",
-          "  Beside the **Network ID**, click the **OSM logo** for [OpenStreetMap](https://www.openstreetmap.org/) node info, or **Locate on OpenStreetMap** if not yet mapped.",
-          "* **OSM Tags:** View, copy, or open tags in the [JOSM editor](https://josm.openstreetmap.de/). Tags follow [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France) specs.  ",
-          "  *Note: Experimental feature (specifications are a work in progress).*",
-          "The **Pin** button (at the top of the window) keeps a signal for later reference."
-        ]
-      }
-    },
-    "control": {
-      "title": "Controls",
-      "mouse": {
-        "title": "Mouse",
-        "scroll": "Wheel",
-        "scrollDesc": "Zoom in / out",
-        "click": "Click",
-        "clickDesc": "Open the signal popup (SNCF data + OSM tags)",
-        "shiftDesc": "Open popup on the alternate default tab (see [Settings](#tab-settings) tab)",
-        "ctrlDesc": "Pin / unpin the signal; pinned signals appear in the [Filters](#tab-filters) tab",
-        "altDesc": "Zoom to and center on the signal",
-        "rightClick": "Right-click",
-        "rightClickDesc": "Open context menu",
-        "filterClickLineDesc": "On a *Line code* pill: fly to the line's full extent on the map",
-        "filterClickSignalDesc": "On a *Network ID* pill or a *pinned signal*: fly to the signal on the map",
-        "filterShiftDesc": "Remove (×) on a pill — close all the other pills"
-      },
-      "keyboard": {
-        "title": "Keyboard",
-        "alt": "Alt",
-        "ctrl": "Ctrl",
-        "enter": "Enter",
-        "shift": "Shift",
-        "keyZoomInDesc": "Zoom in",
-        "keyZoomOutDesc": "Zoom out",
-        "keyResetDesc": "Reset to initial map extent",
-        "keyFullscreenDesc": "Toggle fullscreen",
-        "keyBasemapDesc": "Open / close basemap picker",
-        "keyGeolocateDesc": "Show my location",
-        "keySidebarDesc": "Toggle sidebar",
-        "keyToolbarDesc": "Collapse / expand map toolbar",
-        "keyContextMenuDesc": "Open context menu on focused signal",
-        "keyPropertiesDesc": "Open signal popup (Properties)"
-      }
-    }
-  },
   "about": {
-    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Permanent Signaling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
+    "intro": "Interactive map viewer for the **SNCF Signalisation Permanente** (Permanent Signalling) open dataset, with [OpenStreetMap](https://www.openstreetmap.org/) integration. Signals can be exported as OSM tags to the clipboard or via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
     "links": {
       "title": "Links"
     },
@@ -242,8 +171,7 @@
     "credits": {
       "title": "Credits",
       "site": "Site © 2026 Noël Danjou",
-      "data": "Data © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
-      "maps": "Maps © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)"
+      "data": "Data © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)"
     }
   },
   "pinned": {
@@ -267,6 +195,10 @@
     "zoomCenter": "Zoom to",
     "pin": "Pin",
     "unpin": "Unpin",
-    "properties": "Properties"
+    "properties": "Properties",
+    "merge": "Merge",
+    "undo": "Undo",
+    "mergeAll": "Merge all",
+    "undoAll": "Undo all"
   }
 }

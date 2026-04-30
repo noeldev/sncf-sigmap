@@ -15,7 +15,7 @@
  */
 
 import { MAP_BBOX, MAP_STARTUP_ZOOM } from './config.js';
-import { t } from './translation.js';
+import { t, openHelpPage } from './translation.js';
 import { getControlsCollapsed, setControlsCollapsed } from './prefs.js';
 import { map, flyToLocation } from './map.js';
 import { showSignalContextMenu } from './map-layer.js';
@@ -26,14 +26,15 @@ import { showSignalContextMenu } from './map-layer.js';
  */
 // Map button id → action — single source of truth for toolbar wiring.
 const BTN_ACTIONS = {
+    'btn-sidebar-toggle': _toggleSidebar,
     'btn-zoom-in': () => map.zoomIn(),
     'btn-zoom-out': () => map.zoomOut(),
     'btn-reset-view': _resetView,
     'btn-geolocate': _geolocate,
     'btn-fullscreen': _toggleFullscreen,
     'btn-basemap': _toggleBasemapPanel,
-    'btn-controls-toggle': _toggleControls,
-    'btn-sidebar-toggle': _toggleSidebar,
+    'btn-help': () => openHelpPage('map'),
+    'btn-controls-toggle': _toggleControls
 };
 
 export function initMapControls() {
@@ -294,6 +295,10 @@ export function initKeyboardShortcuts() {
             case 'B':
                 e.preventDefault();
                 _toggleBasemapPanel();
+                break;
+            case '?':
+                e.preventDefault();
+                openHelpPage('map');
                 break;
             case 'l':
             case 'L':
