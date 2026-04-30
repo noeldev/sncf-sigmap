@@ -349,12 +349,42 @@ button.pu-osm-btn.osm-retry {
 }
 
 
-/* ===== OSM Tags diff mode — GitHub-style rows ===== */
+/* ===== OSM Tags diff variants — shared styling system =====
+ *
+ * Three variants used by the OSM Tags Diff mode and rendered identically by
+ * the help system (markup.css consumes the same .diff-* classes for inline
+ * style:diff-removed / style:diff-added / style:diff-modified spans).
+ *
+ * Colors are exposed as CSS custom properties so any other file can pick
+ * them up (markup.css uses --diff-removed-fg / --diff-added-fg /
+ * --diff-modified-fg directly).
+ */
 
+:root {
+    --diff-removed-fg: #ff7b72;
+    --diff-removed-bg: rgba(248, 81, 73, .15);
+    --diff-removed-mark: "−";
+    --diff-added-fg: #3fb950;
+    --diff-added-bg: rgba(46, 160, 67, .15);
+    --diff-added-mark: "+";
+    --diff-modified-fg: #f0b429;
+    --diff-modified-bg: rgba(210, 153, 34, .15);
+    --diff-modified-mark: "~";
+}
+
+
+/* ===== OSM Tags diff mode — GitHub-style rows =====
+ *
+ * Variant rows: red (removed) / green (added) / orange (modified).
+ * Each variant shares the same layout — only colors and the leading mark differ.
+ */
+
+.pu-osm-row.diff-removed .pu-osm-key,
 .pu-osm-row.diff-added .pu-osm-key,
-.pu-osm-row.diff-removed .pu-osm-key {
+.pu-osm-row.diff-modified .pu-osm-key {
+    /* The leading mark sits inside the key, on the left, fixed width. */
     display: flex;
-    align-items: center;
+    align-items: flex-start;
 }
 
 .pu-osm-key::before {
@@ -365,71 +395,71 @@ button.pu-osm-btn.osm-retry {
 }
 
 .pu-osm-row.diff-removed {
-    background: rgba(248, 81, 73, .15);
+    background: var(--diff-removed-bg);
 }
 
     .pu-osm-row.diff-removed .pu-osm-key,
     .pu-osm-row.diff-removed .pu-osm-val {
-        color: #ff7b72;
+        color: var(--diff-removed-fg);
     }
 
         .pu-osm-row.diff-removed .pu-osm-key::before {
-            content: "−";
+            content: var(--diff-removed-mark);
         }
 
 .pu-osm-row.diff-added {
-    background: rgba(46, 160, 67, .15);
+    background: var(--diff-added-bg);
 }
 
     .pu-osm-row.diff-added .pu-osm-key,
     .pu-osm-row.diff-added .pu-osm-val {
-        color: #3fb950;
+        color: var(--diff-added-fg);
     }
 
         .pu-osm-row.diff-added .pu-osm-key::before {
-            content: "+";
+            content: var(--diff-added-mark);
         }
 
-    .pu-osm-row.diff-added .pu-osm-key,
-    .pu-osm-row.diff-removed .pu-osm-key {
-        align-self: flex-start;
-        display: flex;
-        align-items: flex-start;
-    }
-
-.pu-osm-key::before {
-    display: inline-block;
-    width: 1.2em;
-    text-align: center;
-    flex-shrink: 0;
+.pu-osm-row.diff-modified {
+    background: var(--diff-modified-bg);
 }
 
-/* ===== OSM diff toggle button — Tags tab nav ===== */
+    .pu-osm-row.diff-modified .pu-osm-key,
+    .pu-osm-row.diff-modified .pu-osm-val {
+        color: var(--diff-modified-fg);
+    }
 
-.pu-diff-btn {
-    background: none;
-    border: 1px solid transparent;
-    color: var(--text3);
-    width: 24px;
-    height: 24px;
-    border-radius: 3px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color .2s, background .2s, border-color .2s;
-    flex-shrink: 0;
+        .pu-osm-row.diff-modified .pu-osm-key::before {
+            content: var(--diff-modified-mark);
+        }
+
+
+/* ===== OSM Tags rows — interactive affordance (Diff mode only) =====
+ *
+ * When the list is in Diff mode, rows are right-clickable (or Shift+F10 /
+ * Menu key) to open the merge/undo context menu. The affordance is scoped
+ * to .pu-tags-list.is-diff-active so read-mode rows keep their original,
+ * non-interactive appearance.
+ */
+
+.pu-tags-list.is-diff-active .pu-osm-row {
+    cursor: context-menu;
 }
 
-    .pu-diff-btn:hover {
-        color: var(--text);
-        background: rgba(255,255,255,.06);
+    .pu-tags-list.is-diff-active .pu-osm-row:focus-visible {
+        outline: 2px solid var(--accent2);
+        outline-offset: -2px;
     }
 
-    .pu-diff-btn.is-active {
-        color: var(--accent2);
-        border-color: var(--accent2);
-    }
+
+/* The wrapper itself receives focus when restored after a context menu
+ * action, so Ctrl+Z / Ctrl+Y stay live without forcing the user to click
+ * the list again. tabindex=-1 makes the element programmatically focusable
+ * without putting it in the Tab order. */
+.pu-tags-list:focus,
+.pu-tags-list:focus-visible {
+    outline: none;
+}
 
 
 /* ===== Footer action buttons =====

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Carte &amp; Contrôles — Aide</title>
+    <link rel="icon" type="image/svg+xml" href="../../assets/svg/favicon.svg">
+    <link rel="icon" type="image/png" href="../../assets/png/favicon.png" sizes="512x512">
+    <link rel="stylesheet" href="../help.css">
+</head>
+<body>
+    <header class="help-header">
+        <a class="help-back" href="index.html">←</a>
+        <span class="help-title">Carte &amp; Contrôles</span>
+    </header>
+
+    <details open>
+        <summary>Recherche de signaux</summary>
+        <div class="section-body">
+            <ul>
+                <li><strong>Filtres :</strong> Dans l'onglet <a href="#" data-app-tab="tab-filters">Filtres</a>, utilisez <strong>Ajouter</strong> (ex : Type IF, Code Ligne).</li>
+                <li><strong>Légende :</strong> Cliquez sur une catégorie pour isoler les signaux correspondants.</li>
+                <li><strong>ID Réseau :</strong> Filtrez par identifiant, puis cliquez sur la <strong>pastille</strong> pour zoomer sur le signal.</li>
+                <li><strong>Code ligne :</strong> Filtrez par code ou libellé de ligne, puis cliquez sur la <strong>pastille</strong> pour survoler l'emprise de la ligne.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Interaction avec la carte</summary>
+        <div class="section-body">
+            <ul>
+                <li><strong>Contrôles :</strong> Clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier ci-dessous.</li>
+                <li><strong>Visibilité :</strong> Tous les signaux apparaissent à partir du zoom 10. En dessous, un échantillonnage spatial assure la lisibilité (les filtres restent prioritaires).</li>
+                <li><strong>Persistance :</strong> Les filtres, signaux épinglés, position et réglages sont conservés entre les sessions.</li>
+            </ul>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Souris</summary>
+        <div class="section-body">
+            <table class="shortcut-table">
+                <tr><th>Action</th><th>Effet</th></tr>
+                <tr><td>Molette</td><td>Zoom avant / arrière</td></tr>
+                <tr><td>Clic</td><td>Ouvre la fenêtre du signal (données SNCF + tags OSM)</td></tr>
+                <tr><td><kbd>Maj</kbd> + Clic</td><td>Ouvre la fenêtre sur l'onglet alternatif (voir <a href="#" data-app-tab="tab-settings">Paramètres</a>)</td></tr>
+                <tr><td><kbd>Ctrl</kbd> + Clic</td><td>Épingle / désépingle le signal ; visible dans <a href="#" data-app-tab="tab-filters">Filtres</a></td></tr>
+                <tr><td><kbd>Alt</kbd> + Clic</td><td>Zoome et centre sur le signal</td></tr>
+                <tr><td>Clic droit</td><td>Ouvre le menu contextuel</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Clavier</summary>
+        <div class="section-body">
+            <table class="shortcut-table">
+                <tr><th>Raccourci</th><th>Effet</th></tr>
+                <tr><td><kbd>+</kbd> / <kbd>−</kbd></td><td>Zoom avant / arrière</td></tr>
+                <tr><td><kbd>Origine</kbd></td><td>Revient à l'étendue initiale</td></tr>
+                <tr><td><kbd>F11</kbd></td><td>Bascule en plein écran</td></tr>
+                <tr><td><kbd>B</kbd></td><td>Ouvre / ferme le sélecteur de fond de carte</td></tr>
+                <tr><td><kbd>L</kbd></td><td>Affiche mon emplacement</td></tr>
+                <tr><td><kbd>S</kbd></td><td>Affiche / masque le panneau</td></tr>
+                <tr><td><kbd>T</kbd></td><td>Réduit / développe la barre d'outils</td></tr>
+                <tr><td><kbd>Maj</kbd>+<kbd>F10</kbd></td><td>Ouvre le menu contextuel sur le signal actif</td></tr>
+                <tr><td><kbd>Entrée</kbd></td><td>Ouvre la fenêtre du signal (Propriétés)</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Ouvre l'aide</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <script type="module" src="../help.js"></script>
+</body>
+</html>

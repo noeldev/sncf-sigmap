@@ -18,6 +18,7 @@
  */
 
 import { t } from './translation.js';
+import { onHelpSwitchTabCommand } from './help-channel.js';
 import {
     getAutoTagsTab, setAutoTagsTab,
     getSkipJosmConfirm, setSkipJosmConfirm,
@@ -63,6 +64,7 @@ export function initSidebar(onRefresh) {
     _initFilters();
     _initResetButton();
     _initPins();
+    _initHelpChannel();
 }
 
 
@@ -235,4 +237,18 @@ function _updateJosmFields({ version, protocolMajor, protocolMinor, port }) {
     document.getElementById('josm-val-version').textContent = version;
     document.getElementById('josm-val-protocol').textContent = `${protocolMajor}.${protocolMinor}`;
     document.getElementById('josm-val-port').textContent = port;
+}
+
+
+// ===== Help =====
+
+/**
+ * Listen for commands from the external help pages via BroadcastChannel.
+ * Currently supports:
+ *   { type: 'switch-tab', tab: 'tab-filters' }
+ */
+function _initHelpChannel() {
+    onHelpSwitchTabCommand(tab => {
+        _switchToTab(tab);
+    });
 }

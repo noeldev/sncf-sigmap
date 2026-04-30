@@ -1,11 +1,9 @@
 /**
  * filters.js — Filter state and orchestration.
  *
- * Owns all application data:
- *   _activeFilters    — currently selected values per field
- *   _indexValues      — pre-loaded value lists from index.json
- *   _counts           — live signal counts per field / value (from tiles)
- *   _defs             — [ { field, search, panel: FilterPanel } ]
+ * Owns all application data regarding active filters:
+ * _activeFilters    — currently selected values per field
+ * _defs             — [ { field, search, panel: FilterPanel } ]
  *
  * Delegates all DOM / event work to FilterPanel (one instance per active
  * filter, stored as def.panel).  This file contains no direct DOM queries
@@ -39,6 +37,14 @@ import {
 import { isSampled, flyToSignal, flyToLine } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
+// Import data layer functions
+import {
+    initFieldState, parseFieldIndex, accumulateSignals,
+    resetLiveCounts as resetDataLiveCounts,
+    resetKnownValues,
+    getCountMap, getCandidateValues, normalize, buildItemSorter
+} from './filter-data.js';
+
 const ALL_FILTER_FIELDS = [
     {
         key: 'signalType', labelKey: 'fields.signalType'
@@ -66,28 +72,26 @@ const ALL_FILTER_FIELDS = [
     },
 ];
 
+// Build once — the only part of ALL_FILTER_FIELDS that the data layer needs.
+const _fieldKeys = ALL_FILTER_FIELDS.map(f => f.key);
+
 // Exported as const so external importers always hold the same object reference.
 // Internal mutations clear keys in-place rather than reassigning the object.
 const _activeFilters = {};
 
-let _indexValues = {};
-let _counts = {};
-let _globalCounts = {};     // per-value counts from index.json (full dataset, always accurate)
-let _knownValues = {};      // accumulated across tile loads; never reset by resetCounts()
 let _defs = [];             // [{ field: string, search: string, panel: FilterPanel }]
 let _mappedOnly = false;
 let _mappedTypes = getSupportedTypes();
 let _onChange = null;
 let _activeGroup = null;
 
-// Templates: resolved lazily via getters so they are always read from the live DOM.
+// Templates
 const _tpl = {
     get group() { return document.getElementById('tpl-filter-group'); },
     get tag() { return document.getElementById('tpl-filter-tag'); },
     get item() { return document.getElementById('tpl-filter-drop-item'); },
     get itemRich() { return document.getElementById('tpl-filter-drop-item-rich'); },
     get noMatch() { return document.getElementById('tpl-filter-no-match'); },
-
 };
 
 // ===== Public API =====
@@ -95,7 +99,8 @@ const _tpl = {
 export function initFilters(onChange) {
     _onChange = onChange;
 
-    _initFieldState();
+    initFieldState(_fieldKeys);
+
     _clearActiveFilters();
     _buildPanels();
     _restoreFilters();
@@ -116,30 +121,8 @@ export function initFilters(onChange) {
  * @param {Array} signals  Flat array of normalized signal objects ({ lat, lng, p }).
  */
 export function indexSignals(signals) {
-    let changed = false;
-    for (const s of signals) {
-        ALL_FILTER_FIELDS.forEach(f => {
-            const v = s.p[f.key];
-            if (v) {
-                _counts[f.key].set(v, (_counts[f.key].get(v) || 0) + 1);
-                _knownValues[f.key].add(v);
-                changed = true;
-            }
-        });
-    }
-
+    const changed = accumulateSignals(signals, _fieldKeys);
     if (changed) _refreshAllDropdowns();
-}
-
-/**
- * Clear all per-field live signal counts accumulated by indexSignals().
- * Called at the start of each worker cycle before new data arrives.
- */
-export function resetCounts() {
-    ALL_FILTER_FIELDS.forEach(f => { _counts[f.key] = new Map(); });
-    // _knownValues is intentionally NOT cleared here — values discovered in
-    // previous tile loads must remain visible in dropdowns even when a filter
-    // causes the worker to exclude groups that would otherwise carry those values.
 }
 
 /**
@@ -149,12 +132,22 @@ export function resetCounts() {
 export function resetFilters() {
     _mappedOnly = false;
     saveFilters([]);
+    resetKnownValues(_fieldKeys);
+
     _clearActiveFilters();
     _clearActiveGroup();
     _resetSearch();
-    _resetKnownValues();
     _buildPanels();
     _onChange?.();
+}
+
+/**
+ * Clear all per-field live signal counts.
+ * Called by map-layer.js at the start of each worker cycle before new data arrives.
+ * Delegates to the data layer so that map-layer.js never touches filter-data.js directly.
+ */
+export function resetLiveCounts() {
+    resetDataLiveCounts(_fieldKeys);
 }
 
 /**
@@ -288,10 +281,6 @@ function _resetSearch(targetField = null) {
     });
 }
 
-function _resetKnownValues() {
-    ALL_FILTER_FIELDS.forEach(f => { _knownValues[f.key] = new Set(); });
-}
-
 /**
  * Reveal the index-load error indicator in the filter panel.
  */
@@ -312,33 +301,9 @@ function _waitForIndexAndRefresh() {
             _showIndexError();
             return;
         }
-        _parseFieldIndex(data);
+        parseFieldIndex(data, _fieldKeys);
         _refreshAllDropdowns();
         _refreshAllTags();
-    });
-}
-
-function _parseFieldIndex(data) {
-    ALL_FILTER_FIELDS.forEach(f => {
-        const entry = data[f.key];
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
-        _indexValues[f.key] = Object.keys(entry);
-        _globalCounts[f.key] = new Map(
-            Object.entries(entry).map(([k, v]) =>
-                [k, typeof v === 'object' && v !== null ? v.count : v]
-            )
-        );
-    });
-}
-
-
-/** Initialise per-field state maps — called once from initFilters(). */
-function _initFieldState() {
-    ALL_FILTER_FIELDS.forEach(f => {
-        _indexValues[f.key] = [];
-        _counts[f.key] = new Map();
-        _knownValues[f.key] = new Set();
-        _globalCounts[f.key] = null;   // null means not yet loaded from index.json
     });
 }
 
@@ -348,16 +313,6 @@ function _clearActiveFilters() {
 
 function _fieldDef(key) {
     return ALL_FILTER_FIELDS.find(f => f.key === key);
-}
-
-/**
- * Normalize a string for case-insensitive search comparison.
- * Used for non-labelSearch fields where values are plain uppercase strings.
- * labelSearch fields (lineCode) use the accent-aware normalisation inside
- * searchLineCodes() in signal-data.js.
- */
-function _normalize(str) {
-    return str.toUpperCase();
 }
 
 /**
@@ -452,7 +407,7 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         onTagRemove: val => _onTagRemove(def, val),
         onTagLabelClick: fieldMeta?.globalSearch
             ? val => flyToSignal(val) : fieldMeta?.labelSearch
-            ? val => flyToLine(val) : undefined,
+                ? val => flyToLine(val) : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -659,21 +614,15 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
  * labelSearch fields (lineCode) use a dedicated search path: searchLineCodes()
  * matches both the code and the line label, returning items with a subtitle
  * property that FilterPanel renders as a small secondary text span.
- * All other fields use the existing prefix-match path against _candidateValues().
+ * All other fields use the existing prefix-match path against getCandidateValues().
  */
 function _refreshStandardDropdown(def, fieldMeta, sel, q) {
     const isSignalType = _isSignalType(def.field);
     const isLabelSearch = fieldMeta?.labelSearch === true;
     const isMappedOnly = _mappedOnly && isSignalType;
-    // In overview sampling mode use global counts — the spatial sample is not
-    // representative of the full dataset, so live counts would be misleading.
-    const countMap = isSampled()
-        ? (_globalCounts[def.field] ?? _counts[def.field])
-        : (_counts[def.field] ?? _globalCounts[def.field]);
+    const countMap = getCountMap(def.field, isSampled());
 
     if (isLabelSearch) {
-        // searchLineCodes() returns all entries when q is empty, so the dropdown
-        // always shows a full list rather than an empty state before the user types.
         const results = searchLineCodes(q);
         const items = results
             .map(({ code, label, count }) => ({
@@ -683,21 +632,27 @@ function _refreshStandardDropdown(def, fieldMeta, sel, q) {
                 active: sel.has(code),
                 showDot: false,
             }))
-            .sort(_itemSorter(fieldMeta, false, true));
+            .sort(buildItemSorter(fieldMeta, false, true));
         def.panel.setInputPlaceholder(t('dropdown.search', results.length));
         def.panel.refreshList(items);
         return;
     }
 
-    const all = _candidateValues(def);
-    const nq = _normalize(q);
-    const filtered = q ? all.filter(v => _normalize(v).startsWith(nq)) : all;
+    const all = getCandidateValues(def.field, {
+        mappedOnly: _mappedOnly,
+        mappedTypes: _mappedTypes,
+        isSignalType
+    });
+
+    const nq = normalize(q);
+    const filtered = q ? all.filter(v => normalize(v).startsWith(nq)) : all;
 
     def.panel.setInputPlaceholder(
         fieldMeta?.readOnly
             ? t('dropdown.clickToSelect')
             : t('dropdown.search', all.length)
     );
+
     def.panel.refreshList(
         filtered
             .map(v => ({
@@ -706,50 +661,9 @@ function _refreshStandardDropdown(def, fieldMeta, sel, q) {
                 active: sel.has(v),
                 showDot: isSignalType && _mappedTypes.has(v) && !isMappedOnly,
             }))
-            .sort(_itemSorter(fieldMeta, isSignalType, false))
+            .sort(buildItemSorter(fieldMeta, isSignalType, false))
     );
 }
-
-/**
- * Build the merged candidate value list for a filter field.
- * Indexed fields (signalType, lineCode) use the index as the universe.
- * Non-indexed fields use _knownValues to preserve values from previous tiles.
- */
-function _candidateValues(def) {
-    const fromIndex = _indexValues[def.field] || [];
-    const fromCounts = [...(_counts[def.field]?.keys() || [])];
-    const base = fromIndex.length > 0
-        ? [...new Set([...fromIndex, ...fromCounts])]
-        : [...new Set([...(_knownValues[def.field] || []), ...fromCounts])];
-    if (_mappedOnly && _isSignalType(def.field)) return base.filter(v => _mappedTypes.has(v));
-    return base;
-}
-
-
-
-/**
- * Return a comparator for item sorting.
- * Priority: explicit valueOrder > count-descending (signalType) > numeric > alphabetical.
- */
-function _itemSorter(fieldMeta, isSignalType, numericSort) {
-    if (fieldMeta?.valueOrder) {
-        const order = fieldMeta.valueOrder;
-        return (a, b) => {
-            const ia = order.indexOf(a.v);
-            const ib = order.indexOf(b.v);
-            if (ia >= 0 && ib >= 0) return ia - ib;
-            if (ia >= 0) return -1;
-            if (ib >= 0) return 1;
-            return a.v.localeCompare(b.v);
-        };
-    }
-    if (isSignalType)
-        return (a, b) => (b.count - a.count) || a.v.localeCompare(b.v);
-    if (numericSort)
-        return (a, b) => a.v.localeCompare(b.v, undefined, { numeric: true });
-    return (a, b) => a.v.localeCompare(b.v);
-}
-
 
 /**
  * Restore filter state persisted by a previous session.
@@ -798,7 +712,6 @@ function _persistFilters() {
     }));
     saveFilters(state);
 }
-
 
 
 

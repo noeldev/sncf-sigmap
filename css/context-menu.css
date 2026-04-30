@@ -1,0 +1,80 @@
+/* ===== context-menu.css — Floating context menu =====
+ *
+ * Shared across the app by context-menu.js:
+ *   - map markers (via map-layer.js),
+ *   - OSM Tags panel rows (via signal-popup.js, diff-mode only).
+ *
+ * DOM is built from three <template> elements in index.html:
+ *   #tpl-ctx-menu → .ctx-menu
+ *   #tpl-ctx-item → .ctx-item (role=menuitem, tabindex=0)
+ *   #tpl-ctx-sep  → .ctx-sep  (role=separator)
+ *
+ * The menu is appended to document.body (or the fullscreen element when one
+ * is active) and positioned via inline style.left / style.top from
+ * showContextMenu(x, y). Both are viewport coords → position:fixed.
+ *
+ * Visual parity with the Leaflet tooltip (see .leaflet-tooltip.sig-tooltip
+ * in map.css): same translucent dark background, same shadow weight, same
+ * border. The previous version looked more opaque despite identical bg —
+ * this is the box-shadow doing the heavy lifting on the visual contrast.
+ * Using the lighter shadow (.55 vs .6) brings the two surfaces in sync.
+ */
+
+.ctx-menu {
+    position: fixed;
+    z-index: 10000;
+    background: rgba(13, 17, 23, .96);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .55);
+    min-width: 160px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    outline: none;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    outline: none;
+}
+
+    /* Hover / keyboard focus background. Slightly stronger than the original
+     * .08 so the highlight reads on the lighter base background. */
+    .ctx-item:hover,
+    .ctx-item:focus-visible {
+        background: rgba(255, 255, 255, .12);
+    }
+
+/* When a different item is hovered, suppress the keyboard focus ring so
+ * only the hovered item is highlighted — no dual highlight.
+ * :not(:hover) preserves the highlight when the mouse is on the focused item. */
+.ctx-menu:has(.ctx-item:hover) .ctx-item:focus-visible:not(:hover) {
+    background: none;
+}
+
+.ctx-shortcut {
+    font-size: 10px;
+    color: var(--text3);
+    flex-shrink: 0;
+}
+
+    /* Hide the shortcut column when the item has no shortcut so the label
+     * fills the row width without an awkward gap on the right. */
+    .ctx-shortcut:empty {
+        display: none;
+    }
+
+.ctx-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 3px 4px;
+}

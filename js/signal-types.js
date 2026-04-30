@@ -115,7 +115,7 @@ export const SIGNAL_MAPPING = {
         properties: {
             form: "light",
             condition: "diverting",
-            speed: "90"
+            speed: "0"
         }
     },
     "TIV R MOB": {
@@ -124,7 +124,7 @@ export const SIGNAL_MAPPING = {
         type: "FR:TIV-R",
         properties: {
             form: "light",
-            speed: "90"
+            speed: "0"
         }
     },
     "TIV D FIXE": {
@@ -134,7 +134,7 @@ export const SIGNAL_MAPPING = {
         properties: {
             form: "sign",
             shape: "square",
-            speed: "90"
+            speed: "0"
         }
     },
     "TIVD B FIX": {

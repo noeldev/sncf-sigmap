@@ -93,7 +93,11 @@ export class ComboBox {
     /**
      * Wire the clear (×) button inside the combo input.
      * Hides/shows based on whether the input has content.
-     * On click: empties input, fires onSearch immediately, reopens dropdown.
+     * 
+     * Two listeners with distinct responsibilities:
+     *   mousedown — preventDefault to keep focus on the input (mouse only).
+     *   click     — clear action, fires for both mouse and keyboard
+     *               (Enter/Space on a focused button natively emits 'click').
      *
      * @param {HTMLInputElement} inputEl
      * @param {HTMLButtonElement} clearButtonEl
@@ -107,21 +111,22 @@ export class ComboBox {
             clearButtonEl.classList.toggle('is-hidden', inputEl.value.length === 0);
         sync();
 
-        const handler = (e) => {
-            if (e.type === 'mousedown') {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        // Prevent focus theft on mouse click — the input must keep focus.
+        clearButtonEl.addEventListener('mousedown', e => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        // Single action handler for both mouse and keyboard (Enter/Space
+        // on a focused <button> natively fires 'click').
+        clearButtonEl.addEventListener('click', () => {
             if (inputEl.value === '') return;
             inputEl.value = '';
             sync();
             onSearch?.('');
             dropdown.focusInput();
             _open();
-        };
-
-        clearButtonEl.addEventListener('mousedown', handler);
-        clearButtonEl.addEventListener('click', handler);   // ← ajout pour le clavier
+        });
 
         return sync;
     }

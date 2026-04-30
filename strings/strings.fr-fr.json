@@ -11,8 +11,7 @@
   "tabs": {
     "filters": "Filtres",
     "settings": "Paramètres",
-    "about": "À propos",
-    "help": "Aide"
+    "about": "À propos"
   },
   "buttons": {
     "addFilter": "+ Ajouter",
@@ -85,7 +84,8 @@
     "collapse": "Réduire la barre (T)",
     "expand": "Développer la barre (T)",
     "geolocateUnavailable": "Géolocalisation non disponible.",
-    "geolocateError": "Erreur de localisation : {0}"
+    "geolocateError": "Erreur de localisation : {0}",
+    "help": "Aide (?)"
   },
   "status": {
     "signals": "Signaux",
@@ -124,8 +124,6 @@
     "inOsm": "Déjà présent dans OpenStreetMap — Nœud #{0}",
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
-    "diffShow": "Afficher les différences OSM",
-    "diffHide": "Masquer les différences OSM",
     "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
     "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?",
     "fixme": "Spécifications non disponibles : {0}"
@@ -160,75 +158,6 @@
     "miscellaneous": "Divers",
     "unsupported": "Types non supportés"
   },
-  "help": {
-    "intro": "Découvrez comment naviguer sur la carte et trouver des signaux grâce aux filtres, à la légende et aux différents [Contrôles](#panel:help-control-panel).",
-    "getStarted": {
-      "title": "Prise en main",
-      "finding": {
-        "title": "Recherche de signaux",
-        "content": [
-          "* **Filtres :** Dans l'onglet [Filtres](#tab-filters), utilisez **Ajouter** (ex: *Type IF*, *Code Ligne*).",
-          "* **Légende :** Cliquez sur une catégorie pour isoler les signaux correspondants.",
-          "* **ID Réseau :** Filtrez par identifiant, puis cliquez sur la **pastille** pour zoomer sur le signal.",
-          "* **Code ligne :** Filtrez par code ou libellé de ligne, puis cliquez sur la **pastille** pour survoler l'emprise de la ligne sur la carte."
-        ]
-      },
-      "interaction": {
-        "title": "Interaction avec la carte",
-        "content": [
-          "* **Contrôles :** Clic droit sur un signal pour ouvrir le menu contextuel ou utilisez les raccourcis clavier.",
-          "* **Visibilité :** Tous les signaux apparaissent à partir du niveau de zoom 10. En dessous, un échantillonnage spatial assure la lisibilité (les filtres actifs restent prioritaires).",
-          "* **Persistance :** Les filtres, signaux épinglés, position et réglages sont conservés entre les sessions."
-        ]
-      },
-      "properties": {
-        "title": "Détails du signal",
-        "content": [
-          "La fenêtre propose deux onglets :",
-          "* **Signaux :** Données d'infrastructure. Utilisez les flèches si plusieurs signaux sont au même endroit.  ",
-          "  Près de l'**ID Réseau**, cliquez sur le **logo OSM** pour afficher les informations du nœud dans [OpenStreetMap](https://www.openstreetmap.org/), ou sur **Localiser sur OpenStreetMap** s'il n'est pas encore cartographié.",
-          "* **Tags OSM :** Affichez, copiez ou ouvrez les tags dans l'[éditeur JOSM](https://josm.openstreetmap.de/). Les tags suivent les spécifications [OpenRailwayMap — Tagging in France](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France).  ",
-          "  *Note : Fonctionnalité expérimentale (les spécifications en cours d'élaboration).*",
-          "Le bouton **Épingler** (en haut de la fenêtre) permet de garder un signal en référence."
-        ]
-      }
-    },
-    "control": {
-      "title": "Contrôles",
-      "mouse": {
-        "title": "Souris",
-        "scroll": "Molette",
-        "scrollDesc": "Zoom avant / arrière",
-        "click": "Clic",
-        "clickDesc": "Ouvre la fenêtre du signal (données SNCF + tags OSM)",
-        "shiftDesc": "Ouvre la fenêtre sur l'onglet alternatif (voir onglet [Paramètres](#tab-settings))",
-        "ctrlDesc": "Épingle / désépingle le signal ; les signaux épinglés apparaissent dans l'onglet [Filtres](#tab-filters)",
-        "altDesc": "Zoome et centre sur le signal",
-        "rightClick": "Clic droit",
-        "rightClickDesc": "Ouvre le menu contextuel",
-        "filterClickLineDesc": "Sur une pastille *Code Ligne* : centre la carte sur l'emprise de la ligne",
-        "filterClickSignalDesc": "Sur une pastille *ID Réseau* ou *signal épinglé* : centre la carte sur le signal correspondant",
-        "filterShiftDesc": "Supprimer (×) sur une pastille — ferme toutes les autres pastilles"
-      },
-      "keyboard": {
-        "title": "Clavier",
-        "alt": "Alt",
-        "ctrl": "Ctrl",
-        "enter": "Entrée",
-        "shift": "Maj",
-        "keyZoomInDesc": "Zoom avant",
-        "keyZoomOutDesc": "Zoom arrière",
-        "keyResetDesc": "Revient à l'étendue initiale de la carte",
-        "keyFullscreenDesc": "Bascule en plein écran",
-        "keyBasemapDesc": "Ouvre / ferme le sélecteur de fond de carte",
-        "keyGeolocateDesc": "Affiche mon emplacement",
-        "keySidebarDesc": "Affiche / masque le panneau",
-        "keyToolbarDesc": "Réduit / développe la barre d'outils",
-        "keyContextMenuDesc": "Ouvre le menu contextuel sur le signal actif",
-        "keyPropertiesDesc": "Ouvre la fenêtre du signal (Propriétés)"
-      }
-    }
-  },
   "about": {
     "intro": "Visualisation cartographique interactive du jeu de données ouvertes **SNCF Signalisation Permanente**, avec intégration [OpenStreetMap](https://www.openstreetmap.org/). Les signaux peuvent être exportés sous forme de tags OSM vers le presse-papiers ou via [JOSM Remote Control](https://josm.openstreetmap.de/wiki/Help/Preferences/RemoteControl).",
     "links": {
@@ -242,8 +171,7 @@
     "credits": {
       "title": "Crédits",
       "site": "Site © 2026 Noël Danjou",
-      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
-      "maps": "Cartes © [contributeurs OpenStreetMap](https://www.openstreetmap.org/copyright)"
+      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)"
     }
   },
   "pinned": {
@@ -267,6 +195,10 @@
     "zoomCenter": "Zoomer",
     "pin": "Épingler",
     "unpin": "Désépingler",
-    "properties": "Propriétés"
+    "properties": "Propriétés",
+    "merge": "Fusionner",
+    "undo": "Annuler",
+    "mergeAll": "Tout fusionner",
+    "undoAll": "Tout annuler"
   }
 }
