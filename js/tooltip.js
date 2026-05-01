@@ -4,8 +4,16 @@
  *
  * HTML structure in index.html:
  *   tpl-signal-tooltip   — outer wrapper (.tt-groups / .tt-sep / .tt-common)
- *   tpl-tt-sig-row       — one type + id row
+ *   tpl-tt-sig-row       — one type + id row, with a hidden .tt-osm-badge slot
  *   tpl-tt-common-fields — pre-labelled field rows (labels defined in HTML)
+ *
+ * OSM presence indicators:
+ *   - .tt-osm-badge: one OSM icon placed in the FIRST signal row as a flex item.
+ *     margin-left:auto pushes it to the right edge; align-self:center aligns it
+ *     vertically with the type/id text — no pixel adjustments needed.
+ *     Shown only when at least one signal in the group is confirmed in OSM.
+ *   - .tt-id--mapped: dotted underline on the networkId of individually mapped signals.
+ *   Both are driven by getOsmNode() from osm-index.js; no parameters are threaded through.
  *
  * Multi-signal grouping logic:
  *   • lineCode, trackCode, trackName, milepost are always identical for co-located signals
@@ -29,6 +37,7 @@
 
 import { getTypeColor, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement } from './translation.js';
+import { getOsmNode } from './osm-index.js';
 
 // Template references — ES modules are deferred, so the DOM is fully parsed
 // before this module is evaluated.  A single getElementById call per template
@@ -58,6 +67,12 @@ export function buildTooltip(feats) {
 
     const sorted = sortSignalsByNetworkId(feats);
     const p0 = sorted[0].p;
+
+    // The OSM group badge is placed in the first signal row only.
+    // It indicates that at least one signal in the group is confirmed in OSM.
+    const anyInOsm = sorted.some(f => getOsmNode(f.p.networkId));
+    let badgeShown = false;
+
     // canGroup: true when all co-located signals share direction and placement
     // — they can be listed in a single block with shared field values at the bottom.
     const canGroup = sorted.every(
@@ -67,7 +82,9 @@ export function buildTooltip(feats) {
     if (canGroup) {
         // Single block: all type+id rows together; direction+placement go to the bottom section.
         for (const f of sorted) {
-            groupsContainer.appendChild(_makeSigRow(f));
+            const showBadge = anyInOsm && !badgeShown;
+            groupsContainer.appendChild(_makeSigRow(f, showBadge));
+            if (showBadge) badgeShown = true;
         }
         _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'direction', 'placement', 'milepost']);
     } else {
@@ -81,7 +98,9 @@ export function buildTooltip(feats) {
             first = false;
 
             for (const f of groupFeats) {
-                groupsContainer.appendChild(_makeSigRow(f));
+                const showBadge = anyInOsm && !badgeShown;
+                groupsContainer.appendChild(_makeSigRow(f, showBadge));
+                if (showBadge) badgeShown = true;
             }
             // Direction and placement are specific to this group.
             _appendFields(groupsContainer, groupFeats[0].p, ['direction', 'placement']);
@@ -110,13 +129,21 @@ function _groupByDirectionPlacement(feats) {
     return groups;
 }
 
-/** Clone one type + id row from the template. */
-function _makeSigRow(f) {
+/**
+ * Clone one type + id row from the template.
+ * @param {object}  f         Normalized signal feature.
+ * @param {boolean} showBadge When true, reveals the .tt-osm-badge slot in this row.
+ *                            Only the first row of the group ever receives true.
+ */
+function _makeSigRow(f, showBadge = false) {
     const row = _tplSigRow.cloneNode(true).querySelector('.tt-row');
     const typeEl = row.querySelector('.tt-type');
     typeEl.textContent = f.p.signalType || '?';
     typeEl.style.setProperty('--tt-type-color', getTypeColor(f.p.signalType));
-    row.querySelector('.tt-id').textContent = f.p.networkId ?? '';
+    const idEl = row.querySelector('.tt-id');
+    idEl.textContent = f.p.networkId ?? '';
+    if (getOsmNode(f.p.networkId)) idEl.classList.add('tt-id--mapped');
+    if (showBadge) row.querySelector('.tt-osm-badge').hidden = false;
     return row;
 }
 

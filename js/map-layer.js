@@ -6,11 +6,14 @@
  *   - Drive the tiles-worker.js pipeline: fetch tiles, normalize, filter, sample.
  *   - Render worker results as Leaflet markers with tooltips and popups.
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
+ *   - Own the visible signal count (_visibleCount) as the authoritative source;
+ *     statusbar.js receives it for display only.
  *
  * Public API (called from app.js):
- *   initLayer()         — create markersLayer.
+ *   initLayer()         — create markersLayer and wire OSM index.
  *   setManifest(m)      — provide the tile manifest after it loads.
  *   refresh(force)      — trigger a data fetch/render cycle.
+ *   getVisibleCount()   — return the current visible signal count (used by osm-index.js).
  *
  * Progress overlay is driven via progress.js directly.
  * Status bar updates are delegated to statusbar.js.
@@ -34,6 +37,7 @@ import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
+import { init as initOsmIndex, fetchViewport, onUpdate } from './osm-index.js';
 
 
 // ===== Module state =====
@@ -41,12 +45,15 @@ import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 let _manifest = null;
 let _markersLayer = null;
 let _worker = null;
+
 let _loadPending = false;
 let _loadRunning = false;
-let _sampled = false;       // true when the current view is a spatial overview sample
-let _popupOpen = false;     // true when a Leaflet popup is open
-let _lastGroups = [];       // last rendered groups — used by _getSignalLatlng()
-let _lastUrlKey = '';       // cache key for the last worker run (tile URLs + filter snapshot)
+let _sampled = false;            // true when the current view is a spatial overview sample
+let _popupOpen = false;          // true when a Leaflet popup is open
+
+let _lastGroups = [];            // last rendered groups — used by _getSignalLatlng()
+let _lastUrlKey = '';            // cache key for the last worker run (tile URLs + filter snapshot)
+let _visibleCount = 0;           // authoritative visible signal count; statusbar.js is display-only
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -54,6 +61,13 @@ let _lastUrlKey = '';       // cache key for the last worker run (tile URLs + fi
  * @returns {boolean}
  */
 export function isSampled() { return _sampled; }
+
+/**
+ * Return the current visible signal count.
+ * Injected into osm-index.js at init time to avoid a circular import.
+ * @returns {number}
+ */
+export function getVisibleCount() { return _visibleCount; }
 
 
 // ===== Language change handling =====
@@ -85,20 +99,26 @@ function _getDotSize(count) {
 // ===== Public API =====
 
 /**
- * Initialise the marker layer.
+ * Initialise the marker layer and wire the OSM index.
  * Must be called once from app.js/_boot() after initMap() resolves.
  */
 export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
+
     // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
     map.on('movestart', closeContextMenu);
 
-    // Prevent tooltips from showing when a popup is open
     map.on('popupopen', () => { _popupOpen = true; });
     map.on('popupclose', () => { _popupOpen = false; });
-    map.on('tooltipopen', (e) => {
-        if (_popupOpen) e.tooltip.close();
-    });
+    map.on('tooltipopen', _onTooltipOpen);
+
+    // Init the app-wide OSM index. getVisibleCount is injected to avoid a circular import.
+    // The 30 s idle auto-trigger is wired inside osm-index.js.
+    initOsmIndex(map, getVisibleCount);
+
+    // When the OSM index gains new entries, refresh the currently open tooltip so
+    // OSM indicators (dotted underline, group badge) appear without user interaction.
+    onUpdate.subscribe(_onOsmIndexUpdate);
 }
 
 /**
@@ -117,14 +137,13 @@ export function setManifest(manifest) {
  * and active filters are all unchanged since the last run.
  * When a load is already running, the request is queued as a pending load.
  *
- * @param { boolean } [force = false]
+ * @param {boolean} [force=false]
  */
 export function refresh(force = false) {
     if (_loadRunning) {
         _loadPending = true;
         return;
     }
-
     if (!_manifest) return;
 
     const bounds = map.getBounds();
@@ -133,44 +152,84 @@ export function refresh(force = false) {
 
     if (fetchUrls.length === 0) {
         _markersLayer.clearLayers();
-        updateVisibleCount(0);
+        _updateVisibleCount(0);
         setSampledBadge(false);
         return;
     }
 
-    // Compute bounds corners once — reused in both urlKey and the worker postMessage.
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
+    const cacheKey = _computeCacheKey(fetchUrls, sw, ne);
 
-    // Skip the worker run when tile set, viewport, and active filters are all unchanged.
-    // Bounds are rounded to 2 decimal places (~1 km) to avoid re-runs from floating-point
-    // drift during micro-pans, while still catching any meaningful viewport change.
-    // Bounds MUST be included: the worker filters signals by viewport, so zooming within
-    // the same 0.5° tile(s) changes which signals are visible even when URLs don't change.
-    const r = v => Math.round(v * 100) / 100;
-    const boundsKey = `${r(sw.lat)},${r(sw.lng)},${r(ne.lat)},${r(ne.lng)}`;
-    const urlKey = fetchUrls.join('|') + '|' + boundsKey + '|'
-        + JSON.stringify(getActiveFiltersForWorker());
-    if (!force && urlKey === _lastUrlKey) return;
-    _lastUrlKey = urlKey;
+    if (!force && cacheKey === _lastUrlKey) return;
+    _lastUrlKey = cacheKey;
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom, sw, ne);
 }
 
+
+// ===== Visible count =====
+
 /**
- * Return the [lat, lng] of a signal by networkId from the last rendered groups.
- * Returns null when the signal is not currently in the viewport.
- * Used by filters.js to fly to a selected networkId tag without a tile fetch.
- * @param {string} networkId
- * @returns {[number, number] | null}
+ * Update the visible signal count in both module state and the status bar UI.
+ * Module state (_visibleCount) is the authoritative source; statusbar.js is display-only.
+ * @param {number} n
  */
-function _getSignalLatlng(networkId) {
-    for (const { lat, lng, all } of _lastGroups) {
-        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
-    }
-    return null;
+function _updateVisibleCount(n) {
+    _visibleCount = n;
+    updateVisibleCount(n);
 }
 
+
+// ===== Tooltip lifecycle =====
+
+/**
+ * Handle tooltipopen: close the tooltip when a popup is already open,
+ * otherwise trigger an opportunistic OSM viewport scan.
+ * @param {L.LeafletEvent} e
+ */
+function _onTooltipOpen(e) {
+    if (_popupOpen) {
+        e.tooltip.close();
+        return;
+    }
+    fetchViewport();
+}
+
+/**
+ * Triggered when the OSM index receives new entries.
+ * Delegates to _refreshActiveTooltip; no-op when a popup is open.
+ */
+function _onOsmIndexUpdate() {
+    if (_popupOpen) return;
+    _refreshActiveTooltip();
+}
+
+/**
+ * Scan the marker layer for any open tooltip and refresh its content.
+ *
+ * Walking the layer is more robust than relying on a manual state reference
+ * which can be cleared by Leaflet's internal tooltip lifecycle before the
+ * async Overpass callback fires. At scanning zoom levels (≥ 14, ≤ 100 visible
+ * markers) eachLayer is negligible.
+ *
+ * The rAF defers the DOM write out of the Overpass Promise microtask queue,
+ * guaranteeing a clean browser repaint. The isTooltipOpen() re-check inside
+ * the frame guards against tooltips closed during the frame delay.
+ */
+function _refreshActiveTooltip() {
+    if (!_markersLayer) return;
+    _markersLayer.eachLayer(layer => {
+        if (!layer.isTooltipOpen?.()) return;
+        const display = layer._sigData?.display;
+        if (!display) return;
+        requestAnimationFrame(() => {
+            if (layer.isTooltipOpen?.()) {
+                layer.setTooltipContent(buildTooltip(display));
+            }
+        });
+    });
+}
 
 // ===== Worker lifecycle =====
 
@@ -251,7 +310,7 @@ function _handleWorkerMessage(e, isOverview, markerMap) {
         // Overview mode waits for 'done' (spatial sampling requires the full set).
         if (isOverview) return;
         _renderGroupsIncremental(groups, markerMap);
-        updateVisibleCount(markerMap.size);
+        _updateVisibleCount(markerMap.size);
         showProgress(t('progress.tiles', `${loaded} / ${total}`));
         return;
     }
@@ -291,6 +350,27 @@ function _onWorkerDone(groups, sampled, total) {
 }
 
 
+// ===== Cache key =====
+
+/**
+ * Compute the worker run cache key from tile URLs, viewport corners, and active filters.
+ * Bounds are rounded to 2 decimal places (~1 km) to absorb floating-point drift during
+ * micro-pans while still catching any meaningful viewport change.
+ * Bounds MUST be included: the worker filters signals by viewport, so zooming within
+ * the same 0.5° tile changes which signals are visible even when URLs don't change.
+ *
+ * @param {string[]}  fetchUrls
+ * @param {L.LatLng}  sw
+ * @param {L.LatLng}  ne
+ * @returns {string}
+ */
+function _computeCacheKey(fetchUrls, sw, ne) {
+    const r = v => Math.round(v * 100) / 100;
+    const boundsKey = `${r(sw.lat)},${r(sw.lng)},${r(ne.lat)},${r(ne.lng)}`;
+    return fetchUrls.join('|') + '|' + boundsKey + '|' + JSON.stringify(getActiveFiltersForWorker());
+}
+
+
 // ===== Rendering =====
 
 /**
@@ -315,15 +395,103 @@ function _makeDotIcon(color, size, multi) {
 }
 
 /**
- * Alt+Click handler: zoom to and center on the signal.
- * No location marker — the signal dot is already visible at the click position.
+ * Build a fully configured Leaflet marker for one group.
+ * Signal data is stored on marker._sigData during construction (no closure needed in
+ * event handlers). The 'add' handler mirrors it onto the DOM element for keyboard
+ * shortcut access (_sigData on el, not just on the Leaflet instance).
+ * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
+ *
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all      all co-located signals (for JOSM export)
+ * @param {object[]} display  filtered signals (for icon color and tooltip)
+ * @returns {L.Marker}
+ */
+function _makeMarker(lat, lng, all, display) {
+    const types = display.map(s => s.p.signalType);
+    const color = getPrimaryTypeColor(types);
+    const count = display.length;
+    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
+    const marker = L.marker([lat, lng], { icon })
+        .bindTooltip(() => buildTooltip(display), {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'sig-tooltip',
+            sticky: false,
+        })
+        .on('add', _onMarkerAdd)
+        .on('click', _handleMarkerClick)
+        .on('contextmenu', _handleMarkerContextMenu);
+
+    // Store signal data directly on the marker instance so named event handlers
+    // can read it via 'this._sigData' without capturing a per-marker closure.
+    marker._sigData = { lat, lng, all, display };
+    return marker;
+}
+
+
+// ===== Marker event handlers =====
+// Named functions registered via .on() — use 'this' to access marker._sigData.
+// Keeping them outside _makeMarker avoids creating a new function object per marker.
+
+/**
+ * Copy _sigData from the Leaflet marker instance onto its DOM element.
+ * Needed for keyboard shortcut access (showSignalContextMenu reads from activeElement._sigData).
+ */
+function _onMarkerAdd() {
+    const el = this.getElement();
+    if (el) el._sigData = this._sigData;
+}
+
+/**
+ * Dispatch a marker click to the appropriate action based on modifier keys.
+ * @this {L.Marker}
+ * @param {L.LeafletMouseEvent} e
+ */
+function _handleMarkerClick(e) {
+    dismissLocationMarker();
+    closeContextMenu();
+
+    const { lat, lng, all } = this._sigData;
+    const orig = e.originalEvent;
+    const ctrl = orig?.ctrlKey || orig?.metaKey;
+    const shift = orig?.shiftKey;
+    const alt = orig?.altKey;
+
+    if (alt && !ctrl && !shift) {
+        _onMarkerAltClick(lat, lng);
+    } else if (ctrl && !shift) {
+        _onMarkerCtrlClick(all);
+    } else {
+        _onMarkerNormalClick([lat, lng], all, shift);
+    }
+}
+
+/**
+ * Open the context menu for a right-clicked marker.
+ * @this {L.Marker}
+ * @param {L.LeafletMouseEvent} e
+ */
+function _handleMarkerContextMenu(e) {
+    L.DomEvent.preventDefault(e);
+    dismissLocationMarker();
+    this.closeTooltip();
+    const { lat, lng, all } = this._sigData;
+    _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
+}
+
+
+// ===== Marker actions =====
+
+/**
+ * Alt+Click: zoom to and center on the signal without opening the popup.
  */
 function _onMarkerAltClick(lat, lng) {
     flyToLocationWithMarker([lat, lng]);
 }
 
 /**
- * Ctrl+Click handler: pin or unpin the first signal in the group.
+ * Ctrl+Click: pin or unpin the first signal in the group.
  * @param {object[]} all
  */
 function _onMarkerCtrlClick(all) {
@@ -336,13 +504,13 @@ function _onMarkerCtrlClick(all) {
 }
 
 /**
- * Normal/Shift+Click handler: open the signal popup.
+ * Normal/Shift+Click: open the signal popup.
  * Shift flips the default starting tab.
  * @param {[number, number]} latlng
  * @param {object[]}         all
  * @param {boolean}          shift
  */
-function _onMarkerClick(latlng, all, shift) {
+function _onMarkerNormalClick(latlng, all, shift) {
     openSignalPopup(latlng, all, 0, resolveStartTab(shift));
 }
 
@@ -382,64 +550,11 @@ function _showContextMenuAt(x, y, lat, lng, all) {
     // Close the signal popup before showing the context menu — the two UIs
     // are mutually exclusive and the popup would obscure the menu on small viewports.
     closeSignalPopup();
-    // Show the context menu
     showContextMenu(x, y, items);
 }
 
-/**
- * Build a fully configured Leaflet marker for one group.
- * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
- * @param {number}   lat
- * @param {number}   lng
- * @param {object[]} all      all co-located signals (for JOSM export)
- * @param {object[]} display  filtered signals (for icon color and tooltip)
- * @returns {L.Marker}
- */
-function _makeMarker(lat, lng, all, display) {
-    const types = display.map(s => s.p.signalType);
-    const color = getPrimaryTypeColor(types);
-    const count = display.length;
-    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
-    const marker = L.marker([lat, lng], { icon })
-        .bindTooltip(() => buildTooltip(display), {
-            direction: 'top',
-            offset: [0, -6],
-            className: 'sig-tooltip',
-            sticky: false,
-        })
-        .on('add', function () {
-            // Store signal data on the marker DOM element so keyboard shortcuts
-            // (ContextMenu key, Enter) can access it without a synthetic contextmenu event.
-            const el = this.getElement();
-            if (el) el._sigData = { lat, lng, all };
-        })
-        .on('click', e => {
-            dismissLocationMarker();
-            closeContextMenu();
 
-            const orig = e.originalEvent;
-            const ctrl = orig?.ctrlKey || orig?.metaKey;
-            const shift = orig?.shiftKey;
-            const alt = orig?.altKey;
-
-            if (alt && !ctrl && !shift) {
-                _onMarkerAltClick(lat, lng);
-            } else if (ctrl && !shift) {
-                _onMarkerCtrlClick(all);
-            } else {
-                _onMarkerClick([lat, lng], all, shift);
-            }
-        })
-        .on('contextmenu', e => {
-            L.DomEvent.preventDefault(e);
-            dismissLocationMarker();
-            // Close this marker's bound tooltip
-            marker.closeTooltip();
-            // Show the context menu
-            _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
-        });
-    return marker;
-}
+// ===== Navigation =====
 
 /**
  * Fly to the signal with the given network ID and show a location marker.
@@ -489,7 +604,7 @@ export function flyToLine(lineCode) {
 
 /**
  * Show the signal context menu for the currently focused marker (keyboard access).
- * Reads signal data stored on the marker DOM element by _makeMarker's 'add' handler.
+ * Reads signal data from the DOM element's _sigData, mirrored there by _onMarkerAdd.
  * Called by map-controls.js keyboard shortcuts — avoids synthetic contextmenu events
  * which would also trigger the browser's native context menu on some platforms.
  */
@@ -505,6 +620,20 @@ export function showSignalContextMenu() {
 }
 
 /**
+ * Return the [lat, lng] of a signal by networkId from the last rendered groups.
+ * Returns null when the signal is not currently in the viewport.
+ * Used to fly to a selected networkId tag without a tile fetch.
+ * @param {string} networkId
+ * @returns {[number, number] | null}
+ */
+function _getSignalLatlng(networkId) {
+    for (const { lat, lng, all } of _lastGroups) {
+        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
+    }
+    return null;
+}
+
+/**
  * Full render — clears the layer and rebuilds all markers from scratch.
  * Used by overview mode and the final 'done' message in detail mode.
  */
@@ -513,7 +642,7 @@ function _renderGroups(groups) {
     for (const { lat, lng, all, display } of groups) {
         _makeMarker(lat, lng, all, display).addTo(_markersLayer);
     }
-    updateVisibleCount(groups.length);
+    _updateVisibleCount(groups.length);
 }
 
 /**

@@ -43,6 +43,25 @@ export function getIdKey({ refTag, networkId }) {
     return `${refTag}:${networkId}`;
 }
 
+/**
+ * Fetch all railway=signal nodes within a bounding box.
+ * Used by osm-index.js for viewport-wide scans.
+ * Returns raw elements with lat/lon — caller is responsible for ref extraction.
+ *
+ * @param {string}      bboxString - "S,W,N,E" format.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Array<{ id: number, tags: object, lat: number, lon: number }>>}
+ */
+export async function fetchSignalsInBbox(bboxString, signal) {
+    if (!bboxString) return [];
+    const query = `[out:json][timeout:${OVERPASS_TIMEOUT}];`
+        + `node["railway"="signal"](${bboxString});`
+        + `out body;`;
+    const data = await _fetchOverpass(query, signal);
+    return data.elements ?? [];
+}
+
+
 // ===== Private helpers =====
 
 /** Returns an array of unique query objects based on their ID key. */

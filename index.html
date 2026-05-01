@@ -592,11 +592,15 @@
         </div>
     </template>
 
-    <!-- Tooltip: one signal type + id row -->
+    <!-- Tooltip: one signal type + id row.
+         .tt-osm-badge is a flex item (margin-left:auto) hidden by default;
+         tooltip.js reveals it on the first row when the group has OSM data. -->
     <template id="tpl-tt-sig-row">
         <div class="tt-row tt-sig">
             <span class="tt-type"></span>
             <span class="tt-val tt-id"></span>
+            <img class="tt-osm-badge" src="assets/svg/osm.svg"
+                 width="14" height="14" alt="OSM" hidden>
         </div>
     </template>
 

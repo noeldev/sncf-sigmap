@@ -434,3 +434,27 @@
     background: rgba(255,255,255,.08);
     margin: 4px 0 3px;
 }
+
+
+/* ===== Tooltip OSM presence indicators ===== */
+
+/* Group badge: one OSM icon placed in the first signal row as a flex item.
+   margin-left:auto pushes it to the right edge of the row; align-self:center
+   vertically centers it with the type/id text — no pixel adjustments needed.
+   Shown only when at least one signal in the group is confirmed in OSM. */
+.tt-osm-badge {
+    margin-left: auto;
+    align-self: center;
+    flex-shrink: 0;
+}
+
+    .tt-osm-badge[hidden] {
+        display: none;
+    }
+
+/* Per-signal indicator: dotted underline in OSM green on mapped networkIds.
+   text-underline-offset keeps the line clear of the descenders. */
+.tt-id--mapped {
+    text-decoration: underline dotted #5d9e37;
+    text-underline-offset: 3px;
+}

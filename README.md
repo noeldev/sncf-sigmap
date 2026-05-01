@@ -16,6 +16,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - On first visit all tiles are cached; subsequent visits restore the last map position and load only the tiles for that area from cache
 - Hover tooltips and click popups with signal information and OSM tags
 - OSM existence check per signal via Overpass API (live badge in popup)
+- **Background OSM index**: after the map has been still for 30 seconds at a zoomed-in, sufficiently dense viewport (zoom ≥ 14, ≤ 100 visible signals, bbox diagonal ≤ 0.5°), `osm-index.js` queries Overpass for all `railway=signal` nodes in the viewport and indexes them permanently for the session. The same scan triggers opportunistically when hovering a marker. Indexed results feed back into `osm-checker.js` so subsequent popup checks resolve instantly. Tooltip indicators update automatically: a **dotted underline** on the ID Réseau of each individually mapped signal, and an **OSM logo** on the first signal row when at least one signal in the group is confirmed in OSM
 - **OSM diff visualisation**: when a signal exists in OSM, the OSM Tags tab automatically renders a GitHub-style comparison between the generated tags and the live OSM ones — divergences and user merges are visible at a glance. Right-click opens a context menu to **merge** an OSM value into the target or **undo** a modification; **Merge all** and **Undo all** are always available, and `Ctrl+Z` / `Ctrl+Y` walk the per-node history stack
 - Export tags to clipboard or via JOSM Remote Control
 - View signal location on OpenStreetMap
@@ -73,6 +74,7 @@ map.js
   └── translation.js   (translateElement, onLangChange → basemap label rebuild)
 
 map-layer.js
+  ├── osm-index.js     (init, fetchViewport — background OSM scanning; getVisibleCount injected to avoid circular import)
   ├── signal-popup.js  (openSignalPopup, closeSignalPopup, resolveStartTab)
   ├── context-menu.js  (showContextMenu, closeContextMenu)
   └── pins.js          (togglePin, isPinned)
@@ -96,7 +98,11 @@ signal-popup.js
 
 osm-checker.js
   ├── overpass.js         (fetchNodesByRef, getIdKey)
+  ├── osm-index.js        (getOsmNode — instant resolution from permanent index; primeFromPopup — cross-feed on IN_OSM confirmation)
   └── signal-mapping.js   (getOsmNodes — mast grouping, getSignalId, isSupported)
+
+tooltip.js
+  └── osm-index.js        (getOsmNode — dotted underline on mapped IDs; group OSM badge on first row)
 
 translation.js
   └── utils/observable.js (onLangChange fan-out)
@@ -143,6 +149,19 @@ Click a signal marker to open a two-tab popup.
 | Shift+F10 | Open context menu on focused signal (Tab to a signal first) |
 | Enter | Open signal popup on focused signal |
 | ? | Open help page |
+
+## Hover tooltip
+
+Hovering a signal marker opens a tooltip showing the signal type (colored label) and the ID Réseau for each signal at that location. When co-located signals differ in direction or placement they are split into sub-groups separated by a divider, each sub-group showing its own Direction and Placement values. Line code, track code, track name, and milepost are shared by all co-located signals and appear at the bottom.
+
+**OSM presence indicators** are populated by the background OSM index:
+
+| Indicator | Meaning |
+|-----------|---------|
+| Dotted underline on ID Réseau | That specific signal is confirmed in OpenStreetMap |
+| OSM logo on the first signal row | At least one signal in the group is confirmed in OSM |
+
+Indicators appear as soon as the index is populated — either from a background viewport scan (30 s idle) or from a previous popup check at the same location.
 
 ### Signals tab
 
@@ -379,10 +398,15 @@ sncf-sigmap/
 │   ├── legend.js                 ← legend panel DOM builder and category filter shortcuts
 │   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker
 │   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, help, collapse
-│   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; flyToLine; Alt/Ctrl/right-click handling
+│   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; flyToLine;
+  │                               Alt/Ctrl/right-click handling; inits osm-index and wires tooltipopen trigger;
+  │                               owns _visibleCount (authoritative source, injected into osm-index)
 │   ├── markup.js                 ← Markdown-like markup parser for string compilation (About tab only)
 │   ├── osm-checker.js            ← OSM state machine: multi-node grouping, IN_OSM session cache,
 │   │                               NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry
+│   ├── osm-index.js              ← app-wide permanent OSM signal presence index; viewport scans via Overpass
+│   │                               (idle 30 s + tooltipopen triggers); getOsmNode() for tooltip and checker;
+│   │                               primeFromPopup() for cross-feed; getVisibleCount injected at init
 │   ├── osm-diff.js               ← tag comparison + editable target state
 │   │                               (merge / undo / mergeAll / undoAll + history stack)
 │   │                               used by signal-popup.js for the OSM Tags diff mode
@@ -405,7 +429,8 @@ sncf-sigmap/
 │   ├── tiles.js                  ← manifest loader, tile URL calculator, tile fetch helpers
 │   ├── tiles-worker.js           ← tile fetch, normalization, filtering, adaptive sampling (Web Worker)
 │   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
-│   ├── tooltip.js                ← hover tooltip builder
+│   ├── tooltip.js                ← hover tooltip builder; OSM indicators: dotted underline on mapped
+│   │                               ID Réseau, OSM logo badge on first row (via osm-index.js)
 │   ├── translation.js            ← i18n: strings loader, t(), openHelpPage(); uses prefs.js for lang persistence; onLangChange observable
 │   ├── ui/
 │   │   ├── combobox.js           ← search input behavior for filter dropdowns
