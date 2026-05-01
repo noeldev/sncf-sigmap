@@ -1,67 +1,45 @@
 /**
  * osm-index.js — Application-wide permanent OSM signal presence index.
  *
+ * Pure data service: no Leaflet dependency, no map events, no guard logic.
+ * map-layer.js owns the idle timer, movestart/moveend wiring, guard evaluation,
+ * and bbox computation. This module only decides whether a given area is already
+ * covered, fetches it if not, and maintains the index.
+ *
  * Maintains a session-permanent Map of networkId → OSM node data for all signals
  * confirmed to exist in OpenStreetMap. Entries are never evicted; the index only
  * grows throughout the session.
  *
  * Population sources:
  *   - Viewport scan (fetchViewport): bulk query of all railway=signal nodes
- *     in the current map view. Triggered automatically after idle or on user action.
+ *     in the current map view. Triggered by map-layer.js after guard evaluation.
  *   - Popup cross-feed (primeFromPopup): osm-checker.js feeds confirmed IN_OSM
  *     results so popup checks enrich the index for other signals.
  *
- * Trigger contract (called from map-layer.js):
- *   - tooltipopen: opportunistic scan when user hovers a marker.
- *   - 30 s idle:   automatic scan after the map has been still long enough,
- *                  provided the viewport is not already covered.
- *
  * BBox strategy:
  *   Coverage is checked against the strict viewport bbox. When a scan is needed,
- *   the fetch area is padded by FETCH_PAD_FACTOR (Leaflet .pad()) so that subsequent
- *   small pans and zoom adjustments fall inside the already-scanned area, avoiding
- *   redundant Overpass queries.
+ *   the padded fetch area (computed by map-layer.js) is used so that subsequent
+ *   small pans and zoom adjustments fall inside the already-scanned area.
  *
- * All triggers are no-ops when guards fail: zoom too low, bbox too large,
- * signal count out of range, or viewport already covered.
+ * Note on coverage and negative results:
+ *   _scannedBboxes tracks where we have scanned, not what was found. Signals
+ *   absent from the index are simply not in OSM — there is no negative cache.
+ *   A signal added to OSM during the session can be discovered via the popup's
+ *   osm-checker.js invalidate() without needing to re-scan the viewport.
  *
  * Public API:
- *   init(map, getVisibleCount)        — wire map events; call once on boot.
- *   getOsmNode(networkId)             — { id, tags, lat, lon } | null
- *   hasOsmNode(networkId)             — boolean
- *   fetchViewport()                   — trigger a scan (guards enforced internally)
- *   primeFromPopup(networkId, entry)  — feed a confirmed IN_OSM result
- *   onUpdate                          — Observable; notified after each index update
+ *   getOsmNode(networkId)            — { id, tags, lat, lon } | null
+ *   hasOsmNode(networkId)            — boolean
+ *   fetchViewport(bbox, paddedBbox)  — scan the area if not already covered
+ *   abortScan()                      — cancel any in-flight scan (called on map move)
+ *   primeFromPopup(networkId, entry) — feed a confirmed IN_OSM result
+ *   onUpdate                         — Observable; notified after each index update
  */
 
 import { fetchSignalsInBbox } from './overpass.js';
 import { Observable } from './utils/observable.js';
 
 // ===== Configuration =====
-
-/** Idle time after the last map movement before auto-triggering a scan. */
-const IDLE_DELAY_MS = 30_000;
-
-/** Minimum zoom level required to trigger a scan.
- *  Must stay in sync with the tile renderer's own minimum render zoom (map-layer.js). */
-const MIN_ZOOM = 14;
-
-/** Maximum bbox diagonal in decimal degrees beyond which the viewport is too wide.
- *  Acts as a safety net independent of zoom (e.g. very wide aspect ratios on large screens). */
-const MAX_BBOX_DIAGONAL_DEG = 0.5;
-
-/** Maximum visible signal count above which a scan is skipped.
- *  Keeps Overpass responses light and targets realistic mapping sessions. */
-const MAX_AUTO_SIGNALS = 100;
-
-/** Minimum visible signal count below which a scan is pointless. */
-const MIN_AUTO_SIGNALS = 1;
-
-/** Expansion factor applied to the viewport bounds when building the Overpass fetch area.
- *  Leaflet .pad(0.25) doubles linear dimensions (×2.25 area), so that subsequent small
- *  pans and zoom adjustments land inside the already-scanned bbox and skip the query.
- *  Guards (_passesGuards) are evaluated against the strict viewport, not the padded area. */
-const FETCH_PAD_FACTOR = 0.25;
 
 /** Matches any railway:signal:*:ref tag key. */
 const REF_TAG_RE = /^railway:signal:[^:]+:ref$/;
@@ -72,19 +50,13 @@ const REF_TAG_RE = /^railway:signal:[^:]+:ref$/;
 const _index = new Map();
 
 /**
- * Bounding boxes of completed scans. A viewport whose bounds are fully contained
- * within a previously scanned bbox is skipped — its signals are already indexed.
+ * Bounding boxes of completed scans. A viewport whose strict bounds are fully
+ * contained within a previously scanned bbox is skipped — its signals are already
+ * indexed. Partial overlaps are not sufficient: uncovered territory triggers a scan.
  * @type {Array<{ swLat: number, swLng: number, neLat: number, neLng: number }>}
  */
 const _scannedBboxes = [];
 
-/** @type {L.Map | null} */
-let _map = null;
-
-/** Returns the current visible signal count. Injected by init() from map-layer.js. */
-let _getVisibleCount = null;
-
-let _idleTimer = null;
 let _abortController = null;
 let _fetching = false;
 
@@ -94,21 +66,6 @@ let _fetching = false;
 export const onUpdate = new Observable();
 
 // ===== Public API =====
-
-/**
- * Wire up the index to the Leaflet map instance.
- * Must be called once during app initialisation, after initMap() resolves.
- * getVisibleCount is injected to avoid a circular dependency with map-layer.js.
- *
- * @param {L.Map}        map
- * @param {() => number} getVisibleCount - Returns the current visible signal count.
- */
-export function init(map, getVisibleCount) {
-    _map = map;
-    _getVisibleCount = getVisibleCount;
-    map.on('movestart zoomstart', _onMoveStart);
-    map.on('moveend zoomend', _onMoveEnd);
-}
 
 /**
  * Return the OSM node entry for a given networkId, or null if unknown.
@@ -143,78 +100,37 @@ export function primeFromPopup(networkId, entry) {
 }
 
 /**
- * Trigger a viewport scan.
- * Guards are enforced against the strict viewport bbox.
- * When a scan is needed, the fetch area is padded by FETCH_PAD_FACTOR so that
- * subsequent small pans are absorbed without a new Overpass query.
- * Called from map-layer.js on tooltipopen and internally after the 30 s idle timer.
+ * Cancel any in-flight Overpass scan.
+ * Called by map-layer.js on movestart and zoomstart.
+ */
+export function abortScan() {
+    _abortController?.abort();
+    _abortController = null;
+}
+
+/**
+ * Scan the given area for railway=signal nodes and index the results.
+ * Guards (zoom, bbox size, signal count) are evaluated by the caller before
+ * this function is called — this module only checks area coverage.
  *
+ * @param {{ swLat, swLng, neLat, neLng }} bbox       — strict viewport, used for coverage check.
+ * @param {{ swLat, swLng, neLat, neLng }} paddedBbox — expanded area to fetch, absorbs small pans.
  * @returns {Promise<void>}
  */
-export async function fetchViewport() {
-    if (_fetching || !_map) return;
-    if (!_passesGuards()) return;
+export async function fetchViewport(bbox, paddedBbox) {
+    if (_fetching) return;
 
-    // Coverage check uses the strict viewport so any uncovered territory triggers a scan.
-    const viewBbox = _getCurrentBbox();
-    if (_isAlreadyCovered(viewBbox)) return;
+    // Skip when the strict viewport is already fully covered by a previous scan.
+    if (_isAlreadyCovered(bbox)) return;
 
-    // Fetch a padded area to absorb subsequent small pans without extra queries.
-    await _runScan(_getPaddedFetchBbox());
+    await _runScan(paddedBbox);
 }
 
-// ===== Private — guards =====
-
-/**
- * Return true when all guards pass: zoom level, bbox diagonal, and signal count.
- * Evaluated against the strict viewport — not the padded fetch area.
- * @returns {boolean}
- */
-function _passesGuards() {
-    if (_map.getZoom() < MIN_ZOOM) return false;
-
-    const bounds = _map.getBounds();
-    const latDelta = bounds.getNorthEast().lat - bounds.getSouthWest().lat;
-    const lngDelta = bounds.getNorthEast().lng - bounds.getSouthWest().lng;
-    const diagonal = Math.sqrt(latDelta ** 2 + lngDelta ** 2);
-    if (diagonal > MAX_BBOX_DIAGONAL_DEG) return false;
-
-    const count = _getVisibleCount?.() ?? 0;
-    if (count < MIN_AUTO_SIGNALS || count > MAX_AUTO_SIGNALS) return false;
-
-    return true;
-}
-
-/** Build the strict current viewport bbox from the live Leaflet map state. */
-function _getCurrentBbox() {
-    const bounds = _map.getBounds();
-    return {
-        swLat: bounds.getSouthWest().lat,
-        swLng: bounds.getSouthWest().lng,
-        neLat: bounds.getNorthEast().lat,
-        neLng: bounds.getNorthEast().lng,
-    };
-}
-
-/**
-* Build a padded fetch bbox from the current viewport.
- * Leaflet .pad(factor) expands each edge by factor × half the dimension,
- * doubling linear dimensions at 0.25 (×2.25 total area).
- */
-function _getPaddedFetchBbox() {
-    const padded = _map.getBounds().pad(FETCH_PAD_FACTOR);
-    return {
-        swLat: padded.getSouthWest().lat,
-        swLng: padded.getSouthWest().lng,
-        neLat: padded.getNorthEast().lat,
-        neLng: padded.getNorthEast().lng,
-    };
-}
+// ===== Private — coverage =====
 
 /**
  * Return true when the given bbox is fully contained within any single
  * previously scanned bbox — meaning every signal in it was already fetched.
- * Partial overlaps are not sufficient: uncovered territory requires a new scan.
  *
  * @param {{ swLat, swLng, neLat, neLng }} bbox
  * @returns {boolean}
@@ -283,17 +199,4 @@ function _indexElement(el) {
         added++;
     }
     return added;
-}
-
-// ===== Private — map event handlers =====
-
-function _onMoveStart() {
-    clearTimeout(_idleTimer);
-    _idleTimer = null;
-    _abortController?.abort();
-}
-
-function _onMoveEnd() {
-    clearTimeout(_idleTimer);
-    _idleTimer = setTimeout(fetchViewport, IDLE_DELAY_MS);
 }

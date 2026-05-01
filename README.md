@@ -16,7 +16,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - On first visit all tiles are cached; subsequent visits restore the last map position and load only the tiles for that area from cache
 - Hover tooltips and click popups with signal information and OSM tags
 - OSM existence check per signal via Overpass API (live badge in popup)
-- **Background OSM index**: after the map has been still for 30 seconds at a zoomed-in, sufficiently dense viewport (zoom ≥ 14, ≤ 100 visible signals, bbox diagonal ≤ 0.5°), `osm-index.js` queries Overpass for all `railway=signal` nodes in the viewport and indexes them permanently for the session. The same scan triggers opportunistically when hovering a marker. Indexed results feed back into `osm-checker.js` so subsequent popup checks resolve instantly. Tooltip indicators update automatically: a **dotted underline** on the ID Réseau of each individually mapped signal, and an **OSM logo** on the first signal row when at least one signal in the group is confirmed in OSM
+- **Background OSM index**: `map-layer.js` triggers a viewport scan after 30 seconds of inactivity or on tooltip hover when guards pass (zoom ≥ 14, ≤ 100 visible signals, lat delta ≤ 0.35°, lng delta ≤ 0.5°). `osm-index.js` is a pure data service that queries Overpass for all `railway=signal` nodes in the padded fetch area and indexes them permanently for the session. Indexed results feed back into `osm-checker.js` so subsequent popup checks resolve instantly. Tooltip indicators update automatically: a **dotted underline** on the ID Réseau of each individually mapped signal, and an **OSM logo** on the first signal row when at least one signal in the group is confirmed in OSM
 - **OSM diff visualisation**: when a signal exists in OSM, the OSM Tags tab automatically renders a GitHub-style comparison between the generated tags and the live OSM ones — divergences and user merges are visible at a glance. Right-click opens a context menu to **merge** an OSM value into the target or **undo** a modification; **Merge all** and **Undo all** are always available, and `Ctrl+Z` / `Ctrl+Y` walk the per-node history stack
 - Export tags to clipboard or via JOSM Remote Control
 - View signal location on OpenStreetMap
@@ -74,7 +74,8 @@ map.js
   └── translation.js   (translateElement, onLangChange → basemap label rebuild)
 
 map-layer.js
-  ├── osm-index.js     (init, fetchViewport — background OSM scanning; getVisibleCount injected to avoid circular import)
+  ├── osm-index.js     (fetchViewport, abortScan, onUpdate — background OSM scanning;
+  │                     guards and bbox computation owned by map-layer, not osm-index)
   ├── signal-popup.js  (openSignalPopup, closeSignalPopup, resolveStartTab)
   ├── context-menu.js  (showContextMenu, closeContextMenu)
   └── pins.js          (togglePin, isPinned)
@@ -128,115 +129,9 @@ When sampling is needed, `_capGroups()` selects the strategy based on the excess
 - **Small excess** (≤ 50% above the cap): sort by group size descending and slice to the cap. Preserves the most informative co-located groups and avoids the grid collisions that the spatial algorithm produces on a narrow viewport (e.g. a dense urban area at zoom 12–14, where all groups fall in the same grid cells).
 - **Large excess** (> 50% above the cap): two-phase spatial grid sampling for a geographically representative distribution. Designed for the overview case (all of France with 120k+ signals).
 
-## Signal popup
+## User interface documentation
 
-Click a signal marker to open a two-tab popup.
-
-| Shortcut | Action |
-|----------|--------|
-| Click | Open signal popup |
-| Shift+Click | Open popup on the alternate tab (configurable in Settings) |
-| Ctrl+Click | Pin / unpin the signal |
-| Alt+Click | Zoom to and center on the signal |
-| Right-click | Open context menu (Zoom to, Pin/Unpin, Properties) |
-| + / - | Zoom in / out |
-| Home | Reset to initial map extent |
-| F11 | Toggle fullscreen |
-| B | Open / close basemap picker |
-| L | Show My Location |
-| S | Toggle sidebar |
-| T | Collapse / expand map toolbar |
-| Shift+F10 | Open context menu on focused signal (Tab to a signal first) |
-| Enter | Open signal popup on focused signal |
-| ? | Open help page |
-
-## Hover tooltip
-
-Hovering a signal marker opens a tooltip showing the signal type (colored label) and the ID Réseau for each signal at that location. When co-located signals differ in direction or placement they are split into sub-groups separated by a divider, each sub-group showing its own Direction and Placement values. Line code, track code, track name, and milepost are shared by all co-located signals and appear at the bottom.
-
-**OSM presence indicators** are populated by the background OSM index:
-
-| Indicator | Meaning |
-|-----------|---------|
-| Dotted underline on ID Réseau | That specific signal is confirmed in OpenStreetMap |
-| OSM logo on the first signal row | At least one signal in the group is confirmed in OSM |
-
-Indicators appear as soon as the index is populated — either from a background viewport scan (30 s idle) or from a previous popup check at the same location.
-
-### Signals tab
-
-Displays the SNCF open data fields for the selected signal. When multiple co-located signals share the same geographic position, arrow buttons navigate between them.
-
-The **OSM existence check** queries the [Overpass API](https://overpass-api.de/) to detect whether a node with the matching `railway:signal:*:ref` tag already exists in [OpenStreetMap](https://www.openstreetmap.org/). The query is scoped to a micro-bbox (~111 m half-width) around the signal group to keep Overpass queries cheap. The result appears as a button next to the **ID Réseau** value:
-
-| Icon | Meaning |
-|------|---------|
-| OSM logo (color) | Signal found in OSM — click to view the node |
-| Locate icon | Not yet mapped — click to open [openstreetmap.org](https://www.openstreetmap.org/) centered on the signal |
-| … | Check in progress |
-| ↻ | Check failed — click to retry |
-
-IN_OSM results are cached permanently for the session. NOT_IN_OSM results are cached only for the current popup instance so a retry after a successful JOSM export sees the new node. Unknown signal types skip the Overpass check and show the locate button immediately. In-flight requests are cancelled via `AbortController` when the popup closes.
-
-The **Signal Node** badge at the bottom shows which OSM node the signal maps to (`X / N` when the group produces multiple nodes). Click it or the **OSM Tags** tab to switch to the export view. Unknown types show **N/A**.
-
-### OSM Tags tab
-
-Displays the generated OSM tags for the current node. When a group produces multiple nodes, arrow buttons navigate between them — each node corresponds to a distinct physical signal or panel at the same location.
-
-Once OSM data has been fetched for the node, the list switches to **Diff mode**: rows are rendered GitHub-style and become interactive (right-click menu, keyboard shortcuts). When OSM data is not available (loading, error, or signal not yet mapped), the list falls back to a flat read-only view.
-
-#### Diff mode rendering
-
-| Row style | Meaning |
-|-----------|---------|
-| Normal (no tint) | Target value equals both the app-generated value and OSM |
-| Red (`−`) | OSM-only value, or OSM value conflicting with the target (rendered above the green target row) |
-| Green (`+`) | Target value missing from OSM, or conflicting with OSM |
-| Orange (`~`) | Target value has been modified by the user (merged from OSM or previously edited) |
-
-Stale OSM-only keys are appended at the bottom as red rows.
-
-#### Interactive merge workflow
-
-In Diff mode, right-click (or Shift+F10 / Menu key when a row is focused) opens a unified context menu. Row-specific items appear first when the pointer is over a tag row, followed by the global batch actions:
-
-| Context | Item | Effect |
-|---------|------|--------|
-| Red row | **Merge** | Write the OSM value into the target (overwrites any existing target value for that key) |
-| Orange row | **Undo** | Restore the key to its original app-generated value; remove the key from the target if it was merged from an OSM-only row |
-| Anywhere (global) | **Merge all** | Overwrite every in-scope target value with the OSM one (existing target choices are replaced — recoverable via **Undo all** or `Ctrl+Z`) |
-| Anywhere (global) | **Undo all** | Restore every key to the original app-generated state |
-
-App-generated tags are the source of truth (SNCF data + the OpenRailwayMap schema). They are never deleted — at worst their value is rolled back. Only keys that were added by merging an OSM-only row can be removed from the target, via **Undo** on that row.
-
-`Ctrl+Z` and `Ctrl+Y` navigate the per-node history stack over every data mutation — bounded to 100 entries. The shortcuts are active only on the Tags tab when OSM data is available, so they never shadow the browser's native Ctrl+Z elsewhere.
-
-Comparison scope is the SNCF signal schema (`railway=signal`, `railway:signal:*`) — OSM-only metadata (`source`, `operator`, `note`, `survey:date`, `ref`, …) is ignored by design so it never shows up as a false divergence or pollutes the target during **Merge all**. The scope predicate is parameterisable in `computeTagDiff()` and `mergeAll()` for future reuse.
-
-Per-node target state is preserved while navigating between co-located nodes and reset on popup close.
-
-### Copy tags
-
-Click **Copy tags** to copy the current node's OSM tags to the clipboard.
-
-### Open in JOSM
-
-Click **Open in JOSM** to create a node at the signal's exact coordinates with all OSM tags pre-filled via JOSM Remote Control. The browser must allow HTTP requests to `127.0.0.1` from HTTPS pages. A confirmation dialog appears if the signal is already in OSM.
-
-## Pinned signals
-
-Hold **Ctrl** and click any signal marker to pin it. Pinned signals appear as tags in the **Pinned Signals** panel in the Filters tab. Clicking a pinned signal tag flies the map to that signal's location (fetching it from cache if necessary) and shows a temporary location marker. Pins persist across sessions.
-
-## Sidebar
-
-The sidebar has three tabs:
-
-- **Filters** — add/remove attribute filters (collapsible panels); pinned signals and legend below
-- **Settings** — basemap selector, language picker (EN/FR), behavior toggles, JOSM Remote Control status
-- **About** — intro, links, disclaimer, credits
-
-Collapsible panels (`cp-panel`) remember their open/closed state across sessions via localStorage.
+Usage documentation for all interactive features (signal popup, OSM diff mode, hover tooltip indicators, keyboard shortcuts, filters, pinned signals) is available in the `/help/` pages, opened from within the app via the **?** buttons.
 
 ## External help
 
@@ -399,14 +294,16 @@ sncf-sigmap/
 │   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker
 │   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, help, collapse
 │   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; flyToLine;
-  │                               Alt/Ctrl/right-click handling; inits osm-index and wires tooltipopen trigger;
-  │                               owns _visibleCount (authoritative source, injected into osm-index)
+│   │                               Alt/Ctrl/right-click handling; owns OSM scan wiring (idle timer,
+│   │                               movestart/moveend, guard evaluation, bbox computation); _visibleCount
+│   │                               is authoritative source read by _buildScanContext()
 │   ├── markup.js                 ← Markdown-like markup parser for string compilation (About tab only)
 │   ├── osm-checker.js            ← OSM state machine: multi-node grouping, IN_OSM session cache,
 │   │                               NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry
-│   ├── osm-index.js              ← app-wide permanent OSM signal presence index; viewport scans via Overpass
-│   │                               (idle 30 s + tooltipopen triggers); getOsmNode() for tooltip and checker;
-│   │                               primeFromPopup() for cross-feed; getVisibleCount injected at init
+│   ├── osm-index.js              ← pure data service: permanent OSM signal presence index; no Leaflet
+│   │                               dependency, no guard logic; fetchViewport(bbox, paddedBbox) checks coverage
+│   │                               and runs Overpass scan; getOsmNode() for tooltip and checker;
+│   │                               primeFromPopup() for popup cross-feed; abortScan() on map movement
 │   ├── osm-diff.js               ← tag comparison + editable target state
 │   │                               (merge / undo / mergeAll / undoAll + history stack)
 │   │                               used by signal-popup.js for the OSM Tags diff mode

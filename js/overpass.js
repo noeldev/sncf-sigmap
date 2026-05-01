@@ -5,6 +5,7 @@
  *
  * Public API:
  * fetchNodesByRef(queries, bboxString, signal?) — query OSM nodes by (refTag, networkId) pairs
+ * fetchSignalsInBbox(bboxString, signal) -- fetch all railway=signal nodes in a bbox (for viewport-wide scans)
  */
 
 // ===== Configuration =====
@@ -54,13 +55,10 @@ export function getIdKey({ refTag, networkId }) {
  */
 export async function fetchSignalsInBbox(bboxString, signal) {
     if (!bboxString) return [];
-    const query = `[out:json][timeout:${OVERPASS_TIMEOUT}];`
-        + `node["railway"="signal"](${bboxString});`
-        + `out body;`;
+    const query = _buildBboxQuery(bboxString);
     const data = await _fetchOverpass(query, signal);
     return data.elements ?? [];
 }
-
 
 // ===== Private helpers =====
 
@@ -80,6 +78,13 @@ function _buildBatchQuery(queries, bbox) {
         .join('');
 
     return `[out:json][timeout:${OVERPASS_TIMEOUT}];(${clauses});out tags;`;
+}
+
+/** Build a simple Overpass QL query to fetch all signal nodes in a bbox. */
+function _buildBboxQuery(bboxString) {
+    return `[out:json][timeout:${OVERPASS_TIMEOUT}];`
+        + `node["railway"="signal"](${bboxString});`
+        + `out body;`;
 }
 
 /** Execute the network request. */

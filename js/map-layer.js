@@ -13,7 +13,6 @@
  *   initLayer()         — create markersLayer and wire OSM index.
  *   setManifest(m)      — provide the tile manifest after it loads.
  *   refresh(force)      — trigger a data fetch/render cycle.
- *   getVisibleCount()   — return the current visible signal count (used by osm-index.js).
  *
  * Progress overlay is driven via progress.js directly.
  * Status bar updates are delegated to statusbar.js.
@@ -37,7 +36,7 @@ import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
-import { init as initOsmIndex, fetchViewport, onUpdate } from './osm-index.js';
+import { fetchViewport, abortScan, onUpdate } from './osm-index.js';
 
 
 // ===== Module state =====
@@ -61,13 +60,6 @@ let _visibleCount = 0;           // authoritative visible signal count; statusba
  * @returns {boolean}
  */
 export function isSampled() { return _sampled; }
-
-/**
- * Return the current visible signal count.
- * Injected into osm-index.js at init time to avoid a circular import.
- * @returns {number}
- */
-export function getVisibleCount() { return _visibleCount; }
 
 
 // ===== Language change handling =====
@@ -96,6 +88,105 @@ function _getDotSize(count) {
 }
 
 
+// ===== OSM scan wiring =====
+// map-layer.js owns the idle timer, map event handlers, guard evaluation, and bbox
+// computation so that osm-index.js remains a pure data service with no Leaflet dependency.
+// All scan triggers funnel through _triggerOsmScan(), which is the single call point.
+
+/** Idle time after the last map movement before auto-triggering a viewport scan. */
+const OSM_IDLE_DELAY_MS = 30_000;
+
+/** Minimum zoom level required to trigger a scan.
+ *  Must stay in sync with the tile renderer's own minimum render zoom. */
+const OSM_MIN_ZOOM = 14;
+
+/** Maximum viewport extent guards */
+const OSM_MAX_LAT_DELTA = 0.35;
+const OSM_MAX_LNG_DELTA = 0.5;
+
+/** Maximum visible signal count above which a scan is skipped.
+ *  Keeps Overpass responses light and targets realistic mapping sessions. */
+const OSM_MAX_SIGNALS = 100;
+
+/** Minimum visible signal count below which a scan is pointless. */
+const OSM_MIN_SIGNALS = 1;
+
+/** Expansion factor applied to the viewport bounds when building the Overpass fetch area.
+ *  Leaflet .pad(0.25) doubles linear dimensions (×2.25 area), so that subsequent small
+ *  pans and zoom adjustments land inside the already-scanned bbox and skip the query.
+ *  Guards are evaluated against the strict viewport, not this padded area. */
+const OSM_FETCH_PAD_FACTOR = 0.25;
+
+let _osmIdleTimer = null;
+
+/**
+ * Evaluate all scan guards and, when they pass, build the strict and padded bbox objects.
+ * Cheap guards (zoom, signal count) are checked before map.getBounds() to avoid
+ * unnecessary Leaflet calls in the common case where scanning is not needed.
+ *
+ * @returns {{ bbox, paddedBbox } | null} Null when any guard fails.
+ */
+function _buildScanContext() {
+    if (map.getZoom() < OSM_MIN_ZOOM) return null;
+    if (_visibleCount < OSM_MIN_SIGNALS || _visibleCount > OSM_MAX_SIGNALS) return null;
+
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+
+    if ((ne.lat - sw.lat) > OSM_MAX_LAT_DELTA) return null;
+    if ((ne.lng - sw.lng) > OSM_MAX_LNG_DELTA) return null;
+
+    const padded = bounds.pad(OSM_FETCH_PAD_FACTOR);
+    const psw = padded.getSouthWest();
+    const pne = padded.getNorthEast();
+
+    return {
+        bbox: {
+            swLat: sw.lat,
+            swLng: sw.lng,
+            neLat: ne.lat,
+            neLng: ne.lng,
+        },
+        paddedBbox: {
+            swLat: psw.lat,
+            swLng: psw.lng,
+            neLat: pne.lat,
+            neLng: pne.lng,
+        },
+    };
+}
+
+/**
+ * Evaluate scan guards and trigger a viewport scan if all pass.
+ * Single call point for all OSM scan triggers (tooltipopen, idle timer).
+ */
+function _triggerOsmScan() {
+    const ctx = _buildScanContext();
+    if (ctx) fetchViewport(ctx.bbox, ctx.paddedBbox);
+}
+
+/**
+ * Cancel any in-flight OSM scan, dismiss the context menu, and reset the idle timer.
+ * Registered on movestart and zoomstart.
+ */
+function _onMapMoveStart() {
+    closeContextMenu();
+    clearTimeout(_osmIdleTimer);
+    _osmIdleTimer = null;
+    abortScan();
+}
+
+/**
+ * Schedule an automatic viewport scan after OSM_IDLE_DELAY_MS of inactivity.
+ * Registered on moveend and zoomend.
+ */
+function _onMapMoveEnd() {
+    clearTimeout(_osmIdleTimer);
+    _osmIdleTimer = setTimeout(_triggerOsmScan, OSM_IDLE_DELAY_MS);
+}
+
+
 // ===== Public API =====
 
 /**
@@ -105,16 +196,14 @@ function _getDotSize(count) {
 export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
 
-    // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
-    map.on('movestart', closeContextMenu);
+    // Map movement: dismiss context menu, reset idle timer, and abort any in-flight OSM scan.
+    map.on('movestart zoomstart', _onMapMoveStart);
+    // Schedule an automatic OSM viewport scan after the map has been still long enough.
+    map.on('moveend zoomend', _onMapMoveEnd);
 
     map.on('popupopen', () => { _popupOpen = true; });
     map.on('popupclose', () => { _popupOpen = false; });
     map.on('tooltipopen', _onTooltipOpen);
-
-    // Init the app-wide OSM index. getVisibleCount is injected to avoid a circular import.
-    // The 30 s idle auto-trigger is wired inside osm-index.js.
-    initOsmIndex(map, getVisibleCount);
 
     // When the OSM index gains new entries, refresh the currently open tooltip so
     // OSM indicators (dotted underline, group badge) appear without user interaction.
@@ -193,7 +282,7 @@ function _onTooltipOpen(e) {
         e.tooltip.close();
         return;
     }
-    fetchViewport();
+    _triggerOsmScan();
 }
 
 /**
