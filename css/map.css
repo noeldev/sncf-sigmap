@@ -434,3 +434,68 @@
     background: rgba(255,255,255,.08);
     margin: 4px 0 3px;
 }
+
+
+/* ===== Tooltip OSM presence indicators ===== */
+
+/* Group badge: one OSM icon placed in the first signal row as a flex item.
+   margin-left:auto pushes it to the right edge of the row; align-self:center
+   vertically centers it with the type/id text — no pixel adjustments needed.
+   Shown only when at least one signal in the group is confirmed in OSM. */
+.tt-osm-badge {
+    margin-left: auto;
+    align-self: center;
+    flex-shrink: 0;
+}
+
+    .tt-osm-badge[hidden] {
+        display: none;
+    }
+
+/* Per-signal indicator: dotted underline in OSM green on mapped networkIds.
+   text-underline-offset keeps the line clear of the descenders. */
+.tt-id--mapped {
+    text-decoration: underline dotted #5d9e37;
+    text-underline-offset: 3px;
+}
+
+/* ===== Line code bbox preview ===== */
+
+/*
+ * Transient overlay shown when hovering a line code filter tag.
+ * The rectangle is styled via L.rectangle options in map-layer.js.
+ *
+ * The label marker uses iconSize:[0,0] + iconAnchor:[0,0] so the anchor sits
+ * exactly at the computed label position (_computeLabelPosition). The CSS
+ * transform: translate(-50%, -50%) then centers the pill both horizontally and
+ * vertically around that anchor point.
+ *
+ * overflow:visible !important overrides Leaflet's default overflow:hidden on
+ * divIcon containers, preventing the label from being clipped when it extends
+ * beyond the zero-size icon bounding box.
+ */
+
+.line-preview-label {
+    pointer-events: none;
+    overflow: visible !important;
+}
+
+    .line-preview-label span {
+        display: inline-block;
+        /* Center the pill around the anchor point both horizontally and vertically. */
+        transform: translate(-50%, -50%);
+        background: rgba(13, 17, 23, 0.9);
+        border: 1px solid #5aafd3;
+        border-radius: var(--radius);
+        padding: 3px 10px;
+        font-size: 11px;
+        font-family: var(--ff-mono);
+        color: var(--text);
+        white-space: nowrap;
+        pointer-events: none;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        /* Prevent the text from overflowing the viewport on very narrow screens. */
+        max-width: 80vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }

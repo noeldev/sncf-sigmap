@@ -6,9 +6,11 @@
  *   - Drive the tiles-worker.js pipeline: fetch tiles, normalize, filter, sample.
  *   - Render worker results as Leaflet markers with tooltips and popups.
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
+ *   - Own the visible signal count (_visibleCount) as the authoritative source;
+ *     statusbar.js receives it for display only.
  *
  * Public API (called from app.js):
- *   initLayer()         — create markersLayer.
+ *   initLayer()         — create markersLayer and wire OSM index.
  *   setManifest(m)      — provide the tile manifest after it loads.
  *   refresh(force)      — trigger a data fetch/render cycle.
  *
@@ -34,6 +36,7 @@ import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
+import { fetchViewport, abortScan, onUpdate } from './osm-index.js';
 
 
 // ===== Module state =====
@@ -41,12 +44,16 @@ import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 let _manifest = null;
 let _markersLayer = null;
 let _worker = null;
+
 let _loadPending = false;
 let _loadRunning = false;
-let _sampled = false;       // true when the current view is a spatial overview sample
-let _popupOpen = false;     // true when a Leaflet popup is open
-let _lastGroups = [];       // last rendered groups — used by _getSignalLatlng()
-let _lastUrlKey = '';       // cache key for the last worker run (tile URLs + filter snapshot)
+let _sampled = false;            // true when the current view is a spatial overview sample
+let _popupOpen = false;          // true when a Leaflet popup is open
+
+let _lastGroups = [];            // last rendered groups — used by _getSignalLatlng()
+let _lastUrlKey = '';            // cache key for the last worker run (tile URLs + filter snapshot)
+let _visibleCount = 0;           // authoritative visible signal count; statusbar.js is display-only
+let _linePreviewLayer = null;    // transient L.layerGroup shown on line code tag hover; null when hidden
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -82,23 +89,128 @@ function _getDotSize(count) {
 }
 
 
+// ===== OSM scan wiring =====
+// map-layer.js owns the idle timer, map event handlers, guard evaluation, and bbox
+// computation so that osm-index.js remains a pure data service with no Leaflet dependency.
+// All scan triggers funnel through _triggerOsmScan(), which is the single call point.
+
+/** Idle time after the last map movement before auto-triggering a viewport scan. */
+const OSM_IDLE_DELAY_MS = 30_000;
+
+/** Minimum zoom level required to trigger a scan.
+ *  Must stay in sync with the tile renderer's own minimum render zoom. */
+const OSM_MIN_ZOOM = 14;
+
+/** Maximum viewport extent guards */
+const OSM_MAX_LAT_DELTA = 0.35;
+const OSM_MAX_LNG_DELTA = 0.5;
+
+/** Maximum visible signal count above which a scan is skipped.
+ *  Keeps Overpass responses light and targets realistic mapping sessions. */
+const OSM_MAX_SIGNALS = 100;
+
+/** Minimum visible signal count below which a scan is pointless. */
+const OSM_MIN_SIGNALS = 1;
+
+/** Expansion factor applied to the viewport bounds when building the Overpass fetch area.
+ *  Leaflet .pad(0.25) doubles linear dimensions (×2.25 area), so that subsequent small
+ *  pans and zoom adjustments land inside the already-scanned bbox and skip the query.
+ *  Guards are evaluated against the strict viewport, not this padded area. */
+const OSM_FETCH_PAD_FACTOR = 0.25;
+
+let _osmIdleTimer = null;
+
+/**
+ * Evaluate all scan guards and, when they pass, build the strict and padded bbox objects.
+ * Cheap guards (zoom, signal count) are checked before map.getBounds() to avoid
+ * unnecessary Leaflet calls in the common case where scanning is not needed.
+ *
+ * @returns {{ bbox, paddedBbox } | null} Null when any guard fails.
+ */
+function _buildScanContext() {
+    if (map.getZoom() < OSM_MIN_ZOOM) return null;
+    if (_visibleCount < OSM_MIN_SIGNALS || _visibleCount > OSM_MAX_SIGNALS) return null;
+
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+
+    if ((ne.lat - sw.lat) > OSM_MAX_LAT_DELTA) return null;
+    if ((ne.lng - sw.lng) > OSM_MAX_LNG_DELTA) return null;
+
+    const padded = bounds.pad(OSM_FETCH_PAD_FACTOR);
+    const psw = padded.getSouthWest();
+    const pne = padded.getNorthEast();
+
+    return {
+        bbox: {
+            swLat: sw.lat,
+            swLng: sw.lng,
+            neLat: ne.lat,
+            neLng: ne.lng,
+        },
+        paddedBbox: {
+            swLat: psw.lat,
+            swLng: psw.lng,
+            neLat: pne.lat,
+            neLng: pne.lng,
+        },
+    };
+}
+
+/**
+ * Evaluate scan guards and trigger a viewport scan if all pass.
+ * Single call point for all OSM scan triggers (tooltipopen, idle timer).
+ */
+function _triggerOsmScan() {
+    const ctx = _buildScanContext();
+    if (ctx) fetchViewport(ctx.bbox, ctx.paddedBbox);
+}
+
+/**
+ * Cancel any in-flight OSM scan, dismiss the context menu, and reset the idle timer.
+ * Registered on movestart and zoomstart.
+ */
+function _onMapMoveStart() {
+    closeContextMenu();
+    clearTimeout(_osmIdleTimer);
+    _osmIdleTimer = null;
+    abortScan();
+    // Dismiss the line preview — its bbox outline becomes misleading while the map moves.
+    hideLinePreview();
+}
+
+/**
+ * Schedule an automatic viewport scan after OSM_IDLE_DELAY_MS of inactivity.
+ * Registered on moveend and zoomend.
+ */
+function _onMapMoveEnd() {
+    clearTimeout(_osmIdleTimer);
+    _osmIdleTimer = setTimeout(_triggerOsmScan, OSM_IDLE_DELAY_MS);
+}
+
+
 // ===== Public API =====
 
 /**
- * Initialise the marker layer.
+ * Initialise the marker layer and wire the OSM index.
  * Must be called once from app.js/_boot() after initMap() resolves.
  */
 export function initLayer() {
     _markersLayer = L.layerGroup().addTo(map);
-    // Dismiss the context menu when the map moves — it is tied to a fixed screen position.
-    map.on('movestart', closeContextMenu);
 
-    // Prevent tooltips from showing when a popup is open
+    // Map movement: dismiss context menu, reset idle timer, and abort any in-flight OSM scan.
+    map.on('movestart zoomstart', _onMapMoveStart);
+    // Schedule an automatic OSM viewport scan after the map has been still long enough.
+    map.on('moveend zoomend', _onMapMoveEnd);
+
     map.on('popupopen', () => { _popupOpen = true; });
     map.on('popupclose', () => { _popupOpen = false; });
-    map.on('tooltipopen', (e) => {
-        if (_popupOpen) e.tooltip.close();
-    });
+    map.on('tooltipopen', _onTooltipOpen);
+
+    // When the OSM index gains new entries, refresh the currently open tooltip so
+    // OSM indicators (dotted underline, group badge) appear without user interaction.
+    onUpdate.subscribe(_onOsmIndexUpdate);
 }
 
 /**
@@ -117,14 +229,13 @@ export function setManifest(manifest) {
  * and active filters are all unchanged since the last run.
  * When a load is already running, the request is queued as a pending load.
  *
- * @param { boolean } [force = false]
+ * @param {boolean} [force=false]
  */
 export function refresh(force = false) {
     if (_loadRunning) {
         _loadPending = true;
         return;
     }
-
     if (!_manifest) return;
 
     const bounds = map.getBounds();
@@ -133,44 +244,84 @@ export function refresh(force = false) {
 
     if (fetchUrls.length === 0) {
         _markersLayer.clearLayers();
-        updateVisibleCount(0);
+        _updateVisibleCount(0);
         setSampledBadge(false);
         return;
     }
 
-    // Compute bounds corners once — reused in both urlKey and the worker postMessage.
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
+    const cacheKey = _computeCacheKey(fetchUrls, sw, ne);
 
-    // Skip the worker run when tile set, viewport, and active filters are all unchanged.
-    // Bounds are rounded to 2 decimal places (~1 km) to avoid re-runs from floating-point
-    // drift during micro-pans, while still catching any meaningful viewport change.
-    // Bounds MUST be included: the worker filters signals by viewport, so zooming within
-    // the same 0.5° tile(s) changes which signals are visible even when URLs don't change.
-    const r = v => Math.round(v * 100) / 100;
-    const boundsKey = `${r(sw.lat)},${r(sw.lng)},${r(ne.lat)},${r(ne.lng)}`;
-    const urlKey = fetchUrls.join('|') + '|' + boundsKey + '|'
-        + JSON.stringify(getActiveFiltersForWorker());
-    if (!force && urlKey === _lastUrlKey) return;
-    _lastUrlKey = urlKey;
+    if (!force && cacheKey === _lastUrlKey) return;
+    _lastUrlKey = cacheKey;
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom, sw, ne);
 }
 
+
+// ===== Visible count =====
+
 /**
- * Return the [lat, lng] of a signal by networkId from the last rendered groups.
- * Returns null when the signal is not currently in the viewport.
- * Used by filters.js to fly to a selected networkId tag without a tile fetch.
- * @param {string} networkId
- * @returns {[number, number] | null}
+ * Update the visible signal count in both module state and the status bar UI.
+ * Module state (_visibleCount) is the authoritative source; statusbar.js is display-only.
+ * @param {number} n
  */
-function _getSignalLatlng(networkId) {
-    for (const { lat, lng, all } of _lastGroups) {
-        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
-    }
-    return null;
+function _updateVisibleCount(n) {
+    _visibleCount = n;
+    updateVisibleCount(n);
 }
 
+
+// ===== Tooltip lifecycle =====
+
+/**
+ * Handle tooltipopen: close the tooltip when a popup is already open,
+ * otherwise trigger an opportunistic OSM viewport scan.
+ * @param {L.LeafletEvent} e
+ */
+function _onTooltipOpen(e) {
+    if (_popupOpen) {
+        e.tooltip.close();
+        return;
+    }
+    _triggerOsmScan();
+}
+
+/**
+ * Triggered when the OSM index receives new entries.
+ * Delegates to _refreshActiveTooltip; no-op when a popup is open.
+ */
+function _onOsmIndexUpdate() {
+    if (_popupOpen) return;
+    _refreshActiveTooltip();
+}
+
+/**
+ * Scan the marker layer for any open tooltip and refresh its content.
+ *
+ * Walking the layer is more robust than relying on a manual state reference
+ * which can be cleared by Leaflet's internal tooltip lifecycle before the
+ * async Overpass callback fires. At scanning zoom levels (≥ 14, ≤ 100 visible
+ * markers) eachLayer is negligible.
+ *
+ * The rAF defers the DOM write out of the Overpass Promise microtask queue,
+ * guaranteeing a clean browser repaint. The isTooltipOpen() re-check inside
+ * the frame guards against tooltips closed during the frame delay.
+ */
+function _refreshActiveTooltip() {
+    if (!_markersLayer) return;
+    _markersLayer.eachLayer(layer => {
+        if (!layer.isTooltipOpen?.()) return;
+        const display = layer._sigData?.display;
+        if (!display) return;
+        requestAnimationFrame(() => {
+            if (layer.isTooltipOpen?.()) {
+                layer.setTooltipContent(buildTooltip(display));
+            }
+        });
+    });
+}
 
 // ===== Worker lifecycle =====
 
@@ -251,7 +402,7 @@ function _handleWorkerMessage(e, isOverview, markerMap) {
         // Overview mode waits for 'done' (spatial sampling requires the full set).
         if (isOverview) return;
         _renderGroupsIncremental(groups, markerMap);
-        updateVisibleCount(markerMap.size);
+        _updateVisibleCount(markerMap.size);
         showProgress(t('progress.tiles', `${loaded} / ${total}`));
         return;
     }
@@ -291,6 +442,27 @@ function _onWorkerDone(groups, sampled, total) {
 }
 
 
+// ===== Cache key =====
+
+/**
+ * Compute the worker run cache key from tile URLs, viewport corners, and active filters.
+ * Bounds are rounded to 2 decimal places (~1 km) to absorb floating-point drift during
+ * micro-pans while still catching any meaningful viewport change.
+ * Bounds MUST be included: the worker filters signals by viewport, so zooming within
+ * the same 0.5° tile changes which signals are visible even when URLs don't change.
+ *
+ * @param {string[]}  fetchUrls
+ * @param {L.LatLng}  sw
+ * @param {L.LatLng}  ne
+ * @returns {string}
+ */
+function _computeCacheKey(fetchUrls, sw, ne) {
+    const r = v => Math.round(v * 100) / 100;
+    const boundsKey = `${r(sw.lat)},${r(sw.lng)},${r(ne.lat)},${r(ne.lng)}`;
+    return fetchUrls.join('|') + '|' + boundsKey + '|' + JSON.stringify(getActiveFiltersForWorker());
+}
+
+
 // ===== Rendering =====
 
 /**
@@ -315,15 +487,103 @@ function _makeDotIcon(color, size, multi) {
 }
 
 /**
- * Alt+Click handler: zoom to and center on the signal.
- * No location marker — the signal dot is already visible at the click position.
+ * Build a fully configured Leaflet marker for one group.
+ * Signal data is stored on marker._sigData during construction (no closure needed in
+ * event handlers). The 'add' handler mirrors it onto the DOM element for keyboard
+ * shortcut access (_sigData on el, not just on the Leaflet instance).
+ * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
+ *
+ * @param {number}   lat
+ * @param {number}   lng
+ * @param {object[]} all      all co-located signals (for JOSM export)
+ * @param {object[]} display  filtered signals (for icon color and tooltip)
+ * @returns {L.Marker}
+ */
+function _makeMarker(lat, lng, all, display) {
+    const types = display.map(s => s.p.signalType);
+    const color = getPrimaryTypeColor(types);
+    const count = display.length;
+    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
+    const marker = L.marker([lat, lng], { icon })
+        .bindTooltip(() => buildTooltip(display), {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'sig-tooltip',
+            sticky: false,
+        })
+        .on('add', _onMarkerAdd)
+        .on('click', _handleMarkerClick)
+        .on('contextmenu', _handleMarkerContextMenu);
+
+    // Store signal data directly on the marker instance so named event handlers
+    // can read it via 'this._sigData' without capturing a per-marker closure.
+    marker._sigData = { lat, lng, all, display };
+    return marker;
+}
+
+
+// ===== Marker event handlers =====
+// Named functions registered via .on() — use 'this' to access marker._sigData.
+// Keeping them outside _makeMarker avoids creating a new function object per marker.
+
+/**
+ * Copy _sigData from the Leaflet marker instance onto its DOM element.
+ * Needed for keyboard shortcut access (showSignalContextMenu reads from activeElement._sigData).
+ */
+function _onMarkerAdd() {
+    const el = this.getElement();
+    if (el) el._sigData = this._sigData;
+}
+
+/**
+ * Dispatch a marker click to the appropriate action based on modifier keys.
+ * @this {L.Marker}
+ * @param {L.LeafletMouseEvent} e
+ */
+function _handleMarkerClick(e) {
+    dismissLocationMarker();
+    closeContextMenu();
+
+    const { lat, lng, all } = this._sigData;
+    const orig = e.originalEvent;
+    const ctrl = orig?.ctrlKey || orig?.metaKey;
+    const shift = orig?.shiftKey;
+    const alt = orig?.altKey;
+
+    if (alt && !ctrl && !shift) {
+        _onMarkerAltClick(lat, lng);
+    } else if (ctrl && !shift) {
+        _onMarkerCtrlClick(all);
+    } else {
+        _onMarkerNormalClick([lat, lng], all, shift);
+    }
+}
+
+/**
+ * Open the context menu for a right-clicked marker.
+ * @this {L.Marker}
+ * @param {L.LeafletMouseEvent} e
+ */
+function _handleMarkerContextMenu(e) {
+    L.DomEvent.preventDefault(e);
+    dismissLocationMarker();
+    this.closeTooltip();
+    const { lat, lng, all } = this._sigData;
+    _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
+}
+
+
+// ===== Marker actions =====
+
+/**
+ * Alt+Click: zoom to and center on the signal without opening the popup.
  */
 function _onMarkerAltClick(lat, lng) {
     flyToLocationWithMarker([lat, lng]);
 }
 
 /**
- * Ctrl+Click handler: pin or unpin the first signal in the group.
+ * Ctrl+Click: pin or unpin the first signal in the group.
  * @param {object[]} all
  */
 function _onMarkerCtrlClick(all) {
@@ -336,13 +596,13 @@ function _onMarkerCtrlClick(all) {
 }
 
 /**
- * Normal/Shift+Click handler: open the signal popup.
+ * Normal/Shift+Click: open the signal popup.
  * Shift flips the default starting tab.
  * @param {[number, number]} latlng
  * @param {object[]}         all
  * @param {boolean}          shift
  */
-function _onMarkerClick(latlng, all, shift) {
+function _onMarkerNormalClick(latlng, all, shift) {
     openSignalPopup(latlng, all, 0, resolveStartTab(shift));
 }
 
@@ -382,63 +642,135 @@ function _showContextMenuAt(x, y, lat, lng, all) {
     // Close the signal popup before showing the context menu — the two UIs
     // are mutually exclusive and the popup would obscure the menu on small viewports.
     closeSignalPopup();
-    // Show the context menu
     showContextMenu(x, y, items);
 }
 
+
+// ===== Navigation =====
+
 /**
- * Build a fully configured Leaflet marker for one group.
- * Shared by _renderGroups (full render) and _renderGroupsIncremental (partial).
- * @param {number}   lat
- * @param {number}   lng
- * @param {object[]} all      all co-located signals (for JOSM export)
- * @param {object[]} display  filtered signals (for icon color and tooltip)
- * @returns {L.Marker}
+ * Show a transient line preview on the map while the user hovers a line code filter tag.
+ *
+ * Three visual layers are added simultaneously:
+ *   1. Dim overlay — a world-covering polygon with the line bbox cut out as a hole.
+ *      Uses SVG evenodd fill so the bbox area stays fully visible while the rest
+ *      of the map is subtly darkened, drawing focus to the relevant geographic area.
+ *      Placed in overlayPane (z-index 400) — below signal markers (600) so all
+ *      markers remain visible; only the tile background is dimmed outside the bbox.
+ *   2. Dashed rectangle — the bbox boundary, rendered above the dim.
+ *   3. Label — the line name, positioned at the north edge of the visible bbox/viewport
+ *      intersection so it always remains readable regardless of zoom level.
+ *
+ * All layers are non-interactive and are removed together by hideLinePreview().
+ * Safe to call with a null bbox — silently no-ops.
+ *
+ * @param {[[number, number], [number, number]] | null} bbox   Leaflet LatLngBounds array.
+ * @param {string | null}                               label  Line display name.
  */
-function _makeMarker(lat, lng, all, display) {
-    const types = display.map(s => s.p.signalType);
-    const color = getPrimaryTypeColor(types);
-    const count = display.length;
-    const icon = _makeDotIcon(color, _getDotSize(count), count > 1);
-    const marker = L.marker([lat, lng], { icon })
-        .bindTooltip(() => buildTooltip(display), {
-            direction: 'top',
-            offset: [0, -6],
-            className: 'sig-tooltip',
-            sticky: false,
-        })
-        .on('add', function () {
-            // Store signal data on the marker DOM element so keyboard shortcuts
-            // (ContextMenu key, Enter) can access it without a synthetic contextmenu event.
-            const el = this.getElement();
-            if (el) el._sigData = { lat, lng, all };
-        })
-        .on('click', e => {
-            dismissLocationMarker();
-            closeContextMenu();
+export function showLinePreview(bbox, label) {
+    hideLinePreview();
+    if (!bbox) return;
 
-            const orig = e.originalEvent;
-            const ctrl = orig?.ctrlKey || orig?.metaKey;
-            const shift = orig?.shiftKey;
-            const alt = orig?.altKey;
+    // Dim overlay: world polygon with the line bbox cut out as a hole.
+    // SVG evenodd fill rule renders the hole transparent.
+    const dim = L.polygon([
+        [[-90, -180], [-90, 180], [90, 180], [90, -180]],
+        [
+            [bbox[0][0], bbox[0][1]],   // SW
+            [bbox[0][0], bbox[1][1]],   // SE
+            [bbox[1][0], bbox[1][1]],   // NE
+            [bbox[1][0], bbox[0][1]],   // NW
+        ],
+    ], {
+        fillColor: '#0d1117',
+        fillOpacity: 0.35,
+        stroke: false,
+        interactive: false,
+    });
 
-            if (alt && !ctrl && !shift) {
-                _onMarkerAltClick(lat, lng);
-            } else if (ctrl && !shift) {
-                _onMarkerCtrlClick(all);
-            } else {
-                _onMarkerClick([lat, lng], all, shift);
-            }
-        })
-        .on('contextmenu', e => {
-            L.DomEvent.preventDefault(e);
-            dismissLocationMarker();
-            // Close this marker's bound tooltip
-            marker.closeTooltip();
-            // Show the context menu
-            _showContextMenuAt(e.originalEvent.clientX, e.originalEvent.clientY, lat, lng, all);
-        });
-    return marker;
+    const rect = L.rectangle(bbox, {
+        color: '#5aafd3',
+        weight: 1.5,
+        dashArray: '6 8',
+        fill: false,
+        interactive: false,
+        pane: 'tooltipPane',
+    });
+
+    const labelMarker = L.marker(_computeLabelPosition(bbox), {
+        icon: L.divIcon({
+            className: 'line-preview-label',
+            // iconSize [0,0] + iconAnchor [0,0]: the CSS transform in .line-preview-label
+            // centers and raises the text above the anchor without fixed pixel offsets.
+            html: label ? `<span>${label}</span>` : '',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+        }),
+        interactive: false,
+        pane: 'tooltipPane',
+    });
+
+    _linePreviewLayer = L.layerGroup([dim, rect, labelMarker]).addTo(map);
+}
+
+/**
+ * Compute the optimal [lat, lng] for the line preview label.
+ *
+ * The label is placed at the north edge of the visible intersection between
+ * the line bbox and the current map viewport, with two constraints:
+ *
+ * Latitude:
+ *   - Start at min(bboxNorth, viewportNorth) — the northernmost visible point.
+ *   - Clamp to a 25 px inset below the viewport top edge, converted to latitude
+ *     via Leaflet's projection. This gives a constant physical margin regardless
+ *     of zoom level, ensuring the label pill never overlaps the map border.
+ *   - Clamp to the visible south edge so the label never floats outside the line's
+ *     visible area (edge case: only a thin horizontal strip of the bbox is on screen).
+ *
+ * Longitude:
+ *   - Midpoint of the visible east-west intersection.
+ *   - Falls back to the bbox midpoint when the bbox is entirely narrower than the
+ *     viewport (visibleWest > visibleEast indicates no genuine overlap).
+ *
+ * @param {[[number, number], [number, number]]} bbox  Leaflet LatLngBounds array.
+ * @returns {[number, number]}  [lat, lng] for the label marker.
+ */
+function _computeLabelPosition(bbox) {
+    const view = map.getBounds();
+    const vNE = view.getNorthEast();
+    const vSW = view.getSouthWest();
+
+    // Visible intersection of the bbox and the current viewport.
+    const visibleNorth = Math.min(bbox[1][0], vNE.lat);
+    const visibleSouth = Math.max(bbox[0][0], vSW.lat);
+    const visibleWest = Math.max(bbox[0][1], vSW.lng);
+    const visibleEast = Math.min(bbox[1][1], vNE.lng);
+
+    // Convert a 25 px inset below the viewport top edge into latitude.
+    // A pixel-based margin is zoom-invariant and matches the label's physical height.
+    const topPx = map.latLngToContainerPoint(vNE);
+    const safeLat = map.containerPointToLatLng(L.point(topPx.x, topPx.y + 25)).lat;
+
+    // Place the label at the northernmost visible point, clamped to the safe inset.
+    // Also clamp to visibleSouth so it never leaves the line's visible area.
+    const labelLat = Math.max(Math.min(visibleNorth, safeLat), visibleSouth);
+
+    // Longitude: midpoint of the visible east-west range,
+    // falling back to the bbox midpoint when the bbox spans the full viewport width.
+    const labelLng = visibleWest <= visibleEast
+        ? (visibleWest + visibleEast) / 2
+        : (bbox[0][1] + bbox[1][1]) / 2;
+
+    return [labelLat, labelLng];
+}
+
+/**
+ * Remove the line preview from the map.
+ * Safe to call when no preview is currently shown.
+ */
+export function hideLinePreview() {
+    _linePreviewLayer?.remove();
+    _linePreviewLayer = null;
 }
 
 /**
@@ -489,7 +821,7 @@ export function flyToLine(lineCode) {
 
 /**
  * Show the signal context menu for the currently focused marker (keyboard access).
- * Reads signal data stored on the marker DOM element by _makeMarker's 'add' handler.
+ * Reads signal data from the DOM element's _sigData, mirrored there by _onMarkerAdd.
  * Called by map-controls.js keyboard shortcuts — avoids synthetic contextmenu events
  * which would also trigger the browser's native context menu on some platforms.
  */
@@ -505,6 +837,20 @@ export function showSignalContextMenu() {
 }
 
 /**
+ * Return the [lat, lng] of a signal by networkId from the last rendered groups.
+ * Returns null when the signal is not currently in the viewport.
+ * Used to fly to a selected networkId tag without a tile fetch.
+ * @param {string} networkId
+ * @returns {[number, number] | null}
+ */
+function _getSignalLatlng(networkId) {
+    for (const { lat, lng, all } of _lastGroups) {
+        if (all.some(s => String(s.p.networkId) === networkId)) return [lat, lng];
+    }
+    return null;
+}
+
+/**
  * Full render — clears the layer and rebuilds all markers from scratch.
  * Used by overview mode and the final 'done' message in detail mode.
  */
@@ -513,7 +859,7 @@ function _renderGroups(groups) {
     for (const { lat, lng, all, display } of groups) {
         _makeMarker(lat, lng, all, display).addTo(_markersLayer);
     }
-    updateVisibleCount(groups.length);
+    _updateVisibleCount(groups.length);
 }
 
 /**

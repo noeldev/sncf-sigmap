@@ -32,9 +32,9 @@ import { FilterPanel } from './filter-panel.js';
 import { saveFilters, loadFilters } from './prefs.js';
 import {
     loadIndexData, getFilterData,
-    searchNetworkIds, getLineLabel, searchLineCodes,
+    searchNetworkIds, getLineLabel, searchLineCodes, getLineBbox,
 } from './signal-data.js';
-import { isSampled, flyToSignal, flyToLine } from './map-layer.js';
+import { isSampled, flyToSignal, flyToLine, showLinePreview, hideLinePreview } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 // Import data layer functions
@@ -408,6 +408,11 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         onTagLabelClick: fieldMeta?.globalSearch
             ? val => flyToSignal(val) : fieldMeta?.labelSearch
                 ? val => flyToLine(val) : undefined,
+        onTagHover: fieldMeta?.labelSearch
+            ? (val, active) => active
+                ? showLinePreview(getLineBbox(val), getLineLabel(val))
+                : hideLinePreview()
+            : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),

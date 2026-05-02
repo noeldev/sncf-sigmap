@@ -27,6 +27,7 @@
 
 import { getIdKey, fetchNodesByRef } from './overpass.js';
 import { getSignalId, isSupported, getOsmNodes } from './signal-mapping.js';
+import { getOsmNode, primeFromPopup } from './osm-index.js';
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY = 2000;
@@ -62,6 +63,23 @@ const _makeStatus = (status, entry = null) => ({
  * IN_OSM signals never need re-checking.
  */
 const _inOsmCache = new Map();
+
+/**
+ * Look up a networkId in the app-wide OSM index.
+ * On hit, promotes the entry to the session cache under the given key
+ * so subsequent resolveStatus calls short-circuit without touching the index.
+ *
+ * @param {string} networkId
+ * @param {string} key - getIdKey result for this signal (refTag:networkId).
+ * @returns {{ id: number, tags: object } | null}
+ */
+function _getOsmEntry(networkId, key) {
+    const indexNode = getOsmNode(networkId);
+    if (!indexNode) return null;
+    const entry = { id: indexNode.id, tags: indexNode.tags };
+    _inOsmCache.set(key, entry);
+    return entry;
+}
 
 
 // ===== OsmStatusChecker class =====
@@ -196,7 +214,7 @@ export class OsmStatusChecker {
 
     /**
      * Determine the current status for one signal feature.
-     * Consults the session cache and instance caches.
+     * Consults the session cache, the app-wide OSM index, and instance caches.
      */
     #resolveStatus(feat) {
         const { signalType, networkId } = feat.p;
@@ -204,6 +222,8 @@ export class OsmStatusChecker {
         if (!refTag || !networkId) return _makeStatus(OSM_STATUS.UNSUPPORTED);
         const key = getIdKey({ refTag, networkId });
         if (_inOsmCache.has(key)) return _makeStatus(OSM_STATUS.IN_OSM, _inOsmCache.get(key));
+        const entry = _getOsmEntry(networkId, key);
+        if (entry !== null) return _makeStatus(OSM_STATUS.IN_OSM, entry);
         if (this.#notInOsmKeys.has(key)) return _makeStatus(OSM_STATUS.NOT_IN_OSM);
         if (this.#erroredKeys.has(key)) return _makeStatus(OSM_STATUS.ERROR);
         return _makeStatus(OSM_STATUS.CHECKING);
@@ -248,13 +268,14 @@ export class OsmStatusChecker {
             const key = getIdKey(queryObj);
             if (_inOsmCache.has(key) || this.#notInOsmKeys.has(key)) continue;
             toFetch.push(queryObj);
-            entries.push({ key });
+            entries.push({ key, networkId });
         }
         return { toFetch, entries };
     }
 
     /**
      * Execute the Overpass batch request and update both caches.
+     * Confirmed IN_OSM results are also fed into the app-wide index via primeFromPopup.
      * On error, marks affected keys for retry scheduling.
      */
     async #fetchAndUpdateCaches(toFetch, entries) {
@@ -262,10 +283,11 @@ export class OsmStatusChecker {
             const bbox = this.#getSignalBbox();
             const results = await fetchNodesByRef(toFetch, bbox, this.#abortController?.signal);
 
-            for (const { key } of entries) {
+            for (const { key, networkId } of entries) {
                 const entry = results.get(key);
                 if (entry) {
                     _inOsmCache.set(key, entry);
+                    primeFromPopup(networkId, entry);
                     this.#erroredKeys.delete(key);
                 } else {
                     this.#notInOsmKeys.add(key);

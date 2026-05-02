@@ -21,6 +21,12 @@
  *
  * Shift+remove semantics: every other tag's onRemove is called; the kept
  * tag's remove button receives focus after the parent re-renders.
+ *
+ * Hover contract (optional):
+ *   onTagHover(val, active) — called with true when the pointer enters a tag,
+ *   false when it leaves. Uses mouseover/mouseout with delegation; the
+ *   relatedTarget check on mouseout suppresses internal child-to-child moves
+ *   so only actual tag enter/leave transitions are reported.
  */
 export class TagList {
     // ----- Private fields -----
@@ -28,6 +34,7 @@ export class TagList {
     #tpl;
     #onRemove;
     #onLabelClick;
+    #onTagHover;
 
     /**
      * @param {object}   opts
@@ -35,15 +42,22 @@ export class TagList {
      * @param {Element}  opts.template       <template> for one tag (.fg-tag).
      * @param {Function} opts.onRemove       Called with value when a tag is removed.
      * @param {Function} [opts.onLabelClick] Called with value when the label is activated.
+     * @param {Function} [opts.onTagHover]   Called with (value, active) on tag enter/leave.
      */
-    constructor({ containerEl, template, onRemove, onLabelClick }) {
+    constructor({ containerEl, template, onRemove, onLabelClick, onTagHover }) {
         this.#el = containerEl;
         this.#tpl = template;
         this.#onRemove = onRemove;
         this.#onLabelClick = onLabelClick ?? null;
+        this.#onTagHover = onTagHover ?? null;
 
         containerEl.addEventListener('mousedown', e => this.#handleMouse(e));
         containerEl.addEventListener('keydown', e => this.#handleKey(e));
+
+        if (this.#onTagHover) {
+            containerEl.addEventListener('mouseover', e => this.#handleHover(e, true));
+            containerEl.addEventListener('mouseout', e => this.#handleHover(e, false));
+        }
     }
 
 
@@ -121,6 +135,20 @@ export class TagList {
     }
 
     /**
+     * Handle pointer enter/leave on individual tags via delegated mouseover/mouseout.
+     * The relatedTarget check on leave suppresses transitions between child elements
+     * within the same .fg-tag so only true tag boundary crossings are reported.
+     * @param {MouseEvent} e
+     * @param {boolean}    active  True on enter, false on leave.
+     */
+    #handleHover(e, active) {
+        const tag = e.target.closest('.fg-tag');
+        if (!tag) return;
+        if (!active && tag.contains(e.relatedTarget)) return;
+        this.#onTagHover(tag.dataset.val, active);
+    }
+
+    /**
      * Remove every tag except the one with keepVal.
      * Calls onRemove for each; focuses the remaining remove button after re-render.
      * @param {string} keepVal
@@ -136,4 +164,39 @@ export class TagList {
                 ?.focus();
         });
     }
+
+
+    // ===== Public API =====
+
+    /**
+     * Rebuild the tag list from an array of values.
+     * @param {string[]}                    values
+     * @param {(v: string) => string}       [labelFn]   Maps value → display text.
+     * @param {(v: string) => string|null}  [tooltipFn] Maps value → native title text.
+     */
+    render(values, labelFn = v => v, tooltipFn = null) {
+        this.#el.replaceChildren();
+        for (const v of values) {
+            const tag = this.#tpl.content.cloneNode(true).querySelector('.fg-tag');
+            tag.dataset.val = v;
+            tag.querySelector('.fg-tag-label').textContent = labelFn(v);
+
+            if (tooltipFn) {
+                const tip = tooltipFn(v);
+                if (tip) tag.setAttribute('title', tip);
+            }
+
+            if (this.#onLabelClick) {
+                tag.classList.add('fg-tag--clickable');
+                const label = tag.querySelector('.fg-tag-label');
+                label.setAttribute('tabindex', '0');
+                label.setAttribute('role', 'button');
+            }
+
+            this.#el.appendChild(tag);
+        }
+    }
+
+    show() { this.#el.classList.remove('is-hidden'); }
+    hide() { this.#el.classList.add('is-hidden'); }
 }

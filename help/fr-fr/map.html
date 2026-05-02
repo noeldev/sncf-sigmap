@@ -21,7 +21,7 @@
                 <li><strong>Filtres :</strong> Dans l'onglet <a href="#" data-app-tab="tab-filters">Filtres</a>, utilisez <strong>Ajouter</strong> (ex : Type IF, Code Ligne).</li>
                 <li><strong>Légende :</strong> Cliquez sur une catégorie pour isoler les signaux correspondants.</li>
                 <li><strong>ID Réseau :</strong> Filtrez par identifiant, puis cliquez sur la <strong>pastille</strong> pour zoomer sur le signal.</li>
-                <li><strong>Code ligne :</strong> Filtrez par code ou libellé de ligne, puis cliquez sur la <strong>pastille</strong> pour survoler l'emprise de la ligne.</li>
+                <li><strong>Code ligne :</strong> Filtrez par code ou libellé de ligne, puis cliquez sur la <strong>pastille</strong> pour zoomer sur l'emprise de la ligne. Le survol d'une pastille affiche son emprise géographique sous forme de contour pointillé avec un effet de mise en valeur — la prévisualisation disparaît dès que la carte est déplacée.</li>
             </ul>
         </div>
     </details>
@@ -34,6 +34,20 @@
                 <li><strong>Visibilité :</strong> Tous les signaux apparaissent à partir du zoom 10. En dessous, un échantillonnage spatial assure la lisibilité (les filtres restent prioritaires).</li>
                 <li><strong>Persistance :</strong> Les filtres, signaux épinglés, position et réglages sont conservés entre les sessions.</li>
             </ul>
+        </div>
+    </details>
+
+    <details open>
+        <summary>Infobulle au survol</summary>
+        <div class="section-body">
+            <p>Survoler un marqueur affiche une infobulle. Chaque ligne indique le <strong>type de signal</strong> (libellé coloré) et son <strong>ID Réseau</strong>. Lorsque des signaux co-localisés diffèrent par leur sens ou leur position, ils sont regroupés en sous-blocs séparés par un trait. Le code ligne, le code voie, le nom de voie et le point kilométrique sont communs à tous les signaux co-localisés et apparaissent en bas.</p>
+            <p><strong>Indicateurs de présence OSM</strong>, affichés dès que l'application a vérifié la zone :</p>
+            <table class="shortcut-table">
+                <tr><th>Indicateur</th><th>Signification</th></tr>
+                <tr><td>Soulignement pointillé de l'ID Réseau</td><td>Ce signal est déjà intégré dans OSM</td></tr>
+                <tr><td>Logo OSM sur la première ligne</td><td>Au moins un signal du groupe est déjà dans OSM</td></tr>
+            </table>
+            <p>La vérification se déclenche automatiquement après 30 secondes d'immobilité à un zoom suffisant (≥ 14, moins de 100 signaux visibles), ou immédiatement au survol d'un marqueur.</p>
         </div>
     </details>
 
