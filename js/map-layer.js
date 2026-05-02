@@ -686,6 +686,7 @@ export function showLinePreview(bbox, label) {
         fillOpacity: 0.35,
         stroke: false,
         interactive: false,
+        className: 'line-preview-dim',
     });
 
     const rect = L.rectangle(bbox, {
@@ -694,7 +695,8 @@ export function showLinePreview(bbox, label) {
         dashArray: '6 8',
         fill: false,
         interactive: false,
-        pane: 'tooltipPane',
+        className: 'line-preview-dim',
+        pane: 'overlayPane',
     });
 
     const labelMarker = L.marker(_computeLabelPosition(bbox), {
