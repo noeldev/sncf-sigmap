@@ -53,6 +53,7 @@ let _popupOpen = false;          // true when a Leaflet popup is open
 let _lastGroups = [];            // last rendered groups — used by _getSignalLatlng()
 let _lastUrlKey = '';            // cache key for the last worker run (tile URLs + filter snapshot)
 let _visibleCount = 0;           // authoritative visible signal count; statusbar.js is display-only
+let _linePreviewLayer = null;    // transient L.layerGroup shown on line code tag hover; null when hidden
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -175,6 +176,8 @@ function _onMapMoveStart() {
     clearTimeout(_osmIdleTimer);
     _osmIdleTimer = null;
     abortScan();
+    // Dismiss the line preview — its bbox outline becomes misleading while the map moves.
+    hideLinePreview();
 }
 
 /**
@@ -644,6 +647,131 @@ function _showContextMenuAt(x, y, lat, lng, all) {
 
 
 // ===== Navigation =====
+
+/**
+ * Show a transient line preview on the map while the user hovers a line code filter tag.
+ *
+ * Three visual layers are added simultaneously:
+ *   1. Dim overlay — a world-covering polygon with the line bbox cut out as a hole.
+ *      Uses SVG evenodd fill so the bbox area stays fully visible while the rest
+ *      of the map is subtly darkened, drawing focus to the relevant geographic area.
+ *      Placed in overlayPane (z-index 400) — below signal markers (600) so all
+ *      markers remain visible; only the tile background is dimmed outside the bbox.
+ *   2. Dashed rectangle — the bbox boundary, rendered above the dim.
+ *   3. Label — the line name, positioned at the north edge of the visible bbox/viewport
+ *      intersection so it always remains readable regardless of zoom level.
+ *
+ * All layers are non-interactive and are removed together by hideLinePreview().
+ * Safe to call with a null bbox — silently no-ops.
+ *
+ * @param {[[number, number], [number, number]] | null} bbox   Leaflet LatLngBounds array.
+ * @param {string | null}                               label  Line display name.
+ */
+export function showLinePreview(bbox, label) {
+    hideLinePreview();
+    if (!bbox) return;
+
+    // Dim overlay: world polygon with the line bbox cut out as a hole.
+    // SVG evenodd fill rule renders the hole transparent.
+    const dim = L.polygon([
+        [[-90, -180], [-90, 180], [90, 180], [90, -180]],
+        [
+            [bbox[0][0], bbox[0][1]],   // SW
+            [bbox[0][0], bbox[1][1]],   // SE
+            [bbox[1][0], bbox[1][1]],   // NE
+            [bbox[1][0], bbox[0][1]],   // NW
+        ],
+    ], {
+        fillColor: '#0d1117',
+        fillOpacity: 0.35,
+        stroke: false,
+        interactive: false,
+    });
+
+    const rect = L.rectangle(bbox, {
+        color: '#5aafd3',
+        weight: 1.5,
+        dashArray: '6 8',
+        fill: false,
+        interactive: false,
+        pane: 'tooltipPane',
+    });
+
+    const labelMarker = L.marker(_computeLabelPosition(bbox), {
+        icon: L.divIcon({
+            className: 'line-preview-label',
+            // iconSize [0,0] + iconAnchor [0,0]: the CSS transform in .line-preview-label
+            // centers and raises the text above the anchor without fixed pixel offsets.
+            html: label ? `<span>${label}</span>` : '',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+        }),
+        interactive: false,
+        pane: 'tooltipPane',
+    });
+
+    _linePreviewLayer = L.layerGroup([dim, rect, labelMarker]).addTo(map);
+}
+
+/**
+ * Compute the optimal [lat, lng] for the line preview label.
+ *
+ * The label is placed at the north edge of the visible intersection between
+ * the line bbox and the current map viewport, with two constraints:
+ *
+ * Latitude:
+ *   - Start at min(bboxNorth, viewportNorth) — the northernmost visible point.
+ *   - Clamp to a 25 px inset below the viewport top edge, converted to latitude
+ *     via Leaflet's projection. This gives a constant physical margin regardless
+ *     of zoom level, ensuring the label pill never overlaps the map border.
+ *   - Clamp to the visible south edge so the label never floats outside the line's
+ *     visible area (edge case: only a thin horizontal strip of the bbox is on screen).
+ *
+ * Longitude:
+ *   - Midpoint of the visible east-west intersection.
+ *   - Falls back to the bbox midpoint when the bbox is entirely narrower than the
+ *     viewport (visibleWest > visibleEast indicates no genuine overlap).
+ *
+ * @param {[[number, number], [number, number]]} bbox  Leaflet LatLngBounds array.
+ * @returns {[number, number]}  [lat, lng] for the label marker.
+ */
+function _computeLabelPosition(bbox) {
+    const view = map.getBounds();
+    const vNE = view.getNorthEast();
+    const vSW = view.getSouthWest();
+
+    // Visible intersection of the bbox and the current viewport.
+    const visibleNorth = Math.min(bbox[1][0], vNE.lat);
+    const visibleSouth = Math.max(bbox[0][0], vSW.lat);
+    const visibleWest = Math.max(bbox[0][1], vSW.lng);
+    const visibleEast = Math.min(bbox[1][1], vNE.lng);
+
+    // Convert a 25 px inset below the viewport top edge into latitude.
+    // A pixel-based margin is zoom-invariant and matches the label's physical height.
+    const topPx = map.latLngToContainerPoint(vNE);
+    const safeLat = map.containerPointToLatLng(L.point(topPx.x, topPx.y + 25)).lat;
+
+    // Place the label at the northernmost visible point, clamped to the safe inset.
+    // Also clamp to visibleSouth so it never leaves the line's visible area.
+    const labelLat = Math.max(Math.min(visibleNorth, safeLat), visibleSouth);
+
+    // Longitude: midpoint of the visible east-west range,
+    // falling back to the bbox midpoint when the bbox spans the full viewport width.
+    const labelLng = visibleWest <= visibleEast
+        ? (visibleWest + visibleEast) / 2
+        : (bbox[0][1] + bbox[1][1]) / 2;
+
+    return [labelLat, labelLng];
+}
+
+/**
+ * Remove the line preview from the map.
+ * Safe to call when no preview is currently shown.
+ */
+export function hideLinePreview() {
+    _linePreviewLayer?.remove();
+    _linePreviewLayer = null;
+}
 
 /**
  * Fly to the signal with the given network ID and show a location marker.

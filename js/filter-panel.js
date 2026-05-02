@@ -51,6 +51,7 @@ export class FilterPanel {
      * @param {Function}     opts.onActivate
      * @param {Function}     opts.onTagRemove
      * @param {Function}     [opts.onTagLabelClick]
+     * @param {Function}     [opts.onTagHover]
      * @param {Function}     opts.onClear
      * @param {Function}     opts.onRemove
      * @param {Function}     [opts.onToggleMappedOnly]
@@ -75,7 +76,7 @@ export class FilterPanel {
 
     // ===== Private initialisation =====
 
-    #initSubComponents({ fieldMeta, onActivate, onTagRemove, onTagLabelClick,
+    #initSubComponents({ fieldMeta, onActivate, onTagRemove, onTagLabelClick, onTagHover,
         onSearch, onEnter, onOpen, tplTag }) {
         this.dd = new Dropdown({
             dropdownEl: this._el.dropdown,
@@ -92,6 +93,7 @@ export class FilterPanel {
             template: tplTag,
             onRemove: onTagRemove,
             onLabelClick: onTagLabelClick,
+            onTagHover,
         });
 
         this.cb = new ComboBox({
