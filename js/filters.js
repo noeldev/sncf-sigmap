@@ -115,6 +115,8 @@ export function indexSignals(signals) {
  * Called from app.js when the Reset Filters button is clicked.
  */
 export function resetFilters() {
+    hideLinePreview(); // For security sake
+
     _mappedOnly = false;
     saveFilters([]);
     resetKnownValues(_fieldKeys);
@@ -398,14 +400,11 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         onActivate: activate,
         onDelete: () => _onDelete(def, idx),
         onTagRemove: val => _onTagRemove(def, val),
-        onTagLabelClick: fieldMeta?.globalSearch
-            ? val => flyToSignal(val) : fieldMeta?.labelSearch
-                ? val => flyToLine(val) : undefined,
-        onTagHover: fieldMeta?.labelSearch
-            ? (val, active) => active
-                ? showLinePreview(getLineBbox(val), getLineLabel(val))
-                : hideLinePreview()
-            : undefined,
+        onTagLabelClick: fieldMeta?.globalSearch ? _handleTagClickGlobal
+                       : fieldMeta?.labelSearch ? _handleTagClickLine
+                       : undefined,
+        onTagHover: fieldMeta?.labelSearch ? _handleTagHoverLine
+                  : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -453,6 +452,8 @@ function _onDelete(def, idx) {
  * @param {string} val
  */
 function _onTagRemove(def, val) {
+    hideLinePreview(); // For security sake when hovering lineCode tags
+
     _toggle(def.field, val);
     // The focused tag button was detached by replaceChildren() inside
     // _refreshTags → focus moved to <body>. Restore via microtask.
@@ -508,6 +509,22 @@ function _onSearch(def, idx, fieldMeta, query) {
     def.search = sanitized;
     _refreshDropdown(idx);
     _openDropdown(idx);
+}
+
+function _handleTagClickGlobal(val) {
+    flyToSignal(val);
+}
+
+function _handleTagClickLine(val) {
+    flyToLine(val);
+}
+
+function _handleTagHoverLine(val, active) {
+    if (active) {
+        showLinePreview(getLineBbox(val), getLineLabel(val));
+    } else {
+        hideLinePreview();
+    }
 }
 
 function _buildPanels() {

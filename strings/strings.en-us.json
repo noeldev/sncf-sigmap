@@ -183,7 +183,7 @@
     "unpin": "Unpin this signal",
     "flash": "Pinned!",
     "unflash": "Unpinned",
-    "menu": "Pin options"
+    "menu": "Pinned signals Options"
   },
   "filter": {
     "none": "No active filters.",
