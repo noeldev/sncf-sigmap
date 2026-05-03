@@ -26,12 +26,13 @@
  *   openHelpPage(page)     — open a help page in the dedicated help tab
  */
 
+import { APP_ID } from './config.js';
 import { getLangPref, setLangPref } from './prefs.js';
 import { isMarkup, toHtml } from './markup.js';
 import { Observable } from './utils/observable.js';
 
 /** Browser tab name — ensures all help links reuse the same tab. */
-const HELP_WINDOW = 'sncf-sigmap-help';
+const HELP_WINDOW = `${APP_ID}-help`;
 
 // ===== Precompiled regular expressions =====
 

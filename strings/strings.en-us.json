@@ -182,14 +182,16 @@
     "pin": "Pin this signal",
     "unpin": "Unpin this signal",
     "flash": "Pinned!",
-    "unflash": "Unpinned"
+    "unflash": "Unpinned",
+    "menu": "Pin options"
   },
   "filter": {
     "none": "No active filters.",
     "clear": "Clear filter values",
     "confirmClear": "The active filters for this panel will be removed. Do you want to continue?",
     "close": "Remove filter",
-    "indexError": "Filter index unavailable — suggestions may be incomplete."
+    "indexError": "Filter index unavailable — suggestions may be incomplete.",
+    "menu": "Filter options"
   },
   "context": {
     "zoomCenter": "Zoom to",
@@ -199,6 +201,10 @@
     "merge": "Merge",
     "undo": "Undo",
     "mergeAll": "Merge all",
-    "undoAll": "Undo all"
+    "undoAll": "Undo all",
+    "copy": "Copy",
+    "cut": "Cut",
+    "paste": "Paste",
+    "delete": "Delete"
   }
 }

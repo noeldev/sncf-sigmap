@@ -39,6 +39,7 @@
  *   resolveStartTab(flipped)
  */
 
+import { FIELD } from './field-keys.js';
 import { map } from './map.js';
 import { getTypeColor, sortSignalsByNetworkId } from './signal-mapping.js';
 import { t, translateElement, onLangChange, openHelpPage } from './translation.js';
@@ -262,7 +263,7 @@ function _initOsmChecker(feats) {
  */
 function _onOsmStatusChange() {
     if (!_isSignalPopupOpen()) return;
-    const idRow = _idRow();
+    const idRow = _getFieldRow(FIELD.NETWORK_ID);
     if (idRow) {
         _resetOsmStatus(idRow);
         _applyOsmStatus(idRow, _currentIdx, _feats[_currentIdx]);
@@ -270,10 +271,10 @@ function _onOsmStatusChange() {
     _updateTagsPanel();
 }
 
-/** Shorthand — the networkId row element. */
-function _idRow() {
-    return _popupEl?.querySelector('.pu-row[data-field="networkId"]');
-}
+// ===== Private DOM helpers =====
+
+/** Look up a .pu-row element by its data-field attribute. */
+const _getFieldRow = field => _popupEl?.querySelector(`.pu-row[data-field="${field}"]`);
 
 /**
  * Reset OSM status indicators to their default 'checking' visual state.
@@ -358,6 +359,16 @@ function _updateSignalColor(p) {
     _popupEl.style.setProperty('--signal-contrast', _contrastColor(color));
 }
 
+/** Update the signal type badge. */
+function _updateSignalType(p) {
+    const row = _getFieldRow(FIELD.SIGNAL_TYPE);
+    if (!row) return;
+    const badgeEl = row.querySelector('.pu-badge');
+    if (badgeEl) {
+        badgeEl.textContent = p.signalType ?? '';
+    }
+}
+
 /** Update the signal nav header: counter label, arrow button visibility, type badge. */
 function _updateSignalNavHeader(p, total) {
     _updateNavCounter(
@@ -365,8 +376,8 @@ function _updateSignalNavHeader(p, total) {
         'nav-prev', 'nav-next',
         _currentIdx, total
     );
-    _popupEl.querySelector('.pu-row[data-field="signalType"] .pu-badge').textContent =
-        p.signalType ?? '';
+
+    _updateSignalType(p);
 }
 
 /**
@@ -377,9 +388,13 @@ function _updateDataRows(p) {
     const displayProps = _buildDisplayProps(p);
     _popupEl.querySelectorAll('.pu-row[data-field]').forEach(row => {
         const field = row.dataset.field;
-        if (field === 'signalType' || field === 'networkId' || field === 'coords') return;
+        if (field === FIELD.SIGNAL_TYPE || field === FIELD.NETWORK_ID || field === FIELD.COORDS) return;
         const val = displayProps[field];
-        if (val !== undefined) row.querySelector('.pu-val').textContent = val;
+        if (val === undefined) return;
+        const valEl = row.querySelector('.pu-val');
+        if (valEl) {
+            valEl.textContent = val;
+        }
     });
 }
 
@@ -399,16 +414,28 @@ function _buildDisplayProps(p) {
 
 /** Write networkId text and refresh the OSM status indicator for the current signal. */
 function _updateNetworkIdRow(s) {
-    const idRow = _idRow();
-    idRow.querySelector('.pu-val').textContent = s.p.networkId ?? '';
-    _resetOsmStatus(idRow);
-    _applyOsmStatus(idRow, _currentIdx, s);
+    const row = _getFieldRow(FIELD.NETWORK_ID);
+    if (!row) return;
+
+    const valEl = row.querySelector('.pu-val');
+    if (valEl) {
+        valEl.textContent = s.p.networkId ?? '';
+    }
+
+    _resetOsmStatus(row);
+    _applyOsmStatus(row, _currentIdx, s);
+
 }
 
 /** Write the lat/lng coordinate pair to the coords row. */
 function _updateCoords(s) {
-    _popupEl.querySelector('.pu-row[data-field="coords"] .pu-val').textContent =
-        `${s.lat.toFixed(6)}  ${s.lng.toFixed(6)}`;
+    const row = _getFieldRow(FIELD.COORDS);
+    if (!row) return;
+
+    const valEl = row.querySelector('.pu-val');
+    if (valEl) {
+        valEl.textContent = `${s.lat.toFixed(6)}  ${s.lng.toFixed(6)}`;
+    }
 }
 
 function _updateNodeBadge() {
@@ -697,11 +724,11 @@ function _buildContextMenuItems(row, state, appTags, osmTags) {
 
     // Global batch actions
     if (_canMergeAll(state, osmTags)) {
-    items.push({
-        labelKey: 'context.mergeAll',
-        action: _runMenuAction(() => mergeAll(state, osmTags)),
-    });
-}
+        items.push({
+            labelKey: 'context.mergeAll',
+            action: _runMenuAction(() => mergeAll(state, osmTags)),
+        });
+    }
 
     if (_isTargetDirty(state, appTags)) {
         items.push({

@@ -34,7 +34,7 @@ import { isOwnWorkerMessage } from './tiles-worker-contract.js';
 import { showFlash, showProgress, hideProgress } from './progress.js';
 import { togglePin, isPinned } from './pins.js';
 import { updateVisibleCount, setSampledBadge } from './statusbar.js';
-import { showContextMenu, closeContextMenu } from './context-menu.js';
+import { showContextMenu, closeContextMenu, isContextMenuOpen } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 import { fetchViewport, abortScan, onUpdate } from './osm-index.js';
 
@@ -276,15 +276,17 @@ function _updateVisibleCount(n) {
 // ===== Tooltip lifecycle =====
 
 /**
- * Handle tooltipopen: close the tooltip when a popup is already open,
+ * Handle tooltipopen: close the tooltip when a popup or context menu is open,
  * otherwise trigger an opportunistic OSM viewport scan.
  * @param {L.LeafletEvent} e
  */
 function _onTooltipOpen(e) {
-    if (_popupOpen) {
+    if (_popupOpen || isContextMenuOpen()) {
         e.tooltip.close();
         return;
     }
+    // Dismiss the fly-to location marker so it does not overlap the tooltip.
+    dismissLocationMarker();
     _triggerOsmScan();
 }
 

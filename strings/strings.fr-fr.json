@@ -182,14 +182,16 @@
     "pin": "Épingler ce signal",
     "unpin": "Désépingler ce signal",
     "flash": "Épinglé !",
-    "unflash": "Désépinglé"
+    "unflash": "Désépinglé",
+    "menu": "Options des épingles"
   },
   "filter": {
     "none": "Aucun filtre actif.",
     "clear": "Effacer les valeurs",
     "confirmClear": "Les filtres actifs de ce champ vont être supprimés. Voulez-vous continuer ?",
     "close": "Supprimer le filtre",
-    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes."
+    "indexError": "Index des filtres indisponible — les suggestions peuvent être incomplètes.",
+    "menu": "Options du filtre"
   },
   "context": {
     "zoomCenter": "Zoomer",
@@ -199,6 +201,10 @@
     "merge": "Fusionner",
     "undo": "Annuler",
     "mergeAll": "Tout fusionner",
-    "undoAll": "Tout annuler"
+    "undoAll": "Tout annuler",
+    "copy": "Copier",
+    "cut": "Couper",
+    "paste": "Coller",
+    "delete": "Supprimer"
   }
 }

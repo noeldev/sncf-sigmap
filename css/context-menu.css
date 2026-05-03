@@ -24,10 +24,11 @@
     position: fixed;
     z-index: 10000;
     background: rgba(13, 17, 23, .96);
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .55);
     border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 4px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .55);
     min-width: 160px;
     font-family: var(--ff-mono);
     font-size: 11px;
@@ -46,6 +47,12 @@
     user-select: none;
     outline: none;
 }
+
+    /* Disabled items — grayed out, non-interactive */
+    .ctx-item.is-disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
 
     /* Hover / keyboard focus background. Slightly stronger than the original
      * .08 so the highlight reads on the lighter base background. */

@@ -4,16 +4,25 @@
  * Allows the user to bookmark specific signals by Network ID for quick
  * map navigation. Pins persist across sessions via prefs.js.
  *
+ * Clipboard integration:
+ *   A chevron button in the pinned panel header opens a context menu via
+ *   clipboard.js buildTagMenu(). The dataType is FIELD.NETWORK_ID, which is
+ *   compatible with the Network ID filter panel — values can be exchanged
+ *   between the two without any format conversion.
+ *
  * Public API:
- *   initPins(opts)       — create the panel and wire it into the sidebar.
+ *   initPins(container)  — create the panel and wire it into the sidebar.
  *   isPinned(networkId)  — return true when the signal is currently pinned.
  *   togglePin(networkId) — add or remove a pin; triggers a panel refresh.
+ *   onPinsChange(fn)     — register a callback invoked after any pin change.
  */
 
 import { t, translateElement, onLangChange } from './translation.js';
+import { FIELD } from './field-keys.js';
 import { savePins, loadPins } from './prefs.js';
 import { flyToSignal } from './map-layer.js';
 import { TagList } from './ui/tag-list.js';
+import { buildTagMenu, handleTagsKeydown } from './clipboard.js';
 import { Observable } from './utils/observable.js';
 
 
@@ -28,8 +37,8 @@ let _tagList = null;
 /** Root section element of the pinned panel. */
 let _sectionEl = null;
 
-/** Clear-all button in the pinned panel summary. */
-let _clearBtn = null;
+/** Menu button in the pinned panel summary. */
+let _menuBtn = null;
 
 /** Observable for pin changes */
 const _pinsChange = new Observable();
@@ -39,7 +48,6 @@ const _pinsChange = new Observable();
 
 /**
  * Initialize the pinned signals panel in the sidebar.
- *
  * Subscribe to pin changes via onPinsChange() after initialisation.
  *
  * @param {HTMLElement} container — Element to append the panel to.
@@ -83,19 +91,14 @@ export function togglePin(networkId) {
     }
 
     savePins(_pins);
-
     _renderPanel();
-    _notifyPinsChange();
+    _pinsChange.notify();
 
     return pinned;
 }
 
 
 // ===== Private helpers =====
-
-function _notifyPinsChange() {
-    _pinsChange.notify();
-}
 
 function _buildPanel(container) {
     const tpl = document.getElementById('tpl-pinned-section');
@@ -112,18 +115,32 @@ function _buildPanel(container) {
         onLabelClick: networkId => flyToSignal(networkId),
     });
 
-    // Cache the clear button reference — it lives in the static #pinned-panel
-    // summary (index.html), not in the cloned template section.
-    _clearBtn = document.querySelector('#pinned-panel [data-action="clear-pins"]');
+    // The menu button lives in the static #pinned-panel summary (index.html).
+    _menuBtn = document.querySelector('#pinned-panel [data-action="pins-menu"]');
 
     _renderPanel();
 }
 
 function _bindEvents() {
-    _clearBtn?.addEventListener('click', e => {
-        e.stopPropagation();
-        _onClearAll();
+    _menuBtn?.addEventListener('click', () => {
+        buildTagMenu(_menuBtn, {
+            dataType: FIELD.NETWORK_ID,
+            getValues: () => [..._pins],
+            onDelete: _onDelete,
+            onPaste: _onPaste,
+        });
     });
+
+    // Keyboard shortcuts on the pinned tags container — mirror context menu.
+    _sectionEl?.querySelector('.pinned-tags')
+        ?.addEventListener('keydown', e => {
+            handleTagsKeydown(e, {
+                dataType: FIELD.NETWORK_ID,
+                getValues: () => [..._pins],
+                onDelete: _onDelete,
+                onPaste: _onPaste,
+            });
+        });
 
     onLangChange(() => _renderPanel());
 }
@@ -132,18 +149,32 @@ function _bindEvents() {
 function _renderPanel() {
     if (!_tagList) return;
     _tagList.render(_pins);
-
-    _sectionEl?.querySelector('.empty-state')
-        ?.classList.toggle('is-hidden', _pins.length > 0);
-
-    _clearBtn?.classList.toggle('is-hidden', _pins.length === 0);
+    _sectionEl?.querySelector('.empty-state')?.classList.toggle('is-hidden', _pins.length > 0);
 }
 
-function _onClearAll() {
+/**
+ * Delete all pins after user confirmation.
+ * Renamed from _onClearAll to match the Delete menu item semantics.
+ */
+function _onDelete() {
     if (_pins.length === 0) return;
     if (!confirm(t('pinned.confirmClear'))) return;
     _pins = [];
     savePins(_pins);
     _renderPanel();
-    _notifyPinsChange();
+    _pinsChange.notify();
+}
+
+/**
+ * Apply pasted Network IDs to the pins list.
+ * Passed as a named callback to buildTagMenu and handleTagsKeydown so the
+ * logic is defined once and not duplicated between the two call sites.
+ * Receives already-deduplicated values from clipboard.js readNewValues().
+ * @param {string[]} newVals
+ */
+function _onPaste(newVals) {
+    _pins.push(...newVals);
+    savePins(_pins);
+    _renderPanel();
+    _pinsChange.notify();
 }

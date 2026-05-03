@@ -4,12 +4,19 @@
  * Responsibilities:
  *   - Clone and configure the panel template (IDs, field variants).
  *   - Instantiate Dropdown, ComboBox, and TagList sub-components.
- *   - Wire header buttons (clear, remove, supported-only toggle).
+ *   - Wire header buttons (menu, remove, supported-only toggle).
  *   - Expose a typed public API; contain no application state.
  *
  * Does NOT own:
  *   - Active filter values, counts, or sort order (→ filters.js).
  *   - Sibling-dropdown coordination (→ filters.js).
+ *   - Clipboard format, MIME types, or copy/paste logic (→ clipboard.js).
+ *
+ * Clipboard integration:
+ *   A chevron button (.fg-menu) in the panel header opens a context menu
+ *   via clipboard.js buildTagMenu(). The menu replaces the former Clear button.
+ *   Keyboard shortcuts are wired via clipboard.js handleTagsKeydown().
+ *   See clipboard.js for the full payload format and paste semantics.
  *
  * Public API:
  *   panel.appendTo(container)
@@ -20,20 +27,35 @@
  *   panel.focusInput() / focusItem(val)
  *   panel.getFirstItemVal()
  *   panel.clearSearch() / setSearch(value)
- *   panel.toggleClearBtn(visible)
  *   panel.panelEl()
  *   panel.destroy()
  */
 
 import { translateElement } from './translation.js';
+import { FIELD } from './field-keys.js';
 import { Dropdown } from './ui/dropdown.js';
 import { ComboBox } from './ui/combobox.js';
 import { TagList } from './ui/tag-list.js';
+import { buildTagMenu, handleTagsKeydown } from './clipboard.js';
 
 
 // ===== FilterPanel class =====
 
 export class FilterPanel {
+    // ----- Private fields -----
+    // field is intentionally public: filters.js reads def.panel.field directly.
+    #fieldMeta;
+    #tplItem;
+    #tplItemRich;
+    #tplNoMatch;
+    #translateValue;
+    #onActivate;
+    #onDelete;
+    #el;
+    #dd;
+    #tags;
+    #cb;
+
     /**
      * @param {object}       opts
      * @param {string}       opts.fieldKey
@@ -52,7 +74,7 @@ export class FilterPanel {
      * @param {Function}     opts.onTagRemove
      * @param {Function}     [opts.onTagLabelClick]
      * @param {Function}     [opts.onTagHover]
-     * @param {Function}     opts.onClear
+     * @param {Function}     opts.onDelete
      * @param {Function}     opts.onRemove
      * @param {Function}     [opts.onToggleMappedOnly]
      * @param {Function}     opts.onSearch
@@ -61,14 +83,16 @@ export class FilterPanel {
      */
     constructor(opts) {
         this.field = opts.fieldKey;
-        this._fieldMeta = opts.fieldMeta;
-        this._tplItem = opts.tplItem;
-        this._tplItemRich = opts.tplItemRich;
-        this._tplNoMatch = opts.tplNoMatch;
-        this._translateValue = opts.translateValue ?? ((_, v) => v);
+        this.#fieldMeta = opts.fieldMeta;
+        this.#tplItem = opts.tplItem;
+        this.#tplItemRich = opts.tplItemRich;
+        this.#tplNoMatch = opts.tplNoMatch;
+        this.#translateValue = opts.translateValue ?? ((_, v) => v);
+        this.#onActivate = opts.onActivate;
+        this.#onDelete = opts.onDelete;
 
-        this._el = this.#cloneTemplate(opts.tplGroup, opts.fieldKey);
-        this.#applyFieldVariants(this._el, opts);
+        this.#el = this.#cloneTemplate(opts.tplGroup, opts.fieldKey);
+        this.#applyFieldVariants(this.#el, opts);
         this.#initSubComponents(opts);
         this.#bindEvents(opts);
     }
@@ -78,30 +102,30 @@ export class FilterPanel {
 
     #initSubComponents({ fieldMeta, onActivate, onTagRemove, onTagLabelClick, onTagHover,
         onSearch, onEnter, onOpen, tplTag }) {
-        this.dd = new Dropdown({
-            dropdownEl: this._el.dropdown,
-            triggerEl: this._el.comboInput,
-            listEl: this._el.list,
-            input: this._el.input,
+        this.#dd = new Dropdown({
+            dropdownEl: this.#el.dropdown,
+            triggerEl: this.#el.comboInput,
+            listEl: this.#el.list,
+            input: this.#el.input,
             itemSel: '.fg-drop-item',
             onActivate,
             activationFocusMode: fieldMeta?.minSearch > 0 ? 'input' : 'item',
         });
 
-        this.tags = new TagList({
-            containerEl: this._el.tags,
+        this.#tags = new TagList({
+            containerEl: this.#el.tags,
             template: tplTag,
             onRemove: onTagRemove,
             onLabelClick: onTagLabelClick,
             onTagHover,
         });
 
-        this.cb = new ComboBox({
-            inputEl: this._el.input,
-            comboWrapEl: this._el.comboInput,
-            clearButtonEl: this._el.comboClear ?? undefined,
-            arrowButtonEl: this._el.comboArrow ?? undefined,
-            dropdown: this.dd,
+        this.#cb = new ComboBox({
+            inputEl: this.#el.input,
+            comboWrapEl: this.#el.comboInput,
+            clearButtonEl: this.#el.comboClear ?? undefined,
+            arrowButtonEl: this.#el.comboArrow ?? undefined,
+            dropdown: this.#dd,
             onSearch,
             onEnter,
             onOpen,
@@ -110,43 +134,68 @@ export class FilterPanel {
         });
     }
 
-    #bindEvents({ fieldKey, onActivate, onClear, onRemove, onToggleMappedOnly }) {
+    #bindEvents({ fieldKey, onActivate, onRemove, onToggleMappedOnly }) {
         // Delegated mousedown on the list — survives replaceChildren() in refreshList().
-        this._el.list.addEventListener('mousedown', e => {
+        this.#el.list.addEventListener('mousedown', e => {
             const item = e.target.closest('.fg-drop-item');
             if (!item) return;
             e.preventDefault();
             onActivate(item.dataset.val);
         });
 
-        this._el.clearBtn?.addEventListener('click', () => onClear?.());
-        this._el.removeBtn.addEventListener('click', onRemove);
+        // Menu button: open clipboard context menu via clipboard.js.
+        this.#el.menuBtn.addEventListener('click', () => {
+            buildTagMenu(this.#el.menuBtn, {
+                dataType: this.field,
+                getValues: () => this.#tags.getValues(),
+                onDelete: () => this.#onDelete?.(),
+                onPaste: this.#onPasteTags,
+            });
+        });
 
-        if (fieldKey === 'signalType' && onToggleMappedOnly) {
-            this._el.toggleChk.addEventListener('change', () =>
-                onToggleMappedOnly(this._el.toggleChk.checked));
+        this.#el.removeBtn.addEventListener('click', onRemove);
+
+        if (fieldKey === FIELD.SIGNAL_TYPE && onToggleMappedOnly) {
+            this.#el.toggleChk.addEventListener('change', () =>
+                onToggleMappedOnly(this.#el.toggleChk.checked));
         }
+
+        // Keyboard shortcuts — mirror context menu actions when tag list has focus.
+        this.#el.tags.addEventListener('keydown', e => {
+            handleTagsKeydown(e, {
+                dataType: this.field,
+                getValues: () => this.#tags.getValues(),
+                onDelete: () => this.#onDelete?.(),
+                onPaste: this.#onPasteTags,
+            });
+        });
     }
 
     /** Sync the clear-input button visibility with the current input value. */
     #syncClearButton() {
-        const { comboClear, input } = this._el;
+        const { comboClear, input } = this.#el;
         if (comboClear) comboClear.classList.toggle('is-hidden', input.value.length === 0);
     }
+
+    /**
+     * Activate new values pasted from the clipboard.
+     * Defined as a private arrow field so it can be passed as a callback
+     * reference without losing the `this` binding.
+     * Called by buildTagMenu and handleTagsKeydown in clipboard.js with
+     * already-deduplicated values — no risk of toggling off an active entry.
+     */
+    #onPasteTags = newVals => {
+        for (const v of newVals) this.#onActivate?.(v);
+    };
 
 
     // ===== Public API =====
 
     /** @param {HTMLElement} container */
-    appendTo(container) { container.appendChild(this._el.panel); }
+    appendTo(container) { container.appendChild(this.#el.panel); }
 
     /** Return the root element for registerPanel() in collapsible-panel.js. */
-    panelEl() { return this._el.panel; }
-
-    /** @param {boolean} visible */
-    toggleClearBtn(visible) {
-        this._el.clearBtn?.classList.toggle('is-hidden', !visible);
-    }
+    panelEl() { return this.#el.panel; }
 
 
     /* ----- List rendering ----- */
@@ -164,7 +213,7 @@ export class FilterPanel {
      * @param {Array<{v:string, count:number, active:boolean, showDot:boolean, subtitle?:string|null}>} items
      */
     refreshList(items) {
-        const list = this._el.list;
+        const list = this.#el.list;
         const prevFocusedVal = list.contains(document.activeElement)
             ? document.activeElement.dataset?.val ?? null
             : null;
@@ -172,7 +221,7 @@ export class FilterPanel {
         list.replaceChildren();
 
         if (!items.length) {
-            const placeholder = this._tplNoMatch.content
+            const placeholder = this.#tplNoMatch.content
                 .cloneNode(true).querySelector('.fg-empty');
             translateElement(placeholder);
             list.appendChild(placeholder);
@@ -180,10 +229,10 @@ export class FilterPanel {
         }
 
         for (const { v, count, active, showDot, subtitle } of items) {
-            const tpl = subtitle ? this._tplItemRich : this._tplItem;
+            const tpl = subtitle ? this.#tplItemRich : this.#tplItem;
             const item = tpl.content.cloneNode(true).querySelector('.fg-drop-item');
             const nameEl = item.querySelector('.fgi-name');
-            const displayVal = this._translateValue(this.field, v);
+            const displayVal = this.#translateValue(this.field, v);
 
             if (subtitle) {
                 const codeSpan = nameEl.querySelector('.fgi-code');
@@ -206,8 +255,8 @@ export class FilterPanel {
             list.appendChild(item);
         }
 
-        if (prevFocusedVal && this.dd.isOpen()) {
-            queueMicrotask(() => this.dd.focusItem(prevFocusedVal));
+        if (prevFocusedVal && this.#dd.isOpen()) {
+            queueMicrotask(() => this.#dd.focusItem(prevFocusedVal));
         }
     }
 
@@ -220,18 +269,18 @@ export class FilterPanel {
      * @param {Function|null} [tooltipFn]  tooltipFn(val) → string|null
      */
     refreshTags(values, tooltipFn = null) {
-        this.tags.render(values, v => this._translateValue(this.field, v), tooltipFn);
+        this.#tags.render(values, v => this.#translateValue(this.field, v), tooltipFn);
     }
 
 
     /* ----- Input ----- */
 
     /** @param {string} text */
-    setInputPlaceholder(text) { this._el.input.placeholder = text; }
+    setInputPlaceholder(text) { this.#el.input.placeholder = text; }
 
     /** Clear the search input and sync the clear button. */
     clearSearch() {
-        this._el.input.value = '';
+        this.#el.input.value = '';
         this.#syncClearButton();
     }
 
@@ -240,39 +289,39 @@ export class FilterPanel {
      * @param {string} value
      */
     setSearch(value) {
-        this._el.input.value = value;
+        this.#el.input.value = value;
         this.#syncClearButton();
     }
 
 
     /* ----- Dropdown state ----- */
 
-    openDropdown() { this.dd.open(); }
-    closeDropdown() { this.dd.close(); }
-    isOpen() { return this.dd.isOpen(); }
+    openDropdown() { this.#dd.open(); }
+    closeDropdown() { this.#dd.close(); }
+    isOpen() { return this.#dd.isOpen(); }
 
 
     /* ----- Focus ----- */
 
-    focusInput() { this.dd.focusInput(); }
-    focusItem(val) { this.dd.focusItem(val); }
+    focusInput() { this.#dd.focusInput(); }
+    focusItem(val) { this.#dd.focusItem(val); }
 
 
     /* ----- Utility ----- */
 
     /** @returns {string|null} */
     getFirstItemVal() {
-        return this._el.list.querySelector('.fg-drop-item')?.dataset.val ?? null;
+        return this.#el.list.querySelector('.fg-drop-item')?.dataset.val ?? null;
     }
 
 
     /* ----- Lifecycle ----- */
 
     /** Unregister Dropdown and detach its keydown handler before removing from DOM. */
-    destroy() { this.dd.destroy(); }
+    destroy() { this.#dd.destroy(); }
 
 
-    /* ----- Private helpers ----- */
+    // ===== Private helpers =====
 
     #cloneTemplate(tplGroup, fieldKey) {
         const panel = tplGroup.content.cloneNode(true).querySelector('.filter-panel');
@@ -291,7 +340,7 @@ export class FilterPanel {
         return {
             panel,
             title: panel.querySelector('.fg-title'),
-            clearBtn: panel.querySelector('.fg-clear'),
+            menuBtn: panel.querySelector('.fg-menu'),
             removeBtn: panel.querySelector('.fg-remove'),
             tags: panel.querySelector('.fg-tags'),
             comboInput: panel.querySelector('.fg-combo-input'),
@@ -308,7 +357,7 @@ export class FilterPanel {
     #applyFieldVariants(el, { fieldKey, fieldMeta, label, isConfirmed, searchValue, mappedOnly }) {
         el.title.textContent = label;
 
-        if (fieldKey === 'signalType') {
+        if (fieldKey === FIELD.SIGNAL_TYPE) {
             el.toggleRow.classList.remove('is-hidden');
             el.toggleChk.checked = mappedOnly;
         }

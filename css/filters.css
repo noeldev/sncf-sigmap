@@ -91,12 +91,16 @@
     flex-shrink: 0;
 }
 
-/* Clear (trash) and Remove (×) icon buttons.
- * Base layout is inherited from .summary-action-btn in sidebar.css.
- * Only hover colours are overridden here since fg-clear uses warn and fg-remove uses accent2. */
-.fg-clear:hover {
-    color: var(--warn);
-    background: rgba(210, 153, 34, .08);
+/* Menu (chevron) button: always visible; opens clipboard context menu.
+ * The chevron icon is rotated 90° (pointing right → pointing down) to signal
+ * that clicking opens a dropdown below the button. */
+.fg-menu:hover {
+    color: var(--accent2);
+    background: rgba(37, 137, 199, .08);
+}
+
+.fg-menu .fg-menu-chevron {
+    transform: rotate(90deg);
 }
 
 .fg-remove:hover {

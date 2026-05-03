@@ -144,7 +144,7 @@ function _bindEvents() {
     if (!sidebar) return;
 
     sidebar.addEventListener('click', e => {
-        // Action buttons inside a summary (e.g. clear-pins, fg-clear, fg-remove) must not toggle.
+        // Action buttons inside a summary (e.g. clear-pins, fg-remove) must not toggle.
         if (e.target.closest('.summary-action-btn, .fg-actions, .fg-combo-action, .summary-link-btn')) return;
         const summary = e.target.closest('.panel-summary[aria-controls]');
         if (!summary) return;

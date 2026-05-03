@@ -379,20 +379,21 @@
 /* ===== Tooltip ===== */
 
 .leaflet-tooltip.sig-tooltip {
-    background: rgba(13,17,23,.96) !important;
-    border: 1px solid var(--border2) !important;
-    border-radius: var(--radius) !important;
-    color: var(--text) !important;
-    font-family: var(--ff-mono) !important;
-    font-size: 11px !important;
-    padding: 6px 10px !important;
-    box-shadow: 0 4px 14px rgba(0,0,0,.55) !important;
-    line-height: 1.6 !important;
+    background: rgba(13, 17, 23, .96);
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0,.55);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    padding: 6px 10px;
+    line-height: 1.6;
 }
 
     .leaflet-tooltip.sig-tooltip::before,
     .leaflet-tooltip.sig-tooltip::after {
-        display: none !important;
+        display: none;
     }
 
 .tt-row {
