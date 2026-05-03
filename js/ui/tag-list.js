@@ -27,6 +27,12 @@
  *   false when it leaves. Uses mouseover/mouseout with delegation; the
  *   relatedTarget check on mouseout suppresses internal child-to-child moves
  *   so only actual tag enter/leave transitions are reported.
+ *
+ * Context menu contract (optional):
+ *   onContextMenu(event) — called when the user right-clicks anywhere inside
+ *   the container (on a tag or in the empty space between tags). The default
+ *   browser context menu is suppressed. Typically used to show a Copy/Paste
+ *   menu for batch tag operations.
  */
 export class TagList {
     // ----- Private fields -----
@@ -35,21 +41,26 @@ export class TagList {
     #onRemove;
     #onLabelClick;
     #onTagHover;
+    #onContextMenu;
 
     /**
      * @param {object}   opts
-     * @param {Element}  opts.containerEl    Element that holds all tag nodes.
-     * @param {Element}  opts.template       <template> for one tag (.fg-tag).
-     * @param {Function} opts.onRemove       Called with value when a tag is removed.
-     * @param {Function} [opts.onLabelClick] Called with value when the label is activated.
-     * @param {Function} [opts.onTagHover]   Called with (value, active) on tag enter/leave.
+     * @param {Element}  opts.containerEl     Element that holds all tag nodes.
+     * @param {Element}  opts.template        <template> for one tag (.fg-tag).
+     * @param {Function} opts.onRemove        Called with value when a tag is removed.
+     * @param {Function} [opts.onLabelClick]  Called with value when the label is activated.
+     * @param {Function} [opts.onTagHover]    Called with (value, active) on tag enter/leave.
+     * @param {Function} [opts.onContextMenu] Called with the MouseEvent on right-click.
+     *   The native context menu is suppressed; the caller is responsible for showing
+     *   an application-level menu.
      */
-    constructor({ containerEl, template, onRemove, onLabelClick, onTagHover }) {
+    constructor({ containerEl, template, onRemove, onLabelClick, onTagHover, onContextMenu }) {
         this.#el = containerEl;
         this.#tpl = template;
         this.#onRemove = onRemove;
         this.#onLabelClick = onLabelClick ?? null;
         this.#onTagHover = onTagHover ?? null;
+        this.#onContextMenu = onContextMenu ?? null;
 
         containerEl.addEventListener('mousedown', e => this.#handleMouse(e));
         containerEl.addEventListener('keydown', e => this.#handleKey(e));
@@ -57,6 +68,15 @@ export class TagList {
         if (this.#onTagHover) {
             containerEl.addEventListener('mouseover', e => this.#handleHover(e, true));
             containerEl.addEventListener('mouseout', e => this.#handleHover(e, false));
+        }
+
+        if (this.#onContextMenu) {
+            // Suppress the native context menu only on this container; the rest of
+            // the app (map, sidebar text areas) keeps its native menu.
+            containerEl.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                this.#onContextMenu(e);
+            });
         }
     }
 
@@ -94,6 +114,19 @@ export class TagList {
 
     show() { this.#el.classList.remove('is-hidden'); }
     hide() { this.#el.classList.add('is-hidden'); }
+
+    /**
+     * Return the current list of tag values in display order.
+     * Reads from the rendered DOM so the result is always in sync with the
+     * last render() call. The canonical source for clipboard operations in
+     * FilterPanel — callers must not query .fg-tag internals directly.
+     * @returns {string[]}
+     */
+    getValues() {
+        return [...this.#el.querySelectorAll('.fg-tag')]
+            .map(el => el.dataset.val)
+            .filter(Boolean);
+    }
 
 
     // ===== Private helpers =====
@@ -164,39 +197,4 @@ export class TagList {
                 ?.focus();
         });
     }
-
-
-    // ===== Public API =====
-
-    /**
-     * Rebuild the tag list from an array of values.
-     * @param {string[]}                    values
-     * @param {(v: string) => string}       [labelFn]   Maps value → display text.
-     * @param {(v: string) => string|null}  [tooltipFn] Maps value → native title text.
-     */
-    render(values, labelFn = v => v, tooltipFn = null) {
-        this.#el.replaceChildren();
-        for (const v of values) {
-            const tag = this.#tpl.content.cloneNode(true).querySelector('.fg-tag');
-            tag.dataset.val = v;
-            tag.querySelector('.fg-tag-label').textContent = labelFn(v);
-
-            if (tooltipFn) {
-                const tip = tooltipFn(v);
-                if (tip) tag.setAttribute('title', tip);
-            }
-
-            if (this.#onLabelClick) {
-                tag.classList.add('fg-tag--clickable');
-                const label = tag.querySelector('.fg-tag-label');
-                label.setAttribute('tabindex', '0');
-                label.setAttribute('role', 'button');
-            }
-
-            this.#el.appendChild(tag);
-        }
-    }
-
-    show() { this.#el.classList.remove('is-hidden'); }
-    hide() { this.#el.classList.add('is-hidden'); }
 }

@@ -44,3 +44,13 @@ export const DEFAULT_BASEMAP = 'jawg-transport';
 // type characters before rendering any items. The minimum character count is
 // derived dynamically from the list size in filters.js.
 export const MIN_SEARCH_THRESHOLD = 500;
+
+// Canonical application identifier — single source of truth.
+// Used by: help-channel.js (BroadcastChannel name), translation.js (help window
+// name), and filter-panel.js (clipboard payload signature).
+// Changing this value here propagates everywhere automatically.
+export const APP_ID = 'sncf-sigmap';
+
+// Custom MIME type for structured clipboard payloads.
+// The 'web ' prefix is required by the Async Clipboard API for custom types.
+export const CLIPBOARD_MIME_TYPE = 'application/sncf-sigmap';

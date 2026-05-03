@@ -25,6 +25,8 @@
  */
 
 import { MIN_SEARCH_THRESHOLD } from './config.js';
+import { FIELD } from './field-keys.js';
+import { FILTER_FIELDS_META, getFilterFieldKeys } from './filter-config.js';
 import { getCategoryEntries } from './cat-mapping.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
@@ -45,35 +47,18 @@ import {
     getCountMap, getCandidateValues, normalize, buildItemSorter
 } from './filter-data.js';
 
-const ALL_FILTER_FIELDS = [
-    {
-        key: 'signalType', labelKey: 'fields.signalType'
-    },
-    {
-        // labelSearch: true — enables combined code+label search and tag tooltips.
-        // numericOnly is intentionally absent: the input must accept label text.
-        key: 'lineCode', labelKey: 'fields.lineCode', labelSearch: true,
-    },
-    {
-        key: 'trackName', labelKey: 'fields.trackName'
-    },
-    {
-        key: 'direction', labelKey: 'fields.direction',
-        valueOrder: ['backward', 'forward', 'both'], readOnly: true,
-    },
-    {
-        key: 'placement', labelKey: 'fields.placement',
-        valueOrder: ['left', 'right', 'bridge'], readOnly: true,
-    },
-    {
-        key: 'networkId', labelKey: 'fields.networkId', numericOnly: true,
-        globalSearch: true,   // searches the full index.json location table
-        searchThreshold: MIN_SEARCH_THRESHOLD
-    },
-];
+/**
+ * Flat array form of FILTER_FIELDS_META, shaped as { key, ...meta }.
+ * Derived at module load time so order and content are always in sync with
+ * the registry. Replaces the former hand-maintained local array.
+ */
+const ALL_FILTER_FIELDS = Object.entries(FILTER_FIELDS_META).map(([key, meta]) => ({
+    key,
+    ...meta,
+}));
 
-// Build once — the only part of ALL_FILTER_FIELDS that the data layer needs.
-const _fieldKeys = ALL_FILTER_FIELDS.map(f => f.key);
+// Ordered field key list — consumed by filter-data.js, parseFieldIndex, etc.
+const _fieldKeys = getFilterFieldKeys();
 
 // Exported as const so external importers always hold the same object reference.
 // Internal mutations clear keys in-place rather than reassigning the object.
@@ -130,6 +115,8 @@ export function indexSignals(signals) {
  * Called from app.js when the Reset Filters button is clicked.
  */
 export function resetFilters() {
+    hideLinePreview(); // For security sake
+
     _mappedOnly = false;
     saveFilters([]);
     resetKnownValues(_fieldKeys);
@@ -167,7 +154,7 @@ export function filterByGroup(group) {
     const types = getTypesByGroup(group);
     if (!types.length) return;
 
-    const current = _activeFilters['signalType'];
+    const current = _activeFilters[FIELD.SIGNAL_TYPE];
     const signalDef = _defs.find(d => _isSignalType(d.field));
 
     // If the current filter already contains exactly the types of this group,
@@ -189,13 +176,13 @@ export function filterByGroup(group) {
     // Apply the group: only adds/replaces the signalType filter.
     // Other active filters (lineCode, trackName…) are preserved.
     if (!signalDef) {
-        _defs.unshift({ field: 'signalType', search: '' });
+        _defs.unshift({ field: FIELD.SIGNAL_TYPE, search: '' });
     } else {
         signalDef.search = '';
     }
 
     _mappedOnly = true;
-    _activeFilters['signalType'] = new Set(types);
+    _activeFilters[FIELD.SIGNAL_TYPE] = new Set(types);
     _activeGroup = group;
 
     _buildPanels();
@@ -311,8 +298,16 @@ function _clearActiveFilters() {
     for (const key in _activeFilters) delete _activeFilters[key];
 }
 
+/**
+ * Return the metadata for a given field key, or undefined when unknown.
+ * O(1) direct property access on FILTER_FIELDS_META replaces the former
+ * linear ALL_FILTER_FIELDS.find() — avoids scanning the array on every
+ * dropdown refresh and panel re-render.
+ * @param {string} key
+ * @returns {object|undefined}
+ */
 function _fieldDef(key) {
-    return ALL_FILTER_FIELDS.find(f => f.key === key);
+    return FILTER_FIELDS_META[key];
 }
 
 /**
@@ -342,13 +337,13 @@ function _confirmClear() {
 // ===== Group preset state =====
 
 /**
- * Return true when the given field key is 'signalType'.
+ * Return true when the given field key is FIELD.SIGNAL_TYPE.
  * Centralises the comparison so field-specific logic is easy to find and adjust.
  * @param {string} field
  * @returns {boolean}
  */
 function _isSignalType(field) {
-    return field === 'signalType';
+    return field === FIELD.SIGNAL_TYPE;
 }
 
 function _syncActiveGroup(field) {
@@ -403,16 +398,13 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         mappedOnly: _mappedOnly,
 
         onActivate: activate,
-        onClear: () => _onClear(def, idx),
+        onDelete: () => _onDelete(def, idx),
         onTagRemove: val => _onTagRemove(def, val),
-        onTagLabelClick: fieldMeta?.globalSearch
-            ? val => flyToSignal(val) : fieldMeta?.labelSearch
-                ? val => flyToLine(val) : undefined,
-        onTagHover: fieldMeta?.labelSearch
-            ? (val, active) => active
-                ? showLinePreview(getLineBbox(val), getLineLabel(val))
-                : hideLinePreview()
-            : undefined,
+        onTagLabelClick: fieldMeta?.globalSearch ? _handleTagClickGlobal
+                       : fieldMeta?.labelSearch ? _handleTagClickLine
+                       : undefined,
+        onTagHover: fieldMeta?.labelSearch ? _handleTagHoverLine
+                  : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -449,8 +441,8 @@ function _clearFilter(def, idx) {
     _commit();
 }
 
-/** onClear handler — clears active values with confirmation when needed. */
-function _onClear(def, idx) {
+/** onDelete handler — clears active values with confirmation when needed. */
+function _onDelete(def, idx) {
     _confirmIfActive(def.field, () => _clearFilter(def, idx));
 }
 
@@ -460,6 +452,8 @@ function _onClear(def, idx) {
  * @param {string} val
  */
 function _onTagRemove(def, val) {
+    hideLinePreview(); // For security sake when hovering lineCode tags
+
     _toggle(def.field, val);
     // The focused tag button was detached by replaceChildren() inside
     // _refreshTags → focus moved to <body>. Restore via microtask.
@@ -492,8 +486,8 @@ function _onRemove(def, idx) {
 function _onToggleMappedOnly(def, checked) {
     _confirmIfActive(def.field, () => {
         _mappedOnly = checked;
-        delete _activeFilters['signalType'];
-        _resetSearch('signalType');
+        delete _activeFilters[FIELD.SIGNAL_TYPE];
+        _resetSearch(FIELD.SIGNAL_TYPE);
         _clearActiveGroup();
         _buildPanels();
         _commit();
@@ -515,6 +509,22 @@ function _onSearch(def, idx, fieldMeta, query) {
     def.search = sanitized;
     _refreshDropdown(idx);
     _openDropdown(idx);
+}
+
+function _handleTagClickGlobal(val) {
+    flyToSignal(val);
+}
+
+function _handleTagClickLine(val) {
+    flyToLine(val);
+}
+
+function _handleTagHoverLine(val, active) {
+    if (active) {
+        showLinePreview(getLineBbox(val), getLineLabel(val));
+    } else {
+        hideLinePreview();
+    }
 }
 
 function _buildPanels() {
@@ -560,7 +570,6 @@ function _refreshTags(idx) {
     const tooltipFn = fieldMeta?.labelSearch ? v => getLineLabel(v) : null;
 
     def.panel.refreshTags(activeVals, tooltipFn);
-    def.panel.toggleClearBtn(activeVals.length > 0);
 }
 
 function _refreshAllTags() {
@@ -698,7 +707,7 @@ function _restoreFilters() {
  * legend category. Returns the matching group key, or null.
  */
 function _detectActiveGroup() {
-    const current = _activeFilters['signalType'];
+    const current = _activeFilters[FIELD.SIGNAL_TYPE];
     if (!current?.size) return null;
     for (const [key] of getCategoryEntries()) {
         const types = getTypesByGroup(key);

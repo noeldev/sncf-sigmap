@@ -16,6 +16,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - On first visit all tiles are cached; subsequent visits restore the last map position and load only the tiles for that area from cache
 - Hover tooltips and click popups with signal information and OSM tags
 - OSM existence check per signal via Overpass API (live badge in popup)
+- **Filter clipboard**: chevron (›) button on each filter panel and the Pinned Signals panel opens Copy / Cut / Paste / Delete. Copy writes `text/plain` (CSV) + a custom MIME payload (`web application/sncf-sigmap`) for validated internal paste. `dataType` in the payload gates compatibility — `networkId` filters and Pinned Signals share the same type and can exchange values freely. Keyboard shortcuts Ctrl+C / Ctrl+X / Ctrl+V / Del active on focused tag lists.
 - **Background OSM index**: `map-layer.js` triggers a viewport scan after 30 seconds of inactivity or on tooltip hover when guards pass (zoom ≥ 14, ≤ 100 visible signals, lat delta ≤ 0.35°, lng delta ≤ 0.5°). `osm-index.js` is a pure data service that queries Overpass for all `railway=signal` nodes in the padded fetch area and indexes them permanently for the session. Indexed results feed back into `osm-checker.js` so subsequent popup checks resolve instantly. Tooltip indicators update automatically: a **dotted underline** on the ID Réseau of each individually mapped signal, and an **OSM logo** on the first signal row when at least one signal in the group is confirmed in OSM
 - **OSM diff visualisation**: when a signal exists in OSM, the OSM Tags tab automatically renders a GitHub-style comparison between the generated tags and the live OSM ones — divergences and user merges are visible at a glance. Right-click opens a context menu to **merge** an OSM value into the target or **undo** a modification; **Merge all** and **Undo all** are always available, and `Ctrl+Z` / `Ctrl+Y` walk the per-node history stack
 - Export tags to clipboard or via JOSM Remote Control
@@ -89,6 +90,7 @@ sidebar.js
   └── pins.js             (initPins)
 
 filters.js
+  ├── filter-config.js     (FILTER_FIELDS_META, getFilterFieldKeys — field registry shared with data layer)
   ├── filter-data.js       (accumulateSignals, getCandidateValues, getCountMap, …)
   └── filter-panel.js      (FilterPanel: DOM + UI controllers for one filter)
 
@@ -278,15 +280,26 @@ sncf-sigmap/
 │   ├── app.js                    ← boot sequencer; loads manifest + index in parallel, wires map events
 │   ├── block-system.js           ← line label and block signaling type lookup; initialized by signal-data.js
 │   ├── cat-mapping.js            ← application signal categories and colors (no DOM)
+│   ├── clipboard.js              ← shared clipboard helpers (canPaste, copyValues, readNewValues,
+│   │                               buildTagMenu, handleTagsKeydown); used by filter-panel.js and pins.js
 │   ├── collapsible-panel.js      ← cp-panel open/close state, localStorage persistence, ARIA
 │   ├── config.js                 ← static constants (DATA_BASE, TILES_BASE, zoom thresholds,
-│   │                               OVERVIEW_MAX_SIGNALS, basemap defaults, etc.)
+│   │                               OVERVIEW_MAX_SIGNALS, basemap defaults, APP_ID, CLIPBOARD_MIME_TYPE)
 │   ├── config.local.js           ← JAWG_API_KEY (local only, git-ignored)
 │   ├── config.local.example.js   ← template for API key, safe to commit
 │   ├── context-menu.js           ← floating context menu with event delegation and keyboard navigation
+│   ├── field-keys.js             ← canonical FIELD constant object; single source of truth for all field
+│   │                               key strings (filterable + display-only); imported everywhere string
+│   │                               literals would otherwise appear
+│   ├── filter-config.js          ← ordered FILTER_FIELDS_META registry (field key → UI + behavior metadata);
+│   │                               getFilterFieldKeys() is the data-layer accessor — analogous to
+│   │                               getSupportedTypes() in signal-mapping.js; no circular dependency risk
+│   │                               (imports only field-keys.js and config.js)
+│   ├── filter-data.js            ← per-field count accumulation and value index (pure data layer, no DOM)
 │   ├── filter-panel.js           ← per-filter DOM panel (label, active tags, combo input, dropdown list)
 │   ├── filter-toolbar.js         ← "Add filter" button and dropdown menu (IoC, no state)
-│   ├── filters.js                ← filter state, value index, dropdown orchestration
+│   ├── filters.js                ← filter state, value index, dropdown orchestration; ALL_FILTER_FIELDS
+│   │                               is derived from FILTER_FIELDS_META at load time (no manual sync)
 │   ├── help-channel.js           ← BroadcastChannel to send/receive commands between help page and main app
 │   ├── josm.js                   ← JOSM Remote Control connection management
 │   ├── lang-picker.js            ← language picker dropdown
@@ -308,12 +321,15 @@ sncf-sigmap/
 │   │                               (merge / undo / mergeAll / undoAll + history stack)
 │   │                               used by signal-popup.js for the OSM Tags diff mode
 │   ├── overpass.js               ← pure Overpass API client (no cache, no state, AbortSignal-aware)
-│   ├── pins.js                   ← pinned signals management, panel, navigation, onPinsChange observable
+│   ├── pins.js                   ← pinned signals management, panel, navigation, onPinsChange observable;
+│   │                               clipboard Copy/Cut/Paste/Delete menu via chevron button;
+│   │                               dataType = FIELD.NETWORK_ID compatible with Network ID filter
 │   ├── prefs.js                  ← single source of truth for all localStorage access; onPrefsChange observable
 │   ├── progress.js               ← progress overlay and flash messages
 │   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel,
 │   │                               BroadcastChannel listener for external help page commands
-│   ├── signal-data.js            ← index.json loader; exposes loadIndexData(), getFilterData(),
+│   ├── signal-data.js            ← index.json loader; exposes loadIndexData(), getFilterData()
+│   │                               (field keys sourced from filter-config.js, no manual sync needed),
 │   │                               getNetworkIdIndex(), searchNetworkIds() (binary prefix search),
 │   │                               getLineLabel(), getLineBbox(), searchLineCodes()
 │   ├── signal-mapping.js         ← signal type → display category, OSM tag builder, getOsmNodes (mast grouping)

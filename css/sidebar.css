@@ -274,8 +274,8 @@
 }
 
     .summary-action-btn:hover {
-        color: var(--warn);
-        background: rgba(210, 153, 34, .08);
+        color: var(--text2);
+        background: rgba(255, 255, 255, .06);
     }
 
     .summary-link-btn:hover {

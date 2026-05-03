@@ -20,6 +20,8 @@
  */
 
 import { INDEX_FILE } from './config.js';
+import { FIELD } from './field-keys.js';
+import { getFilterFieldKeys } from './filter-config.js';
 import { initBlockSystem } from './block-system.js';
 import { registerDataTypes } from './signal-mapping.js';
 
@@ -63,17 +65,20 @@ export function loadIndexData() {
  * Return the subset of index.json fields used by the filter system.
  * Returns null when the index has not yet loaded or failed to load.
  *
- * @returns {object}  Filter-related fields (signalType, lineCode, etc.)
+ * Field keys come from getFilterFieldKeys() (filter-config.js) so this
+ * function stays in sync with ALL_FILTER_FIELDS automatically — no manual
+ * update needed when a new filterable field is added.
+ *
+ * @returns {object | null}  Filter-related fields (signalType, lineCode, etc.)
  */
 export function getFilterData() {
     if (!_indexData) {
         console.warn('[signal-data] getFilterData() called before index loaded');
         return null;
     }
-    const fields = ['signalType', 'lineCode', 'trackName', 'direction', 'placement', 'networkId'];
     const result = {};
-    for (const f of fields) {
-        if (_indexData[f]) result[f] = _indexData[f];
+    for (const key of getFilterFieldKeys()) {
+        if (_indexData[key]) result[key] = _indexData[key];
     }
     return result;
 }
@@ -91,7 +96,7 @@ export function getNetworkIdIndex() {
         return null;
     }
     const map = new Map();
-    const net = _indexData.networkId;
+    const net = _indexData[FIELD.NETWORK_ID];
     if (net) {
         for (const [tileKey, ids] of Object.entries(net)) {
             for (const id of ids) map.set(id, tileKey);
@@ -203,12 +208,12 @@ function _normalizeForSearch(str) {
 }
 
 function _buildNetworkIdIndex() {
-    if (!_indexData?.networkId) {
+    if (!_indexData?.[FIELD.NETWORK_ID]) {
         _sortedNetworkIds = [];
         return;
     }
     const allIds = new Set();
-    for (const ids of Object.values(_indexData.networkId)) {
+    for (const ids of Object.values(_indexData[FIELD.NETWORK_ID])) {
         for (const id of ids) allIds.add(id);
     }
 
@@ -258,7 +263,7 @@ async function _doLoad() {
         // Make the full list of signalType codes available to signal-mapping.js
         // so the 'unsupported' group can be enumerated for legend clicks and for
         // active-group detection in filters.js.
-        registerDataTypes(Object.keys(_indexData.signalType || {}));
+        registerDataTypes(Object.keys(_indexData[FIELD.SIGNAL_TYPE] || {}));
 
         console.info('[signal-data] index.json loaded');
     } catch (err) {

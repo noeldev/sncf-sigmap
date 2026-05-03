@@ -19,7 +19,7 @@
  *   onHelpSwitchTabCommand(tab => _switchToTab(tab));
  */
 
-const CHANNEL_NAME = 'sncf-sigmap';
+import { APP_ID as CHANNEL_NAME } from './config.js';
 
 let _channel = null;
 

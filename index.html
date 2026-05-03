@@ -109,10 +109,9 @@
                              aria-expanded="true" aria-controls="pinned-panel-body">
                             <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             <span class="summary-flex-title" data-i18n="pinned.title"></span>
-                            <button class="summary-action-btn is-hidden" data-action="clear-pins"
-                                    data-i18n-aria="pinned.clear"
-                                    data-i18n-title="pinned.clear">
-                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                            <button class="fg-menu summary-action-btn" data-action="pins-menu"
+                                    data-i18n-title="pinned.menu" data-i18n-aria="pinned.menu">
+                                <svg class="icon fg-menu-chevron" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                             </button>
                         </div>
                         <div class="cp-body" id="pinned-panel-body">
@@ -197,12 +196,12 @@
                     <div class="panel-summary" role="button" tabindex="0"
                          aria-expanded="true" aria-controls="settings-josm-panel-body">
                         <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-                        <img src="assets/svg/josm.svg" width="16" height="16" alt="" aria-hidden="true" class="josm-header-icon">
+                        <img src="assets/svg/josm.svg" width="14" height="14" alt="" aria-hidden="true" class="josm-header-icon">
                         <span class="summary-flex-title" data-i18n="josm.detect.title">JOSM</span>
                         <a href="https://josm.openstreetmap.de/" target="_blank" rel="noopener noreferrer"
                            class="summary-link-btn"
                            data-i18n-aria="josm.detect.website" data-i18n-title="josm.detect.website">
-                            <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                            <svg class="icon" width="12" height="12" aria-hidden="true"><use href="#icon-external-link"></use></svg>
                         </a>
                     </div>
                     <div class="cp-body" id="settings-josm-panel-body">
@@ -470,12 +469,12 @@
                                   data-i18n-title="osm.checking" data-i18n-aria="osm.checking"></span>
                             <a class="pu-osm-btn osm-in-osm is-hidden"
                                href="#" target="_blank" rel="noopener">
-                                <img src="assets/svg/osm.svg" width="16" height="16" alt="OSM" class="osm-img">
+                                <img src="assets/svg/osm.svg" width="16" height="16" alt="OpenStreetMap" class="osm-img">
                             </a>
                             <a class="pu-osm-btn osm-locate is-hidden"
                                href="#" target="_blank" rel="noopener"
                                data-i18n-title="osm.locateOnOsm" data-i18n-aria="osm.locateOnOsm">
-                                <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-locate"></use></svg>
+                                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-locate"></use></svg>
                             </a>
                             <button class="pu-osm-btn osm-retry is-hidden" data-action="osm-retry"
                                     data-i18n-title="osm.retry" data-i18n-aria="osm.retry">
@@ -539,7 +538,7 @@
                         <button class="pu-action-btn" data-action="copy"
                                 data-i18n-title="popup.copy">
                             <svg class="icon btn-icon-default" width="14" height="14" aria-hidden="true"><use href="#icon-copy"></use></svg>
-                            <svg class="icon btn-icon-flash" width="13" height="13" aria-hidden="true"><use href="#icon-check"></use></svg>
+                            <svg class="icon btn-icon-flash" width="14" height="14" aria-hidden="true"><use href="#icon-check"></use></svg>
                             <span class="btn-label" data-i18n="popup.copy">Copy tags</span>
                             <span class="btn-flash-label" data-i18n="popup.copied">Copied!</span>
                         </button>
@@ -599,8 +598,7 @@
         <div class="tt-row tt-sig">
             <span class="tt-type"></span>
             <span class="tt-val tt-id"></span>
-            <img class="tt-osm-badge" src="assets/svg/osm.svg"
-                 width="14" height="14" alt="OSM" hidden>
+            <img src="assets/svg/osm.svg" width="14" height="14" alt="OpenStreetMap" class="tt-osm-badge" hidden>
         </div>
     </template>
 
@@ -643,13 +641,13 @@
             <div class="fg-header panel-summary" role="button" tabindex="0">
                 <svg class="panel-arrow" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                 <span class="fg-title summary-flex-title"></span>
-                <button class="fg-clear summary-action-btn is-hidden"
-                        data-i18n-title="filter.clear" data-i18n-aria="filter.clear">
-                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                <button class="fg-menu summary-action-btn"
+                        data-i18n-title="filter.menu" data-i18n-aria="filter.menu">
+                    <svg class="icon fg-menu-chevron" width="12" height="12" aria-hidden="true"><use href="#icon-chevron"></use></svg>
                 </button>
                 <button class="fg-remove summary-action-btn"
                         data-i18n-title="filter.close" data-i18n-aria="filter.close">
-                    <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-close"></use></svg>
+                    <svg class="icon" width="12" height="12" aria-hidden="true"><use href="#icon-close"></use></svg>
                 </button>
             </div>
             <div class="cp-body">

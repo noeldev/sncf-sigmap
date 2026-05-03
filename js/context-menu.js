@@ -28,6 +28,11 @@ const _tpl = {
  * Build the menu DOM from an items array and attach delegated event listeners.
  * Separated from showContextMenu so DOM construction is independently readable.
  *
+ * Item shape: { labelKey, shortcut?, action, enabled? }
+ *   enabled — when explicitly false, the item is rendered as disabled: it appears
+ *   grayed out, is not focusable, and its action is never called. Omitting the
+ *   property (or setting it to true) renders a normal interactive item.
+ *
  * @param {Array} items  Item descriptors or the string 'separator'.
  * @returns {HTMLElement}
  */
@@ -43,12 +48,23 @@ function _buildMenu(items) {
         const el = _tpl.item.content.cloneNode(true).querySelector('.ctx-item');
         el.querySelector('.ctx-label').dataset.i18n = item.labelKey;
         el.querySelector('.ctx-shortcut').textContent = item.shortcut ?? '';
-        // data-idx maps the element back to _actions — set before translateElement
-        // so the attribute is present when event delegation reads it.
-        el.dataset.idx = _actions.length;
+
+        const disabled = item.enabled === false;
+        if (disabled) {
+            // Disabled items are visible but non-interactive: no data-idx, no focus,
+            // no action pushed to _actions. The CSS class handles visual graying.
+            el.classList.add('is-disabled');
+            el.setAttribute('aria-disabled', 'true');
+            el.removeAttribute('tabindex');
+        } else {
+            // data-idx maps the element back to _actions — set before translateElement
+            // so the attribute is present when event delegation reads it.
+            el.dataset.idx = _actions.length;
+            _actions.push(item.action);
+        }
+
         translateElement(el);
         menu.appendChild(el);
-        _actions.push(item.action);
     }
 
     // Delegated mousedown — activates the option under the pointer.
@@ -108,6 +124,15 @@ export function closeContextMenu() {
     document.removeEventListener('mousedown', _onOutsideMousedown, { capture: true });
 }
 
+/**
+ * Return true when a context menu is currently visible.
+ * Used by map-layer.js to suppress tooltip display while a menu is open.
+ * @returns {boolean}
+ */
+export function isContextMenuOpen() {
+    return !!_menuEl;
+}
+
 
 // ===== Private helpers =====
 
@@ -129,7 +154,8 @@ function _onOutsideMousedown(e) {
 }
 
 function _getItems() {
-    return [...(_menuEl?.querySelectorAll('.ctx-item') ?? [])];
+    // Exclude disabled items from keyboard navigation — they have no data-idx.
+    return [...(_menuEl?.querySelectorAll('.ctx-item[data-idx]') ?? [])];
 }
 
 function _moveItemFocus(delta) {
