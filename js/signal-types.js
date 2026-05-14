@@ -274,6 +274,15 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    "FEUXVERTS": {
+        group: "crossing",
+        cat: "crossing",
+        type: "FR:FC",
+        properties: {
+            form: "light",
+            arrangement: "vertical",
+        }
+    },
 
     // Traction electricity
     "SECT": {
