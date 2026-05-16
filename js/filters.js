@@ -36,7 +36,7 @@ import {
     loadIndexData, getFilterData,
     searchNetworkIds, getLineLabel, searchLineCodes, getLineBbox,
 } from './signal-data.js';
-import { isSampled, flyToSignal, flyToLine, showLinePreview, hideLinePreview } from './map-layer.js';
+import { isSampled, flyToSignal, flyToLine, showLinePreview, hideLinePreview, showSignalPreview, hideSignalPreview } from './map-layer.js';
 import { registerPanel, unregisterPanel, openPanel } from './collapsible-panel.js';
 
 // Import data layer functions
@@ -115,7 +115,8 @@ export function indexSignals(signals) {
  * Called from app.js when the Reset Filters button is clicked.
  */
 export function resetFilters() {
-    hideLinePreview(); // For security sake
+    hideLinePreview();
+    hideSignalPreview();
 
     _mappedOnly = false;
     saveFilters([]);
@@ -401,10 +402,11 @@ function _panelOptions(def, idx, fieldMeta, label, activate) {
         onDelete: () => _onDelete(def, idx),
         onTagRemove: val => _onTagRemove(def, val),
         onTagLabelClick: fieldMeta?.globalSearch ? _handleTagClickGlobal
-                       : fieldMeta?.labelSearch ? _handleTagClickLine
-                       : undefined,
+            : fieldMeta?.labelSearch ? _handleTagClickLine
+                : undefined,
         onTagHover: fieldMeta?.labelSearch ? _handleTagHoverLine
-                  : undefined,
+            : fieldMeta?.globalSearch ? _handleTagHoverGlobal
+                : undefined,
         onRemove: () => _onRemove(def, idx),
         onToggleMappedOnly: checked => _onToggleMappedOnly(def, checked),
         onSearch: query => _onSearch(def, idx, fieldMeta, query),
@@ -452,7 +454,8 @@ function _onDelete(def, idx) {
  * @param {string} val
  */
 function _onTagRemove(def, val) {
-    hideLinePreview(); // For security sake when hovering lineCode tags
+    hideLinePreview();
+    hideSignalPreview();
 
     _toggle(def.field, val);
     // The focused tag button was detached by replaceChildren() inside
@@ -524,6 +527,14 @@ function _handleTagHoverLine(val, active) {
         showLinePreview(getLineBbox(val), getLineLabel(val));
     } else {
         hideLinePreview();
+    }
+}
+
+function _handleTagHoverGlobal(val, active) {
+    if (active) {
+        showSignalPreview(val);
+    } else {
+        hideSignalPreview();
     }
 }
 
@@ -628,7 +639,7 @@ function _refreshGlobalSearchDropdown(def, fieldMeta, sel, q) {
  * labelSearch fields (lineCode) use a dedicated search path: searchLineCodes()
  * matches both the code and the line label, returning items with a subtitle
  * property that FilterPanel renders as a small secondary text span.
- * All other fields use the existing prefix-match path against getCandidateValues().
+ * All other fields use a case-insensitive substring match against getCandidateValues().
  */
 function _refreshStandardDropdown(def, fieldMeta, sel, q) {
     const isSignalType = _isSignalType(def.field);
@@ -659,7 +670,7 @@ function _refreshStandardDropdown(def, fieldMeta, sel, q) {
     });
 
     const nq = normalize(q);
-    const filtered = q ? all.filter(v => normalize(v).startsWith(nq)) : all;
+    const filtered = q ? all.filter(v => normalize(v).includes(nq)) : all;
 
     def.panel.setInputPlaceholder(
         fieldMeta?.readOnly

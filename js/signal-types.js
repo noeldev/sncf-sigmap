@@ -184,7 +184,7 @@ export const SIGNAL_MAPPING = {
     "CHEVRON": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:CHEVRON",
+        type: "FR:Chevron",
         properties: {
             type: "downwards",
             form: "sign"
@@ -253,7 +253,8 @@ export const SIGNAL_MAPPING = {
         cat: "route_distant",
         type: "FR:TLD",
         properties: {
-            form: "light"
+            form: "light",
+            shape: "dual"
         }
     },
 
@@ -501,7 +502,7 @@ export const SIGNAL_MAPPING = {
     "JAL ARRET": {
         group: "stop",
         cat: "stop",
-        type: "FR:JALON",
+        type: "FR:Jalon",
         properties: {
             type: "stop_marker",
             form: "sign"
@@ -576,6 +577,15 @@ export const SIGNAL_MAPPING = {
             form: "plate"
         }
     },
+    // Répétiteur Lumineux d'Itinéraire (RLI)
+    "REP ITIN": {
+        group: "station",
+        cat: "departure",
+        type: "FR:RLI",
+        properties: {
+            form: "light"
+        }
+    },
 
     // Shunting
     "IDP": {
@@ -589,7 +599,7 @@ export const SIGNAL_MAPPING = {
     "JAL MAN": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:JALON",
+        type: "FR:Jalon",
         properties: {
             form: "sign"
         }
@@ -613,7 +623,7 @@ export const SIGNAL_MAPPING = {
     "IMP": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:IMP",
+        type: "FR:Imp",
         properties: {
             form: "sign"
         }
@@ -664,7 +674,7 @@ export const SIGNAL_MAPPING = {
     "GABARIT": {
         group: "miscellaneous",
         cat: "main",
-        type: "FR:GABARIT",
+        type: "FR:Gabarit",
         properties: {
             form: "sign"
         }

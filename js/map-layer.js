@@ -23,7 +23,7 @@
  */
 
 import { OVERVIEW_MAX_ZOOM } from './config.js';
-import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
+import { map, dismissLocationMarker, flyToLocationWithMarker, isLocationMarkerVisible } from './map.js';
 import { getTileUrlsForBounds, fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetLiveCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
@@ -54,6 +54,8 @@ let _lastGroups = [];            // last rendered groups — used by _getSignalL
 let _lastUrlKey = '';            // cache key for the last worker run (tile URLs + filter snapshot)
 let _visibleCount = 0;           // authoritative visible signal count; statusbar.js is display-only
 let _linePreviewLayer = null;    // transient L.layerGroup shown on line code tag hover; null when hidden
+let _signalPreviewMarker = null; // transient teardrop marker shown on pinned/networkId tag hover; null when hidden
+let _locationMarkerNetworkId = null; // networkId of the last flyToSignal call; used by showSignalPreview guard
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -176,8 +178,9 @@ function _onMapMoveStart() {
     clearTimeout(_osmIdleTimer);
     _osmIdleTimer = null;
     abortScan();
-    // Dismiss the line preview — its bbox outline becomes misleading while the map moves.
+    // Dismiss previews — their visual overlay becomes misleading while the map moves.
     hideLinePreview();
+    hideSignalPreview();
 }
 
 /**
@@ -778,6 +781,45 @@ export function hideLinePreview() {
 }
 
 /**
+ * Show a transient teardrop marker at the position of a signal identified
+ * by its networkId — same visual as the flyToSignal location marker.
+ * Only works when the signal is currently rendered in the viewport
+ * (fast path via _getSignalLatlng). No-op when:
+ *   - the signal is not in the viewport,
+ *   - a location marker from flyToSignal is already visible for this
+ *     same networkId (avoids stacking two identical pins).
+ *
+ * Called on tag hover (pinned signals panel and networkId filter).
+ * Dismissed by hideSignalPreview(), map movement, or popup open.
+ *
+ * @param {string} networkId
+ */
+export function showSignalPreview(networkId) {
+    hideSignalPreview();
+
+    // Skip when a location marker (from a tag click) is already visible
+    // for the same signal — the teardrop is already there.
+    if (isLocationMarkerVisible() && _locationMarkerNetworkId === networkId) return;
+
+    const latlng = _getSignalLatlng(networkId);
+    if (!latlng) return;
+
+    _signalPreviewMarker = L.marker(latlng, {
+        interactive: false,
+        zIndexOffset: 10000,
+    }).addTo(map);
+}
+
+/**
+ * Remove the signal preview marker from the map.
+ * Safe to call when no preview is currently shown.
+ */
+export function hideSignalPreview() {
+    _signalPreviewMarker?.remove();
+    _signalPreviewMarker = null;
+}
+
+/**
  * Fly to the signal with the given network ID and show a location marker.
  *
  * Fast path: signal is currently visible in the viewport → immediate flight.
@@ -788,6 +830,8 @@ export function hideLinePreview() {
  * @returns {Promise<void>}
  */
 export async function flyToSignal(networkId) {
+    _locationMarkerNetworkId = networkId;
+
     // Fast path — signal is already rendered in the viewport.
     const latlng = _getSignalLatlng(networkId);
     if (latlng) {
