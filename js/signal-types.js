@@ -70,14 +70,6 @@ export const SIGNAL_MAPPING = {
             form: "light"
         }
     },
-    "VOIE CONV": {
-        group: "main",
-        cat: "main",
-        type: "FR:TLC",
-        properties: {
-            form: "light"
-        }
-    },
 
     // Distant signals
     "CARRE A": {
@@ -182,11 +174,11 @@ export const SIGNAL_MAPPING = {
         }
     },
     "CHEVRON": {
-        group: "speedLimit",
-        cat: "speed_limit",
-        type: "FR:CHEVRON",
+        group: "miscellaneous",
+        cat: "minor",
+        type: "FR:Chevron",
         properties: {
-            type: "downwards",
+            type: "down",
             form: "sign"
         }
     },
@@ -242,7 +234,7 @@ export const SIGNAL_MAPPING = {
     },
     "IDD": {
         group: "route",
-        cat: "route_distant",
+        cat: "switch",
         type: "FR:TIDD",
         properties: {
             form: "light"
@@ -253,7 +245,16 @@ export const SIGNAL_MAPPING = {
         cat: "route_distant",
         type: "FR:TLD",
         properties: {
-            form: "light"
+            form: "light",
+            shape: "dual"
+        }
+    },
+    "DESTI": {
+        group: "route",
+        cat: "route",
+        type: "FR:Voie",
+        properties: {
+            form: "sign"
         }
     },
 
@@ -272,6 +273,15 @@ export const SIGNAL_MAPPING = {
         type: "FR:PN",
         properties: {
             form: "sign"
+        }
+    },
+    "FEUXVERTS": {
+        group: "crossing",
+        cat: "crossing",
+        type: "FR:FC",
+        properties: {
+            form: "light",
+            arrangement: "vertical",
         }
     },
 
@@ -384,7 +394,7 @@ export const SIGNAL_MAPPING = {
     "CAB E": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_E",
+        type: "FR:CAB_DIS",
         properties: {
             form: "sign"
         }
@@ -392,7 +402,7 @@ export const SIGNAL_MAPPING = {
     "CAB R": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_R",
+        type: "FR:CAB_EXE",
         properties: {
             form: "sign",
             function: "entry"
@@ -401,7 +411,7 @@ export const SIGNAL_MAPPING = {
     "CAB S": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_S",
+        type: "FR:CAB_FIN",
         properties: {
             form: "sign",
             function: "exit"
@@ -492,7 +502,7 @@ export const SIGNAL_MAPPING = {
     "JAL ARRET": {
         group: "stop",
         cat: "stop",
-        type: "FR:JALON",
+        type: "FR:Jalon",
         properties: {
             type: "stop_marker",
             form: "sign"
@@ -535,11 +545,13 @@ export const SIGNAL_MAPPING = {
     "LIMITETS": {
         group: "station",
         cat: "station",
-        type: "FR:LIMITE_ETS",
+        type: "FR:Limite_ETS",
         properties: {
             form: "sign"
         }
     },
+
+    // Departure
     "SLD": {
         group: "station",
         cat: "departure",
@@ -567,20 +579,38 @@ export const SIGNAL_MAPPING = {
             form: "plate"
         }
     },
+    "REP ITIN": {
+        group: "station",
+        cat: "departure",
+        type: "FR:RLI",
+        properties: {
+            form: "light"
+        }
+    },
 
-    // Shunting
+    // Converging tracks
+    "VOIE CONV": {
+        group: "station",
+        cat: "minor",
+        type: "FR:TLC",
+        properties: {
+            form: "light"
+        }
+    },
     "IDP": {
-        group: "shunting",
-        cat: "shunting",
+        group: "station",
+        cat: "minor",
         type: "FR:TIP",
         properties: {
             form: "light"
         }
     },
+
+    // Shunting
     "JAL MAN": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:JALON",
+        type: "FR:Jalon",
         properties: {
             form: "sign"
         }
@@ -604,7 +634,7 @@ export const SIGNAL_MAPPING = {
     "IMP": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:IMP",
+        type: "FR:Imp",
         properties: {
             form: "sign"
         }
@@ -636,7 +666,7 @@ export const SIGNAL_MAPPING = {
     "HEURT...": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:HEURTOIR",
+        type: "FR:Heurtoir",
         properties: {
             type: "buffer_stop",
             form: "sign"
@@ -644,7 +674,7 @@ export const SIGNAL_MAPPING = {
     },
     "SLM": {
         group: "shunting",
-        cat: "shunting",
+        cat: "main",
         type: "FR:SLM",
         properties: {
             form: "light"
@@ -655,7 +685,7 @@ export const SIGNAL_MAPPING = {
     "GABARIT": {
         group: "miscellaneous",
         cat: "main",
-        type: "FR:GABARIT",
+        type: "FR:Gabarit",
         properties: {
             form: "sign"
         }
@@ -663,7 +693,7 @@ export const SIGNAL_MAPPING = {
     "SIFFLER": {
         group: "miscellaneous",
         cat: "whistle",
-        type: "FR:SIFFLER",
+        type: "FR:S",
         properties: {
             form: "sign"
         }

@@ -152,7 +152,7 @@
     "shunting": "Shunting",
     "crossing": "Level crossings",
     "electricity": "Traction electricity",
-    "trainProtection": "Cab signaling / ETCS",
+    "trainProtection": "Cab signalling / ETCS",
     "wrongRoad": "Wrong-road (IPCS)",
     "station": "Station and facilities",
     "miscellaneous": "Miscellaneous",
@@ -205,6 +205,12 @@
     "copy": "Copy",
     "cut": "Cut",
     "paste": "Paste",
-    "delete": "Delete"
+    "delete": "Delete",
+    "share": "Share"
+  },
+  "share": {
+    "signalText": "Signal identifier: #{0}",
+    "lineText": "Line code: #{0}",
+    "copied": "Link copied!"
   }
 }

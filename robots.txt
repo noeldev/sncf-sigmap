@@ -1,8 +1,7 @@
 User-agent: *
-Allow: /js/*.js
-Allow: /css/*.css
-Disallow: /assets/
 Disallow: /data/
 Disallow: /strings/
 Disallow: /tools/
 Disallow: /js/config.local.js
+
+Sitemap: https://sncf-sigmap.netlify.app/sitemap.xml

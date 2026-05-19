@@ -8,11 +8,13 @@
  *   - Own the dot size scale (DOT_SCALE) used by _makeDotIcon().
  *   - Own the visible signal count (_visibleCount) as the authoritative source;
  *     statusbar.js receives it for display only.
+ *   - Parse and dispatch startup URL parameters (?networkId, ?lineCode).
  *
  * Public API (called from app.js):
- *   initLayer()         — create markersLayer and wire OSM index.
- *   setManifest(m)      — provide the tile manifest after it loads.
- *   refresh(force)      — trigger a data fetch/render cycle.
+ *   initLayer()          — create markersLayer and wire OSM index.
+ *   setManifest(m)       — provide the tile manifest after it loads.
+ *   refresh(force)       — trigger a data fetch/render cycle.
+ *   handleUrlParams()    — parse ?networkId / ?lineCode and fly on startup.
  *
  * Progress overlay is driven via progress.js directly.
  * Status bar updates are delegated to statusbar.js.
@@ -23,7 +25,8 @@
  */
 
 import { OVERVIEW_MAX_ZOOM } from './config.js';
-import { map, dismissLocationMarker, flyToLocationWithMarker } from './map.js';
+import { FIELD } from './field-keys.js';
+import { map, dismissLocationMarker, flyToLocationWithMarker, isLocationMarkerVisible } from './map.js';
 import { getTileUrlsForBounds, fetchTileByKey, findSignalLocation } from './tiles.js';
 import { getActiveFiltersForWorker, indexSignals, resetLiveCounts } from './filters.js';
 import { openSignalPopup, resolveStartTab, closeSignalPopup } from './signal-popup.js';
@@ -37,6 +40,7 @@ import { updateVisibleCount, setSampledBadge } from './statusbar.js';
 import { showContextMenu, closeContextMenu, isContextMenuOpen } from './context-menu.js';
 import { getNetworkIdIndex, getLineBbox } from './signal-data.js';
 import { fetchViewport, abortScan, onUpdate } from './osm-index.js';
+import { shareSignal, canShare } from './webshare.js';
 
 
 // ===== Module state =====
@@ -54,6 +58,16 @@ let _lastGroups = [];            // last rendered groups — used by _getSignalL
 let _lastUrlKey = '';            // cache key for the last worker run (tile URLs + filter snapshot)
 let _visibleCount = 0;           // authoritative visible signal count; statusbar.js is display-only
 let _linePreviewLayer = null;    // transient L.layerGroup shown on line code tag hover; null when hidden
+let _signalPreviewMarker = null; // transient teardrop marker shown on pinned/networkId tag hover; null when hidden
+let _locationMarkerNetworkId = null; // networkId of the last flyToSignal call; used by showSignalPreview guard
+
+/**
+ * Generation counter for showSignalPreview async operations.
+ * Incremented by hideSignalPreview() and at the start of each showSignalPreview() call.
+ * Any pending slow-path fetch whose captured token no longer matches the current
+ * counter is silently discarded — the hover has already moved on.
+ */
+let _previewToken = 0;
 
 /**
  * Returns true when the current view is a spatial overview sample.
@@ -176,8 +190,9 @@ function _onMapMoveStart() {
     clearTimeout(_osmIdleTimer);
     _osmIdleTimer = null;
     abortScan();
-    // Dismiss the line preview — its bbox outline becomes misleading while the map moves.
+    // Dismiss previews — their visual overlay becomes misleading while the map moves.
     hideLinePreview();
+    hideSignalPreview();
 }
 
 /**
@@ -206,6 +221,7 @@ export function initLayer() {
 
     map.on('popupopen', () => { _popupOpen = true; });
     map.on('popupclose', () => { _popupOpen = false; });
+
     map.on('tooltipopen', _onTooltipOpen);
 
     // When the OSM index gains new entries, refresh the currently open tooltip so
@@ -257,6 +273,31 @@ export function refresh(force = false) {
     _lastUrlKey = cacheKey;
     _loadPending = false;
     _runWorker(bounds, fetchUrls, zoom, sw, ne);
+}
+
+/**
+ * Parse startup URL parameters and trigger navigation when any are present.
+ * Called by app.js after both manifest and index have loaded so both the fast
+ * path (viewport lookup) and slow path (tile fetch) of flyToSignal are available.
+ *
+ * URL parameters:
+ *   ?networkId=<id>   — fly to a specific signal (takes priority over lineCode).
+ *   ?lineCode=<code>  — fly to the bounding box of a line.
+ *
+ * FIELD keys are used as parameter names — the URL stays in sync with
+ * field-keys.js automatically without any string duplication.
+ */
+export function handleUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+
+    const networkId = params.get(FIELD.NETWORK_ID);
+    if (networkId) {
+        flyToSignal(networkId);
+        return;
+    }
+
+    const lineCode = params.get(FIELD.LINE_CODE);
+    if (lineCode) flyToLine(lineCode);
 }
 
 
@@ -611,6 +652,9 @@ function _onMarkerNormalClick(latlng, all, shift) {
 /**
  * Build and show the context menu for a signal marker.
  * Pin/Unpin label is resolved dynamically from the current pinned state.
+ * Share is always present so the menu structure is stable and all icon
+ * columns align — it is disabled when canShare() returns false or the signal
+ * has no network ID (unavoidable on some desktop browsers).
  * @param {number}   x    clientX of the triggering event.
  * @param {number}   y    clientY of the triggering event.
  * @param {number}   lat
@@ -620,21 +664,31 @@ function _onMarkerNormalClick(latlng, all, shift) {
 function _showContextMenuAt(x, y, lat, lng, all) {
     const networkId = all[0]?.p?.networkId ?? null;
     const pinned = networkId ? isPinned(networkId) : false;
+
     const items = [
         {
             labelKey: 'context.zoomCenter',
             shortcut: 'Alt+Click',
+            iconId: 'locate',
             action: () => _onMarkerAltClick(lat, lng),
         },
         {
             labelKey: pinned ? 'context.unpin' : 'context.pin',
             shortcut: 'Ctrl+Click',
+            iconId: 'pin',
             action: () => _onMarkerCtrlClick(all),
+        },
+        {
+            labelKey: 'context.share',
+            iconId: 'share',
+            enabled: networkId !== null && canShare(),
+            action: () => shareSignal(networkId),
         },
         'separator',
         {
             labelKey: 'context.properties',
             shortcut: 'Click',
+            iconId: 'properties',
             // shift (passed from the menu's Shift+click/Enter) flips the tab,
             // matching the behaviour of Shift+Click directly on the marker.
             action: (shift) => openSignalPopup([lat, lng], all, 0, resolveStartTab(shift)),
@@ -778,6 +832,66 @@ export function hideLinePreview() {
 }
 
 /**
+ * Show a transient teardrop marker at the position of a signal identified
+ * by its networkId — same visual as the flyToSignal location marker.
+ *
+ * Fast path: signal is currently rendered in the viewport → immediate marker.
+ * Slow path: resolve coordinates from the tile index (browser-cached on repeat
+ *   calls) so the preview works even when the signal is not on screen — for
+ *   example after a tooltip dismissed the location marker, or after panning away.
+ *
+ * No-op when a location marker from flyToSignal is already visible for the same
+ * networkId — avoids stacking two identical pins.
+ *
+ * A generation token (_previewToken) guards against stale async results: any call
+ * to hideSignalPreview() or a subsequent showSignalPreview() increments the token,
+ * causing pending slow-path fetches to bail out silently.
+ *
+ * @param {string} networkId
+ */
+export async function showSignalPreview(networkId) {
+    hideSignalPreview();
+    const token = ++_previewToken;
+
+    // Skip when a location marker (from a tag click) is already visible
+    // for the same signal — the teardrop is already there.
+    if (isLocationMarkerVisible() && _locationMarkerNetworkId === networkId) return;
+
+    // Fast path — signal is currently rendered in the viewport.
+    let latlng = _getSignalLatlng(networkId);
+
+    // Slow path — resolve from the tile index when not in the viewport.
+    if (!latlng) {
+        const tileKey = getNetworkIdIndex()?.get(networkId);
+        if (!tileKey) return;
+
+        const signals = await fetchTileByKey(tileKey);
+        if (token !== _previewToken) return;   // stale — hover moved on or was cancelled
+
+        latlng = findSignalLocation(signals, networkId);
+        if (!latlng) return;
+    }
+
+    if (token !== _previewToken) return;   // guard for fast path in case of instant cancel
+
+    _signalPreviewMarker = L.marker(latlng, {
+        interactive: false,
+        zIndexOffset: 10000,
+    }).addTo(map);
+}
+
+/**
+ * Remove the signal preview marker from the map and invalidate any
+ * pending async preview lookup via the generation token.
+ * Safe to call when no preview is currently shown.
+ */
+export function hideSignalPreview() {
+    ++_previewToken;
+    _signalPreviewMarker?.remove();
+    _signalPreviewMarker = null;
+}
+
+/**
  * Fly to the signal with the given network ID and show a location marker.
  *
  * Fast path: signal is currently visible in the viewport → immediate flight.
@@ -788,6 +902,8 @@ export function hideLinePreview() {
  * @returns {Promise<void>}
  */
 export async function flyToSignal(networkId) {
+    _locationMarkerNetworkId = networkId;
+
     // Fast path — signal is already rendered in the viewport.
     const latlng = _getSignalLatlng(networkId);
     if (latlng) {

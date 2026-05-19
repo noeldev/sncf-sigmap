@@ -20,7 +20,7 @@
 import { t, translateElement, onLangChange } from './translation.js';
 import { FIELD } from './field-keys.js';
 import { savePins, loadPins } from './prefs.js';
-import { flyToSignal } from './map-layer.js';
+import { flyToSignal, showSignalPreview, hideSignalPreview } from './map-layer.js';
 import { TagList } from './ui/tag-list.js';
 import { buildTagMenu, handleTagsKeydown } from './clipboard.js';
 import { Observable } from './utils/observable.js';
@@ -81,6 +81,11 @@ export function isPinned(networkId) {
  * @returns {boolean} True if the signal is now pinned, false if unpinned.
  */
 export function togglePin(networkId) {
+    // Dismiss any active signal preview before changing pin state.
+    // Line previews are not dismissed here — pins.js does not own line preview
+    // state; filters.js handles that when lineCode filter tags change.
+    hideSignalPreview();
+
     const idx = _pins.indexOf(networkId);
     const pinned = idx === -1;
 
@@ -113,6 +118,10 @@ function _buildPanel(container) {
         template: document.getElementById('tpl-filter-tag'),
         onRemove: networkId => togglePin(networkId),
         onLabelClick: networkId => flyToSignal(networkId),
+        onTagHover: (networkId, active) => {
+            if (active) showSignalPreview(networkId);
+            else hideSignalPreview();
+        },
     });
 
     // The menu button lives in the static #pinned-panel summary (index.html).
@@ -159,6 +168,7 @@ function _renderPanel() {
 function _onDelete() {
     if (_pins.length === 0) return;
     if (!confirm(t('pinned.confirmClear'))) return;
+    hideSignalPreview();
     _pins = [];
     savePins(_pins);
     _renderPanel();

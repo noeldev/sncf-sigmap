@@ -258,6 +258,11 @@ export function dismissLocationMarker() {
     _locMarker = null;
 }
 
+/** True when a location marker (teardrop pin) is currently on the map. */
+export function isLocationMarkerVisible() {
+    return _locMarker !== null;
+}
+
 /**
  * Show a marker at latlng without triggering a fly animation.
  * Useful when the signal is already in the viewport.

@@ -149,18 +149,21 @@ export async function buildTagMenu(anchorBtn, { dataType, getValues, onDelete, o
         {
             labelKey: 'context.copy',
             shortcut: 'Ctrl+C',
+            iconId: 'copy',
             enabled: hasValues,
             action: () => copyValues(dataType, current),
         },
         {
             labelKey: 'context.cut',
             shortcut: 'Ctrl+X',
+            iconId: 'cut',
             enabled: hasValues,
             action: () => { copyValues(dataType, current); onDelete(); },
         },
         {
             labelKey: 'context.paste',
             shortcut: 'Ctrl+V',
+            iconId: 'paste',
             enabled: pasteEnabled,
             action: async () => {
                 const newVals = await readNewValues(dataType, getValues());
@@ -171,6 +174,7 @@ export async function buildTagMenu(anchorBtn, { dataType, getValues, onDelete, o
         {
             labelKey: 'context.delete',
             shortcut: 'Del',
+            iconId: 'trash',
             enabled: hasValues,
             action: () => onDelete(),
         },

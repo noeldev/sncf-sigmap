@@ -205,6 +205,12 @@
     "copy": "Copier",
     "cut": "Couper",
     "paste": "Coller",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "share": "Partager"
+  },
+  "share": {
+    "signalText": "Identifiant du signal : #{0}",
+    "lineText": "Code ligne : #{0}",
+    "copied": "Lien copié !"
   }
 }

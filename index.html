@@ -757,13 +757,24 @@
         </button>
     </template>
 
-    <!-- Context menu — cloned by context-menu.js -->
+    <!--
+      Context menu templates — cloned by context-menu.js.
+
+      tpl-ctx-item has three slots in a fixed order:
+        1. .ctx-icon  — 14×14 SVG; JS sets the <use href> when iconId is provided.
+                        An empty <use> (no href) renders nothing but preserves the
+                        column width, keeping all items aligned regardless of whether
+                        they carry an icon — same behaviour as Windows 11 menus.
+        2. .ctx-label — translated label text (data-i18n set by JS).
+        3. .ctx-shortcut — optional keyboard shortcut hint (right-aligned, hidden when empty).
+    -->
     <template id="tpl-ctx-menu">
         <div class="ctx-menu" role="menu"></div>
     </template>
 
     <template id="tpl-ctx-item">
         <div class="ctx-item" tabindex="0" role="menuitem">
+            <svg class="ctx-icon" width="14" height="14" aria-hidden="true"><use></use></svg>
             <span class="ctx-label"></span>
             <span class="ctx-shortcut"></span>
         </div>
@@ -780,7 +791,7 @@
       as <img> elements and are not included here.
     -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-        <!-- Trash / delete — filter clear, pinned-panel clear -->
+        <!-- Trash / delete — filter clear, pinned-panel clear, context menu Delete -->
         <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -817,7 +828,7 @@
         <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 11L12 5L20 11V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
         </symbol>
-        <!-- Crosshair — geolocation button -->
+        <!-- Crosshair — geolocation button + context menu Zoom to -->
         <symbol id="icon-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
@@ -832,7 +843,7 @@
         <symbol id="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6" />
         </symbol>
-        <!-- Copy to clipboard — OSM tags copy button -->
+        <!-- Copy to clipboard — OSM tags copy button + context menu Copy -->
         <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" />
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -847,7 +858,7 @@
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </symbol>
-        <!-- Pin / bookmark — signal pin button in popup -->
+        <!-- Pin / bookmark — signal pin button in popup + context menu Pin/Unpin -->
         <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="17" x2="12" y2="22" />
             <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z" />
@@ -871,6 +882,68 @@
             <circle cx="12" cy="12" r="10" />
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
+        </symbol>
+        <!-- Share — Web Share API (context menu Share) -->
+        <symbol id="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </symbol>
+        <!-- Merge — OSM diff Merge action (context menu) -->
+        <!-- Merge — accept one OSM value into the target -->
+        <symbol id="icon-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="12" x2="16" y2="12" />
+            <polyline points="11 7 16 12 11 17" />
+            <line x1="20" y1="5" x2="20" y2="19" />
+        </symbol>
+        <!-- Merge all — accept all divergent OSM values -->
+        <symbol id="icon-merge-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="10" y1="12" x2="16" y2="12" />
+            <polyline points="11 7 16 12 11 17" />
+
+            <line x1="4" y1="12" x2="10" y2="12" />
+            <polyline points="5 7 10 12 5 17" />
+
+            <line x1="20" y1="5" x2="20" y2="19" />
+        </symbol>
+        <!-- Undo — OSM diff Undo action (context menu) -->
+        <!-- Undo (single row) — revert one merged value -->
+        <symbol id="icon-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="20" y1="12" x2="8" y2="12" />
+            <polyline points="13 7 8 12 13 17" />
+            <line x1="4" y1="5" x2="4" y2="19" />
+        </symbol>
+        <!-- Undo all — revert all merged values to original app tags (|«) -->
+        <symbol id="icon-undo-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="14" y1="12" x2="8" y2="12" />
+            <polyline points="13 7 8 12 13 17" />
+
+            <line x1="20" y1="12" x2="14" y2="12" />
+            <polyline points="19 7 14 12 19 17" />
+
+            <line x1="4" y1="5" x2="4" y2="19" />
+        </symbol>
+        <!-- Cut — clipboard Cut action (context menu) -->
+        <symbol id="icon-cut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3" />
+            <circle cx="6" cy="18" r="3" />
+            <line x1="20" y1="4" x2="8.12" y2="15.88" />
+            <line x1="14.47" y1="14.48" x2="20" y2="20" />
+            <line x1="8.12" y1="8.12" x2="12" y2="12" />
+        </symbol>
+        <!-- Paste — clipboard Paste action (context menu) -->
+        <symbol id="icon-paste" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+        </symbol>
+        <!-- Properties — signal popup (context menu Properties) -->
+        <symbol id="icon-properties" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="7" y1="8" x2="17" y2="8" />
+            <line x1="7" y1="12" x2="17" y2="12" />
+            <line x1="7" y1="16" x2="13" y2="16" />
         </symbol>
     </svg>
     <script type="module" src="js/app.js"></script>
