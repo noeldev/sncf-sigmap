@@ -485,7 +485,7 @@
         display: inline-block;
         /* Center the pill around the anchor point both horizontally and vertically. */
         transform: translate(-50%, -50%);
-        background: rgba(13, 17, 23, 0.5);
+        background: rgba(13, 17, 23, 0.8);
         border: 1px solid #5aafd3;
         border-radius: var(--radius);
         padding: 3px 10px;

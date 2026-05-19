@@ -205,6 +205,12 @@
     "copy": "Copy",
     "cut": "Cut",
     "paste": "Paste",
-    "delete": "Delete"
+    "delete": "Delete",
+    "share": "Share"
+  },
+  "share": {
+    "signalText": "Signal identifier: #{0}",
+    "lineText": "Line code: #{0}",
+    "copied": "Link copied!"
   }
 }

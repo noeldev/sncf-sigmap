@@ -726,6 +726,7 @@ function _buildContextMenuItems(row, state, appTags, osmTags) {
     if (_canMergeAll(state, osmTags)) {
         items.push({
             labelKey: 'context.mergeAll',
+            iconId: 'merge-all',
             action: _runMenuAction(() => mergeAll(state, osmTags)),
         });
     }
@@ -733,6 +734,7 @@ function _buildContextMenuItems(row, state, appTags, osmTags) {
     if (_isTargetDirty(state, appTags)) {
         items.push({
             labelKey: 'context.undoAll',
+            iconId: 'undo-all',
             action: _runMenuAction(() => undoAll(state, appTags)),
         });
     }
@@ -796,6 +798,7 @@ function _mergeItem(key, state, osmTags) {
     if (osmVal === undefined) return [];
     return [{
         labelKey: 'context.merge',
+        iconId: 'merge',
         action: _runMenuAction(() => merge(state, key, osmVal)),
     }];
 }
@@ -805,6 +808,7 @@ function _undoItem(key, state, appTags) {
     if (!_isKeyModified(state, appTags, key)) return [];
     return [{
         labelKey: 'context.undo',
+        iconId: 'undo',
         action: _runMenuAction(() => undo(state, key, appTags)),
     }];
 }

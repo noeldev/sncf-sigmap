@@ -2,6 +2,7 @@
  *
  * Shared across the app by context-menu.js:
  *   - map markers (via map-layer.js),
+ *   - filter tag panels (via clipboard.js buildTagMenu),
  *   - OSM Tags panel rows (via signal-popup.js, diff-mode only).
  *
  * DOM is built from three <template> elements in index.html:
@@ -9,15 +10,18 @@
  *   #tpl-ctx-item → .ctx-item (role=menuitem, tabindex=0)
  *   #tpl-ctx-sep  → .ctx-sep  (role=separator)
  *
+ * tpl-ctx-item always carries a .ctx-icon SVG column so that items with
+ * and without icons align correctly in the same menu — same behaviour as
+ * Windows 11 context menus. context-menu.js fills the <use href> only when
+ * an iconId is specified; an empty <use> renders nothing but holds the space.
+ *
  * The menu is appended to document.body (or the fullscreen element when one
  * is active) and positioned via inline style.left / style.top from
  * showContextMenu(x, y). Both are viewport coords → position:fixed.
  *
  * Visual parity with the Leaflet tooltip (see .leaflet-tooltip.sig-tooltip
  * in map.css): same translucent dark background, same shadow weight, same
- * border. The previous version looked more opaque despite identical bg —
- * this is the box-shadow doing the heavy lifting on the visual contrast.
- * Using the lighter shadow (.55 vs .6) brings the two surfaces in sync.
+ * border.
  */
 
 .ctx-menu {
@@ -29,17 +33,19 @@
     border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 4px;
-    min-width: 160px;
+    min-width: 168px;
     font-family: var(--ff-mono);
     font-size: 11px;
     outline: none;
 }
 
+/* Three-column flex row: icon · label · shortcut.
+ * The icon column is always present (tpl-ctx-item always includes .ctx-icon)
+ * so items with and without icons align to the same left edge. */
 .ctx-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 8px;
     padding: 6px 10px;
     border-radius: 3px;
     cursor: pointer;
@@ -54,8 +60,7 @@
         cursor: not-allowed;
     }
 
-    /* Hover / keyboard focus background. Slightly stronger than the original
-     * .08 so the highlight reads on the lighter base background. */
+    /* Hover / keyboard focus background. */
     .ctx-item:hover,
     .ctx-item:focus-visible {
         background: rgba(255, 255, 255, .12);
@@ -66,6 +71,25 @@
  * :not(:hover) preserves the highlight when the mouse is on the focused item. */
 .ctx-menu:has(.ctx-item:hover) .ctx-item:focus-visible:not(:hover) {
     background: none;
+}
+
+/* Icon — blue accent, fixed 14×14 slot.
+ * An empty <use> (no href) renders an invisible SVG that still occupies the
+ * slot, preserving column alignment across all items in the menu. */
+.ctx-icon {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    color: var(--accent2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+}
+
+/* Label fills available space, pushing the shortcut to the right edge. */
+.ctx-label {
+    flex: 1;
 }
 
 .ctx-shortcut {

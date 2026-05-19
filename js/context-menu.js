@@ -7,9 +7,20 @@
  * Public API:
  *   showContextMenu(x, y, items)  — show menu at viewport coords.
  *   closeContextMenu()            — dismiss any open menu.
+ *   isContextMenuOpen()           — true when a menu is currently visible.
  *
- * Item shape: { labelKey: string, shortcut?: string, action: Function }
- * Separator:  the string 'separator'
+ * Item shape: { labelKey, shortcut?, iconId?, action, enabled? }
+ *   iconId  — optional suffix of an SVG <symbol> id in index.html
+ *             (e.g. 'share' → <use href="#icon-share">).
+ *             tpl-ctx-item always contains a .ctx-icon SVG with an empty
+ *             <use>. When iconId is provided the href is filled in; when it
+ *             is absent the <use> renders nothing but the column space is
+ *             preserved, keeping all items aligned regardless of whether they
+ *             carry an icon — same behaviour as Windows 11 context menus.
+ *   enabled — when explicitly false, the item is rendered as disabled: it appears
+ *             grayed out, is not focusable, and its action is never called.
+ *             Omitting the property (or setting it to true) renders a normal item.
+ * Separator: the string 'separator'
  */
 
 import { translateElement } from './translation.js';
@@ -20,18 +31,13 @@ let _actions = null;   // parallel array to .ctx-item NodeList — action per it
 const _tpl = {
     get menu() { return document.getElementById('tpl-ctx-menu'); },
     get item() { return document.getElementById('tpl-ctx-item'); },
-    get sep() { return document.getElementById('tpl-ctx-sep'); },
+    get sep()  { return document.getElementById('tpl-ctx-sep'); },
 };
 
 
 /**
  * Build the menu DOM from an items array and attach delegated event listeners.
  * Separated from showContextMenu so DOM construction is independently readable.
- *
- * Item shape: { labelKey, shortcut?, action, enabled? }
- *   enabled — when explicitly false, the item is rendered as disabled: it appears
- *   grayed out, is not focusable, and its action is never called. Omitting the
- *   property (or setting it to true) renders a normal interactive item.
  *
  * @param {Array} items  Item descriptors or the string 'separator'.
  * @returns {HTMLElement}
@@ -48,6 +54,13 @@ function _buildMenu(items) {
         const el = _tpl.item.content.cloneNode(true).querySelector('.ctx-item');
         el.querySelector('.ctx-label').dataset.i18n = item.labelKey;
         el.querySelector('.ctx-shortcut').textContent = item.shortcut ?? '';
+
+        // Fill the icon <use> href when iconId is provided.
+        // tpl-ctx-item always contains .ctx-icon > use; an empty use renders
+        // nothing but reserves the column width for alignment.
+        if (item.iconId) {
+            el.querySelector('.ctx-icon use').setAttribute('href', `#icon-${item.iconId}`);
+        }
 
         const disabled = item.enabled === false;
         if (disabled) {
@@ -180,7 +193,7 @@ function _onMenuKeydown(e) {
             _prevItem();
             break;
         case 'Tab':
-            // Trap focus within the menu
+            // Trap focus within the menu.
             e.preventDefault();
             if (e.shiftKey) {
                 _prevItem();

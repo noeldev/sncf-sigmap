@@ -81,7 +81,9 @@ export function isPinned(networkId) {
  * @returns {boolean} True if the signal is now pinned, false if unpinned.
  */
 export function togglePin(networkId) {
-    hideLinePreview();
+    // Dismiss any active signal preview before changing pin state.
+    // Line previews are not dismissed here — pins.js does not own line preview
+    // state; filters.js handles that when lineCode filter tags change.
     hideSignalPreview();
 
     const idx = _pins.indexOf(networkId);

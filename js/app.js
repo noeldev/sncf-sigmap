@@ -7,9 +7,13 @@
  *   - Wire Leaflet map events to the map-layer pipeline.
  *   - Update the record-count display after the manifest loads.
  *
+ * URL parameters (?networkId, ?lineCode) are parsed and dispatched by
+ * map-layer.js via handleUrlParams() — that module already owns flyToSignal,
+ * flyToLine, and the FIELD constants, so the logic lives closer to the data.
+ *
  * Knows about:
  *   map.js       — Leaflet infrastructure + marker layer + toolbar (via initMap).
- *   map-layer.js — signal marker pipeline (refresh).
+ *   map-layer.js — signal marker pipeline (refresh, handleUrlParams).
  *   sidebar.js   — all sidebar UI (legend, filters, pins, language, tabs, JOSM).
  *   statusbar.js — status bar DOM updates.
  *   progress.js  — loading overlay.
@@ -20,7 +24,7 @@ import { initMap, map, initMapEvents } from './map.js';
 import { initKeyboardShortcuts } from './map-controls.js';
 import { loadManifest, getManifestStats } from './tiles.js';
 import { loadStrings, translateAll, getLang, t } from './translation.js';
-import { setManifest, refresh } from './map-layer.js';
+import { setManifest, refresh, handleUrlParams } from './map-layer.js';
 import { initProgress, showProgress, hideProgress } from './progress.js';
 import { initSidebar } from './sidebar.js';
 import { initStatusBar, updateZoomStatus, setRecordCount, updateFilterCount } from './statusbar.js';
@@ -73,9 +77,13 @@ async function _loadData() {
         return;
     }
 
-    _updateRecordCount(manifest);
     hideProgress();
     setManifest(manifest);
+
+    // Handle URL parameters after both manifest and index are ready.
+    handleUrlParams();
+
+    _updateRecordCount(manifest);
     _startMapPipeline();
 }
 
