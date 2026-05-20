@@ -195,6 +195,7 @@
   },
   "context": {
     "zoomCenter": "Zoom to",
+    "locateOnMaps": "Locate on Maps",
     "pin": "Pin",
     "unpin": "Unpin",
     "properties": "Properties",

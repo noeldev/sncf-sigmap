@@ -639,6 +639,16 @@ function _onMarkerCtrlClick(all) {
 }
 
 /**
+ * Open Google Maps at the given coordinates with a centered marker.
+ * @param {number} lat
+ * @param {number} lng
+ */
+function _onLocateOnMaps(lat, lng) {
+    const url = `https://www.google.com/maps?q=${lat},${lng}`;
+    window.open(url, '_blank');
+}
+
+/**
  * Normal/Shift+Click: open the signal popup.
  * Shift flips the default starting tab.
  * @param {[number, number]} latlng
@@ -669,9 +679,15 @@ function _showContextMenuAt(x, y, lat, lng, all) {
         {
             labelKey: 'context.zoomCenter',
             shortcut: 'Alt+Click',
-            iconId: 'locate',
+            iconId: 'magnifier',
             action: () => _onMarkerAltClick(lat, lng),
         },
+        {
+            labelKey: 'context.locateOnMaps',
+            iconId: 'locate',
+            action: () => _onLocateOnMaps(lat, lng),
+        },
+        'separator',
         {
             labelKey: pinned ? 'context.unpin' : 'context.pin',
             shortcut: 'Ctrl+Click',

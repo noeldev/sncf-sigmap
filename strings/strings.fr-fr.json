@@ -195,6 +195,7 @@
   },
   "context": {
     "zoomCenter": "Zoomer",
+    "locateOnMaps": "Localiser sur Maps",
     "pin": "Épingler",
     "unpin": "Désépingler",
     "properties": "Propriétés",

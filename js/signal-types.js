@@ -192,6 +192,11 @@ export const SIGNAL_MAPPING = {
             speed: "30"
         }
     },
+    "L": {
+        group: "speedLimit",
+        cat: "speed_limit_distant:plate",
+        type: "FR:L"
+    },
     "TIV PENEXE": {
         group: "speedLimit",
         cat: "speed_limit",
