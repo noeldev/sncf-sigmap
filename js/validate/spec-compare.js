@@ -1,24 +1,30 @@
 /**
- * spec-compare.js — Cross-check SIGNAL_MAPPING entries against the wiki spec.
+ * spec-compare.js - Cross-check SIGNAL_MAPPING entries against the wiki spec.
  *
- * Operates on two independently sourced sets of {cat, type} pairs and produces
- * a diff that classifies every entry into one of three buckets:
+ * Compares {cat, type} pairs derived from OSM values only:
+ *   - SIGNAL_MAPPING side: uses def.cat and def.type (the OSM values, e.g.
+ *     cat="speed_limit_distant", type="FR:TIV-D_MOB"). The SNCF/GAIA code
+ *     keys (e.g. "TIV D MOB") are not compared to anything -- they are
+ *     included in matched/onlyInCode entries as informational context only.
+ *   - Wiki side: {cat, type} pairs extracted from the rendered HTML by
+ *     wiki-parser.js.
  *
- *   matched    — cat+type pair present in both sources (correct).
- *   onlyInWiki — pair exists in wiki but no SIGNAL_MAPPING entry uses it.
- *                These are signal types documented but not yet implemented.
- *   onlyInCode — pair exists in SIGNAL_MAPPING but the wiki does not define it.
- *                These are candidates for bugs (wrong type value) or extensions.
+ * Results:
+ *   matched    - {cat, type} pair present in both wiki and SIGNAL_MAPPING.
+ *   onlyInWiki - pair in wiki but no SIGNAL_MAPPING entry produces it.
+ *                Signal types documented in the wiki but not yet mapped.
+ *   onlyInCode - pair in SIGNAL_MAPPING but absent from the wiki.
  *                Sub-classified by catKnown:
- *                  true  → the category exists in wiki but with a different type
- *                           value (likely a type string mismatch, e.g. FR:CARRE
- *                           instead of the wiki's FR:C).
- *                  false → the category is entirely absent from the wiki
- *                           (intentional extension or undocumented SNCF code).
+ *                  true  - the category exists in the wiki but with a
+ *                          different type value (likely a type mismatch,
+ *                          e.g. SIGNAL_MAPPING has FR:C but wiki shows
+ *                          a different type for that cat).
+ *                  false - the category is entirely absent from the wiki
+ *                          (intentional extension or undocumented SNCF code).
  *
  * Public API:
- *   buildCodeSpec(signalMapping)     → CodeSpec
- *   compareSpecs(wikiSpec, codeSpec) → DiffResult
+ *   buildCodeSpec(signalMapping)     - CodeSpec
+ *   compareSpecs(wikiSpec, codeSpec) - DiffResult
  *
  * Types:
  *   CodeSpec   = Map<pairKey, { cat, type, sncfKeys[] }>
@@ -29,10 +35,10 @@
 
 /**
  * Build a lookup structure from SIGNAL_MAPPING for comparison.
- * Groups SNCF signal codes by their {cat, type} pair so that multiple SNCF
- * codes mapping to the same OSM pair are reported together.
+ * Groups SNCF signal codes by their {cat, type} OSM pair so that multiple
+ * SNCF codes producing the same OSM pair are listed together as context.
  *
- * @param {object} signalMapping  The SIGNAL_MAPPING constant from signal-types.js.
+ * @param {object} signalMapping
  * @returns {CodeSpec}
  */
 export function buildCodeSpec(signalMapping) {
@@ -50,18 +56,18 @@ export function buildCodeSpec(signalMapping) {
 }
 
 /**
- * Compare a wiki-derived spec against the code-derived spec.
+ * Compare wiki-derived {cat, type} pairs against SIGNAL_MAPPING-derived pairs.
  *
  * @param {WikiSpec} wikiSpec   From wiki-parser.js fetchWikiSpec().
  * @param {CodeSpec} codeSpec   From buildCodeSpec().
- * @returns {DiffResult}
+ * @returns {{ matched, onlyInWiki, onlyInCode }}
  */
 export function compareSpecs(wikiSpec, codeSpec) {
-    const matched    = [];
+    const matched = [];
     const onlyInWiki = [];
     const onlyInCode = [];
 
-    // ── Wiki side: classify each wiki pair ──
+    // Wiki side: classify each wiki pair against codeSpec.
     for (const { cat, type } of wikiSpec.pairs) {
         const pairKey = `${cat}|${type}`;
         if (codeSpec.has(pairKey)) {
@@ -71,15 +77,13 @@ export function compareSpecs(wikiSpec, codeSpec) {
         }
     }
 
-    // ── Code side: find entries absent from wiki ──
+    // Code side: find SIGNAL_MAPPING OSM pairs absent from the wiki.
     for (const [, entry] of codeSpec) {
         const wikiTypesForCat = wikiSpec.byCat.get(entry.cat);
-        if (wikiTypesForCat?.has(entry.type)) continue;    // already in matched
+        if (wikiTypesForCat?.has(entry.type)) continue;  // already counted in matched
 
-        // catKnown=true  → category exists in wiki but with a different type value.
-        // catKnown=false → category is entirely absent from the wiki page.
+        // catKnown: true if the wiki knows the category but with a different type value.
         const catKnown = wikiSpec.byCat.has(entry.cat);
-
         onlyInCode.push({ cat: entry.cat, type: entry.type, sncfKeys: entry.sncfKeys, catKnown });
     }
 

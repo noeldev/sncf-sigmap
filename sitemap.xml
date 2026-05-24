@@ -2,59 +2,66 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
 
-  <!-- Main application -->
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
-  </url>
+	<!-- Main application -->
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/</loc>
+		<changefreq>monthly</changefreq>
+		<priority>1.0</priority>
+	</url>
 
-  <!-- Help hub -->
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/en-us/index.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/index.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/index.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/fr-fr/index.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/index.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/index.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
+	<!-- Signal validation tool (English only) -->
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/validate.html</loc>
+		<changefreq>monthly</changefreq>
+		<priority>0.6</priority>
+	</url>
 
-  <!-- Map & Controls help -->
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/en-us/map.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/map.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/map.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/fr-fr/map.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/map.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/map.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
+	<!-- Help hub -->
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/en-us/index.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/index.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/index.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.6</priority>
+	</url>
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/fr-fr/index.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/index.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/index.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.6</priority>
+	</url>
 
-  <!-- Signal Popup help -->
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/en-us/popup.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/popup.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/popup.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://sncf-sigmap.netlify.app/help/fr-fr/popup.html</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/popup.html"/>
-    <xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/popup.html"/>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
+	<!-- Map & Controls help -->
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/en-us/map.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/map.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/map.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.5</priority>
+	</url>
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/fr-fr/map.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/map.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/map.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.5</priority>
+	</url>
+
+	<!-- Signal Popup help -->
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/en-us/popup.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/popup.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/popup.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.5</priority>
+	</url>
+	<url>
+		<loc>https://sncf-sigmap.netlify.app/help/fr-fr/popup.html</loc>
+		<xhtml:link rel="alternate" hreflang="en" href="https://sncf-sigmap.netlify.app/help/en-us/popup.html"/>
+		<xhtml:link rel="alternate" hreflang="fr" href="https://sncf-sigmap.netlify.app/help/fr-fr/popup.html"/>
+		<changefreq>monthly</changefreq>
+		<priority>0.5</priority>
+	</url>
 
 </urlset>

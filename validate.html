@@ -3,270 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signal Validation — sncf-sigmap</title>
-    <style>
-        :root {
-            --bg:         #0c0e0d;
-            --surface:    #141716;
-            --surface-2:  #1c1f1e;
-            --border:     #262b28;
-            --text:       #b8c4be;
-            --text-dim:   #6a7870;
-            --text-hi:    #dce8e2;
-            --red:        #cc2020;
-            --amber:      #d09010;
-            --green:      #40906a;
-            --blue:       #3880b0;
-            --mono: ui-monospace, 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--mono);
-            font-size: 13px;
-            line-height: 1.55;
-            min-height: 100vh;
-        }
-
-        /* ── Header ── */
-        .page-header {
-            display: flex;
-            align-items: baseline;
-            gap: 16px;
-            padding: 14px 24px;
-            border-bottom: 1px solid var(--border);
-            background: var(--surface);
-            flex-wrap: wrap;
-        }
-        .page-header h1      { font-size: 14px; font-weight: 600; color: var(--text-hi); letter-spacing: .04em; }
-        .page-header .subtitle { color: var(--text-dim); font-size: 12px; }
-
-        /* ── Layout ── */
-        main { padding: 20px 24px; max-width: 1400px; display: flex; flex-direction: column; gap: 20px; }
-
-        /* ── Controls ── */
-        .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-        button {
-            font-family: var(--mono);
-            font-size: 12px;
-            padding: 5px 13px;
-            border-radius: 2px;
-            cursor: pointer;
-            border: 1px solid;
-            transition: opacity .1s;
-        }
-        button:disabled { opacity: .35; cursor: not-allowed; }
-        #btn-start  { background: var(--green);  border-color: var(--green);  color: #fff; }
-        #btn-cancel { background: transparent;   border-color: var(--red);    color: var(--red); }
-        #btn-export { background: transparent;   border-color: var(--blue);   color: var(--blue); }
-        #status-text { color: var(--text-dim); font-size: 12px; margin-left: 4px; }
-
-        /* ── Progress ── */
-        .progress-wrap { display: none; flex-direction: column; gap: 7px; }
-        .progress-wrap.visible { display: flex; }
-        .progress-track { height: 3px; background: var(--surface-2); border-radius: 1px; overflow: hidden; }
-        .progress-fill  { height: 100%; background: var(--green); width: 0%; transition: width .15s linear; }
-        .progress-label { font-size: 12px; color: var(--text-dim); }
-
-        /* ── Stats grid — 5 columns, up to 2 rows ── */
-        .stats-grid {
-            display: none;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border: 1px solid var(--border);
-        }
-        .stats-grid.visible { display: grid; }
-
-        /* Spec-diff stat row: hidden until wiki resolves */
-        #stats-spec-row { display: contents; }
-        #stats-spec-row:not(.visible) .stat-card { display: none; }
-
-        .stat-card { background: var(--surface); padding: 13px 16px; }
-        .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
-        .stat-value { font-size: 20px; font-weight: 600; color: var(--text-hi); }
-        .stat-card.c-conflict .stat-value { color: var(--red); }
-        .stat-card.c-warn     .stat-value { color: var(--amber); }
-        .stat-card.c-ok       .stat-value { color: var(--green); }
-
-        /* ── Result sections ── */
-        .result-section { display: none; }
-        .result-section.visible { display: block; }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 0;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 12px;
-        }
-        .section-header h2         { font-size: 13px; font-weight: 600; color: var(--text-hi); }
-        .section-header .wiki-link { font-size: 11px; color: var(--blue); text-decoration: none; margin-left: auto; }
-        .section-header .wiki-link:hover { text-decoration: underline; }
-
-        /* ── Sub-sections (spec diff) ── */
-        .sub-section { margin-bottom: 20px; }
-        .sub-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 0;
-            border-bottom: 1px solid var(--surface-2);
-            margin-bottom: 10px;
-        }
-        .sub-header h3 { font-size: 12px; color: var(--text-hi); font-weight: 500; }
-
-        details > summary { cursor: pointer; list-style: none; user-select: none; }
-        details > summary::before       { content: '▶  '; color: var(--text-dim); font-size: 11px; }
-        details[open] > summary::before { content: '▼  '; }
-
-        /* ── Badges ── */
-        .badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 10px; }
-        .badge-red   { background: rgba(204,32,32,.15);  color: var(--red); }
-        .badge-amber { background: rgba(208,144,16,.15); color: var(--amber); }
-        .badge-green { background: rgba(64,144,106,.15); color: var(--green); }
-
-        /* ── Tables ── */
-        .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .data-table th {
-            text-align: left;
-            padding: 6px 10px;
-            font-size: 11px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            border-bottom: 1px solid var(--border);
-            font-weight: 500;
-        }
-        .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--surface-2); vertical-align: top; }
-        .data-table tbody tr:hover td { background: var(--surface); }
-
-        /* ── Conflict rendering ── */
-        .conflict-dir-block { margin-bottom: 10px; }
-        .conflict-dir-block:last-child { margin-bottom: 0; }
-        .dir-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
-        .dir-label .dir-value { color: var(--text-hi); font-weight: 600; }
-        .conflict-node  { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 3px; }
-        .node-idx       { flex-shrink: 0; width: 22px; color: var(--text-dim); font-size: 11px; }
-        .node-chips     { display: flex; flex-wrap: wrap; gap: 4px; }
-        .chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 1px 6px;
-            border-radius: 2px;
-            font-size: 11px;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            white-space: nowrap;
-        }
-        .chip .chip-cat { color: var(--red); }
-        .chip-unmap     { border-color: var(--amber); color: var(--amber); }
-        .conflict-reason { font-size: 11px; color: var(--red); margin-top: 3px; }
-
-        /* ── Utility classes (consumed by report-renderer.js) ── */
-        .text-hi    { color: var(--text-hi); }
-        .text-dim   { color: var(--text-dim); }
-        .text-red   { color: var(--red); }
-        .text-amber { color: var(--amber); }
-        .text-green { color: var(--green); }
-        .mono-sm    { font-family: var(--mono); font-size: 12px; }
-        .dim        { color: var(--text-dim); }
-        .link       { color: var(--blue); text-decoration: none; font-size: 12px; }
-        .link:hover { text-decoration: underline; }
-
-        code {
-            font-family: var(--mono);
-            font-size: 11px;
-            background: var(--surface-2);
-            padding: 1px 4px;
-            border-radius: 2px;
-        }
-        .no-results {
-            padding: 20px;
-            text-align: center;
-            color: var(--text-dim);
-            font-size: 12px;
-            border: 1px dashed var(--border);
-        }
-    </style>
+    <title>Signal Validation - sncf-sigmap</title>
+    <link rel="icon" type="image/svg+xml" href="assets/svg/favicon.svg">
+    <link rel="icon" type="image/png" href="assets/png/favicon.png" sizes="512x512">
+    <link rel="stylesheet" href="css/validate.css">
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════════════════
-     PAGE STRUCTURE
-     ════════════════════════════════════════════════════════════ -->
-
 <header class="page-header">
     <h1>Signal Validation</h1>
-    <span class="subtitle">
-        Co-location conflicts &middot; Unmapped types &middot; Wiki spec diff &mdash; sncf-sigmap
-    </span>
+    <nav class="header-nav" id="header-nav" aria-label="Sections">
+        <a href="#section-conflicts" id="nav-conflicts">Co-location conflicts</a>
+        <span class="nav-sep">|</span>
+        <a href="#section-unmapped"  id="nav-unmapped">Unmapped types</a>
+        <span class="nav-sep">|</span>
+        <a href="#section-spec"      id="nav-spec">Wiki spec diff</a>
+    </nav>
 </header>
 
-<main>
+<main id="main">
 
     <!-- Controls -->
     <div class="controls">
-        <button id="btn-start">&#9654; Run Validation</button>
-        <button id="btn-cancel" disabled>&#x2715; Cancel</button>
-        <button id="btn-export" disabled>&#x2193; Export JSON</button>
+        <button id="btn-start">Run Validation</button>
+        <button id="btn-cancel" disabled>Cancel</button>
+        <button id="btn-export" disabled>Export JSON</button>
         <span id="status-text"></span>
     </div>
 
-    <!-- Progress bar -->
+    <!-- Progress -->
     <div class="progress-wrap" id="progress-wrap">
         <div class="progress-track">
             <div class="progress-fill" id="progress-fill"></div>
         </div>
-        <div class="progress-label" id="progress-label">Starting&hellip;</div>
+        <div class="progress-label" id="progress-label">Starting...</div>
     </div>
 
-    <!-- Stats: 5 columns, 2 rows -->
+    <!-- Stats: 5 columns, up to 2 rows -->
     <div class="stats-grid" id="stats-grid">
         <div class="stat-card">
             <div class="stat-label">Tiles</div>
-            <div class="stat-value" id="stat-tiles">&#x2014;</div>
+            <div class="stat-value" id="stat-tiles">-</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Signals</div>
-            <div class="stat-value" id="stat-signals">&#x2014;</div>
+            <div class="stat-value" id="stat-signals">-</div>
         </div>
         <div class="stat-card c-ok">
             <div class="stat-label">Locations</div>
-            <div class="stat-value" id="stat-locations">&#x2014;</div>
+            <div class="stat-value" id="stat-locations">-</div>
         </div>
         <div class="stat-card c-conflict">
             <div class="stat-label">Conflicts</div>
-            <div class="stat-value" id="stat-conflicts">&#x2014;</div>
+            <div class="stat-value" id="stat-conflicts">-</div>
         </div>
         <div class="stat-card c-warn">
             <div class="stat-label">Unmapped types</div>
-            <div class="stat-value" id="stat-unmapped">&#x2014;</div>
+            <div class="stat-value" id="stat-unmapped">-</div>
         </div>
 
         <!-- Row 2: visible only after wiki spec resolves -->
         <div id="stats-spec-row">
             <div class="stat-card">
                 <div class="stat-label">Wiki pairs</div>
-                <div class="stat-value" id="stat-wiki-pairs">&#x2014;</div>
+                <div class="stat-value" id="stat-wiki-pairs">-</div>
             </div>
             <div class="stat-card c-ok">
                 <div class="stat-label">Matched</div>
-                <div class="stat-value" id="stat-matched">&#x2014;</div>
+                <div class="stat-value" id="stat-matched">-</div>
             </div>
             <div class="stat-card c-conflict">
                 <div class="stat-label">Only in wiki</div>
-                <div class="stat-value" id="stat-only-wiki">&#x2014;</div>
+                <div class="stat-value" id="stat-only-wiki">-</div>
             </div>
             <div class="stat-card c-warn">
                 <div class="stat-label">Only in code</div>
-                <div class="stat-value" id="stat-only-code">&#x2014;</div>
+                <div class="stat-value" id="stat-only-code">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">&nbsp;</div>
@@ -276,134 +88,153 @@
     </div>
 
     <!-- Section A: Co-location conflicts -->
-    <section class="result-section" id="section-conflicts">
-        <div class="section-header">
+    <section class="result-section cp-panel cp-panel--open" id="section-conflicts">
+        <div class="panel-summary" role="button" tabindex="0"
+             aria-expanded="true" aria-controls="body-conflicts">
+            <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                <use href="#icon-chevron"></use>
+            </svg>
             <h2>Co-location conflicts</h2>
             <span class="badge badge-red" id="badge-conflicts">0</span>
         </div>
-        <div id="conflicts-content"></div>
+        <div class="cp-body" id="body-conflicts">
+            <div id="conflicts-content"></div>
+        </div>
     </section>
 
     <!-- Section B: Unmapped signal types -->
-    <section class="result-section" id="section-unmapped">
-        <div class="section-header">
+    <section class="result-section cp-panel cp-panel--open" id="section-unmapped">
+        <div class="panel-summary" role="button" tabindex="0"
+             aria-expanded="true" aria-controls="body-unmapped">
+            <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                <use href="#icon-chevron"></use>
+            </svg>
             <h2>Unmapped signal types</h2>
             <span class="badge badge-amber" id="badge-unmapped">0</span>
         </div>
-        <div id="unmapped-content"></div>
+        <div class="cp-body" id="body-unmapped">
+            <div id="unmapped-content"></div>
+        </div>
     </section>
 
     <!-- Section C: Wiki spec diff -->
-    <section class="result-section" id="section-spec">
-        <div class="section-header">
+    <section class="result-section cp-panel cp-panel--open" id="section-spec">
+        <div class="panel-summary" role="button" tabindex="0"
+             aria-expanded="true" aria-controls="body-spec">
+            <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                <use href="#icon-chevron"></use>
+            </svg>
             <h2>Wiki spec cross-check</h2>
             <a class="wiki-link"
                href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France"
-               target="_blank" rel="noopener">&#x2197; OpenRailwayMap/Tagging_in_France</a>
+               target="_blank" rel="noopener">OpenRailwayMap/Tagging_in_France</a>
         </div>
+        <div class="cp-body" id="body-spec">
 
-        <div class="sub-section">
-            <div class="sub-header">
-                <h3>Only in wiki &mdash; not in signal-types.js</h3>
-                <span class="badge" id="badge-only-wiki">0</span>
+            <div class="sub-section">
+                <div class="sub-header">
+                    <h3>Only in wiki - not in signal-types.js</h3>
+                    <span class="badge" id="badge-only-wiki">0</span>
+                </div>
+                <div id="only-wiki-content"></div>
             </div>
-            <div id="only-wiki-content"></div>
-        </div>
 
-        <div class="sub-section">
-            <div class="sub-header">
-                <h3>Only in signal-types.js &mdash; not in wiki</h3>
-                <span class="badge" id="badge-only-code">0</span>
+            <div class="sub-section">
+                <div class="sub-header">
+                    <h3>Only in signal-types.js - not in wiki</h3>
+                    <span class="badge" id="badge-only-code">0</span>
+                </div>
+                <div id="only-code-content"></div>
             </div>
-            <div id="only-code-content"></div>
-        </div>
 
-        <div class="sub-section">
-            <details>
-                <summary>
-                    <span style="display:inline-flex;align-items:center;gap:8px;">
-                        <h3 style="font-size:12px;color:var(--text-hi);font-weight:500;">Matched entries</h3>
-                        <span class="badge badge-green" id="badge-matched">0</span>
-                    </span>
-                </summary>
-                <div id="matched-content" style="margin-top:10px;"></div>
-            </details>
+            <div class="sub-section">
+                <!-- Matched entries: collapsible via native <details>, starts closed -->
+                <details>
+                    <summary>
+                        <span class="sub-header" style="display:inline-flex;gap:8px;align-items:center;padding:6px 0;border:none;">
+                            <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
+                                <use href="#icon-chevron"></use>
+                            </svg>
+                            <h3>Matched entries</h3>
+                            <span class="badge badge-green" id="badge-matched">0</span>
+                        </span>
+                    </summary>
+                    <div id="matched-content" style="margin-top:8px;"></div>
+                </details>
+            </div>
+
         </div>
     </section>
 
 </main>
 
+<!-- Floating back-to-top -->
+<button id="btn-toc">
+    <svg width="10" height="10" aria-hidden="true" style="transform:rotate(-90deg);vertical-align:middle;">
+        <use href="#icon-chevron"></use>
+    </svg>
+    Top
+</button>
 
-<!-- ════════════════════════════════════════════════════════════
-     HTML TEMPLATES
-     Cloned exclusively by report-renderer.js — never shown directly.
-     data-field attributes are the binding points used by _fill().
-     ════════════════════════════════════════════════════════════ -->
 
-<!-- Shared: empty-state placeholder -->
+<!-- TEMPLATES -->
+
 <template id="tpl-no-results">
     <div class="no-results"></div>
 </template>
 
-<!-- ── Conflict table ── -->
-
+<!-- Conflict table -->
 <template id="tpl-thead-conflicts">
     <thead>
         <tr>
-            <th>Location key</th>
-            <th>Coordinates</th>
-            <th>Conflicting nodes</th>
+            <th>Track code</th>
+            <th>Location</th>
+            <th>Direction</th>
+            <th>Position</th>
+            <th class="col-nodes">Nodes</th>
         </tr>
     </thead>
 </template>
 
-<!-- One <tr> per conflicting location.
-     OSM link: href left empty; built lazily on first pointerenter (see renderer). -->
 <template id="tpl-conflict-row">
     <tr>
-        <td><span class="text-hi mono-sm" data-field="key"></span></td>
+        <td class="mono-sm text-hi" data-field="track-code"></td>
         <td>
+            <!-- Lazy OSM link: href built on first pointerenter -->
             <a class="link osm-link" data-lat="" data-lng=""
                target="_blank" rel="noopener"></a>
         </td>
-        <td class="nodes-cell"></td>
+        <td class="dim" data-field="direction"></td>
+        <td class="dim" data-field="placement"></td>
+        <td class="col-nodes">
+            <div class="nodes-list"></div>
+        </td>
     </tr>
 </template>
 
-<!-- One direction block inside the nodes cell -->
-<template id="tpl-dir-block">
-    <div class="conflict-dir-block">
-        <div class="dir-label">
-            direction:&nbsp;<span class="dir-value" data-field="direction"></span>
-            &nbsp;&rarr;&nbsp;<span data-field="node-count"></span>&nbsp;nodes forced
-        </div>
-        <div class="nodes-list"></div>
-        <div class="conflict-reason" hidden></div>
-    </div>
-</template>
-
-<!-- One node line (index + chip list) inside a direction block -->
-<template id="tpl-conflict-node">
-    <div class="conflict-node">
-        <span class="node-idx" data-field="idx"></span>
+<template id="tpl-node-row">
+    <div class="node-row">
+        <span class="node-label" data-field="idx"></span>
         <span class="node-chips"></span>
     </div>
 </template>
 
-<!-- Chip for a mapped signal (sncfType + ORM category) -->
+<!-- Chip for a mapped signal: entire <a> is clickable -->
 <template id="tpl-chip">
-    <span class="chip">
-        <span data-field="sncf-type"></span><span class="chip-cat" data-field="cat"></span>
-    </span>
+    <a class="chip" target="_blank" rel="noopener">
+        <span class="chip-type" data-field="sncf-type"></span>
+        <span class="chip-cat"  data-field="cat"></span>
+    </a>
 </template>
 
 <!-- Chip for an unmapped signal -->
 <template id="tpl-chip-unmap">
-    <span class="chip chip-unmap" data-field="sncf-type"></span>
+    <a class="chip chip-unmap" target="_blank" rel="noopener">
+        <span class="chip-type" data-field="sncf-type"></span>
+    </a>
 </template>
 
-<!-- ── Unmapped types table ── -->
-
+<!-- Unmapped types table -->
 <template id="tpl-thead-unmapped">
     <thead>
         <tr>
@@ -414,7 +245,6 @@
     </thead>
 </template>
 
-<!-- One row per unknown SNCF type -->
 <template id="tpl-unmapped-row">
     <tr>
         <td class="text-amber mono-sm" data-field="type"></td>
@@ -425,75 +255,60 @@
     </tr>
 </template>
 
-<!-- ── Spec diff tables ── -->
-
+<!-- Spec diff tables -->
 <template id="tpl-thead-spec-wiki">
-    <thead>
-        <tr>
-            <th>OSM key</th>
-            <th>Type value</th>
-            <th>Notes</th>
-        </tr>
-    </thead>
+    <thead><tr><th>OSM key (railway:signal:cat)</th><th>Type value</th></tr></thead>
 </template>
 
 <template id="tpl-thead-spec-code">
     <thead>
         <tr>
-            <th>OSM key</th>
+            <th>OSM key (railway:signal:cat)</th>
             <th>Type value</th>
-            <th>SNCF codes</th>
             <th>Classification</th>
         </tr>
     </thead>
 </template>
 
 <template id="tpl-thead-spec-matched">
-    <thead>
-        <tr>
-            <th>OSM key</th>
-            <th>Type value</th>
-            <th>SNCF codes</th>
-        </tr>
-    </thead>
+    <thead><tr><th>OSM key (railway:signal:cat)</th><th>Type value</th></tr></thead>
 </template>
 
-<!-- Row: pair only in wiki -->
 <template id="tpl-spec-row-wiki">
     <tr>
         <td class="mono-sm" data-field="key"></td>
         <td class="text-amber mono-sm" data-field="type"></td>
-        <td class="dim">&mdash;</td>
     </tr>
 </template>
 
-<!-- Row: pair only in code (severity class set at runtime via className) -->
 <template id="tpl-spec-row-code">
     <tr>
         <td class="mono-sm" data-field="key"></td>
         <td class="mono-sm" data-field="type"></td>
-        <td data-field="sncf-keys"></td>
         <td data-field="note"></td>
     </tr>
 </template>
 
-<!-- Row: matched pair -->
 <template id="tpl-spec-row-matched">
     <tr>
         <td class="mono-sm" data-field="key"></td>
         <td class="text-green mono-sm" data-field="type"></td>
-        <td data-field="sncf-keys"></td>
     </tr>
 </template>
 
 
-<!-- ════════════════════════════════════════════════════════════
-     ENTRY POINT
-     ════════════════════════════════════════════════════════════ -->
-<script type="module">
-    import { init } from './js/validate/validate-main.js';
-    init();
-</script>
+<!-- SVG sprite - subset of main app icons used on this page -->
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+    <!-- Single chevron pointing right. Rotated 90deg by CSS when panel is open. -->
+    <symbol id="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6" />
+    </symbol>
+</svg>
+
+
+<!-- ENTRY POINT -->
+<script type="module" src="js/validate/validate-main.js"></script>
 
 </body>
 </html>

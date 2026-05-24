@@ -1,11 +1,31 @@
 /**
- * signal-types.js — Signal type definitions table.
+ * signal-types.js - Signal type definitions table.
  *
  * The SIGNAL_MAPPING constant is the single source of truth for all
  * signal type metadata: display category, OpenRailwayMap tag category/type,
- * and static tag properties.
+ * static tag properties, and optional inter-signal affinity.
  *
- * Consumed exclusively by signal-mapping.js.
+ * Entry fields:
+ *   group      - application display category key (cat-mapping.js)
+ *   cat        - OSM tag category suffix  (railway:signal:<cat>=...)
+ *   type       - OSM tag value            (the FR:* string)
+ *   properties - additional static OSM tags written under railway:signal:<cat>:*
+ *   linkedTo   - (optional) preferred co-node affinity. Accepts either:
+ *                  - a single object  { cat?, type? }
+ *                  - an array of such objects (when linked to more than one anchor)
+ *                Each entry expresses "prefer the node that already contains a
+ *                signal matching these cat/type criteria". Both cat and type are
+ *                optional: omit type to match any type within that cat, omit cat
+ *                to match by type alone. Matching is tried in array order and
+ *                the first hit wins.
+ *
+ *                Examples of use:
+ *                  FR:Z  (speed limit start) -> linkedTo FR:TIV-D
+ *                  FR:L  (locomotive plate)  -> linkedTo FR:TIV_PENDIS
+ *                  FR:TIV-D_B and FR:TIV-D_C prefer to join a node that already
+ *                  holds FR:TIV-D (ordinary distant speed indicator).
+ *
+ * Consumed exclusively by signal-mapping.js / signal-grouping.js.
  */
 
 export const SIGNAL_MAPPING = {
@@ -14,7 +34,7 @@ export const SIGNAL_MAPPING = {
     "CARRE": {
         group: "main",
         cat: "main",
-        type: "FR:CARRE",
+        type: "FR:C",
         properties: {
             form: "light",
             shape: "FR:C",
@@ -34,7 +54,7 @@ export const SIGNAL_MAPPING = {
     "R30": {
         group: "main",
         cat: "main",
-        type: "FR:CARRE",
+        type: "FR:C",
         properties: {
             form: "light",
             shape: "FR:F",
@@ -44,7 +64,7 @@ export const SIGNAL_MAPPING = {
     "RR30": {
         group: "main",
         cat: "main",
-        type: "FR:CARRE",
+        type: "FR:C",
         properties: {
             form: "light",
             shape: "FR:H",
@@ -123,6 +143,9 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D",
+        linkedTo: {
+            cat: "main", type: "FR:C"
+        },
         properties: {
             form: "sign",
             shape: "square",
@@ -133,6 +156,10 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:fast",
         type: "FR:TIV-D_B",
+        linkedTo: [
+            { type: "FR:TIV-D" },
+            { type: "FR:TIV-D_C" },
+        ],
         properties: {
             form: "sign",
             speed: "120"
@@ -142,6 +169,10 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:self",
         type: "FR:TIV-D_C",
+        linkedTo: [
+            { type: "FR:TIV-D" },
+            { type: "FR:TIV-D_B" },
+        ],
         properties: {
             form: "sign",
             speed: "120"
@@ -155,10 +186,15 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+
+    // FR:Z marks the start of the reduced-speed zone announced by a FR:TIV-D.
+    // It is co-located with that TIV-D, so linkedTo groups them on the same node
+    // rather than pairing Z with an unrelated speed_limit signal (e.g. TIV_PENEXE).
     "Z": {
         group: "speedLimit",
         cat: "speed_limit",
         type: "FR:Z",
+        linkedTo: { type: "FR:TIV-D" },
         properties: {
             form: "sign",
             function: "entry"
@@ -173,6 +209,7 @@ export const SIGNAL_MAPPING = {
             function: "exit"
         }
     },
+
     "CHEVRON": {
         group: "miscellaneous",
         cat: "minor",
@@ -192,10 +229,16 @@ export const SIGNAL_MAPPING = {
             speed: "30"
         }
     },
+    // The L plate is always mounted below a pentagonal TIV_PENDIS to indicate
+    // the speed restriction applies only to certain locomotive series.
     "L": {
         group: "speedLimit",
-        cat: "speed_limit_distant:plate",
-        type: "FR:L"
+        cat: "speed_limit_distant:condition",
+        type: "FR:L",
+        linkedTo: { type: "FR:TIV_PENDIS" },
+        properties: {
+            form: "sign"
+        }
     },
     "TIV PENEXE": {
         group: "speedLimit",
@@ -221,7 +264,7 @@ export const SIGNAL_MAPPING = {
     "REPER VIT": {
         group: "speedLimit",
         cat: "speed_limit:marker",
-        type: "FR:KM",
+        type: "FR:Km",
         properties: {
             form: "sign"
         }
@@ -283,7 +326,7 @@ export const SIGNAL_MAPPING = {
     "FEUXVERTS": {
         group: "crossing",
         cat: "crossing",
-        type: "FR:FC",
+        type: "FR:SFC",
         properties: {
             form: "light",
             arrangement: "vertical",
@@ -395,7 +438,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Cab signalling (TVM)
+    // Cab signalling (TVM / ETCS)
     "CAB E": {
         group: "trainProtection",
         cat: "train_protection",
@@ -461,7 +504,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Distant Stop signs
+    // Distant stop signs
     "ARRET A": {
         group: "stop",
         cat: "stop_distant",
@@ -522,7 +565,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Station and facilities
+    // Stations and facilities
     "GARE": {
         group: "station",
         cat: "station_distant",
@@ -550,7 +593,7 @@ export const SIGNAL_MAPPING = {
     "LIMITETS": {
         group: "station",
         cat: "station",
-        type: "FR:Limite_ETS",
+        type: "FR:Limites",
         properties: {
             form: "sign"
         }
@@ -565,7 +608,7 @@ export const SIGNAL_MAPPING = {
             type: "await",
             form: "light"
         }
-    },   
+    },
     "MIBLAN VER": {
         group: "station",
         cat: "departure",
@@ -579,6 +622,10 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:DD",
+        // The DD plate is physically attached to the Carre signal it belongs to.
+        linkedTo: {
+            cat: "main", type: "FR:C"
+        },
         properties: {
             type: "request",
             form: "plate"
@@ -677,9 +724,12 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    // SLM (Signal Lumineux de Manoeuvre): installed on main tracks to facilitate
+    // shunting operations. Despite being on main infrastructure it is a shunting
+    // signal, so cat=shunting to avoid conflicts with Carre (cat=main).
     "SLM": {
         group: "shunting",
-        cat: "main",
+        cat: "shunting",
         type: "FR:SLM",
         properties: {
             form: "light"
@@ -689,7 +739,7 @@ export const SIGNAL_MAPPING = {
     // Miscellaneous
     "GABARIT": {
         group: "miscellaneous",
-        cat: "main",
+        cat: "minor",
         type: "FR:Gabarit",
         properties: {
             form: "sign"

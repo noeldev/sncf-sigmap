@@ -1,63 +1,62 @@
 /**
- * validate-main.js — Validation orchestrator.
+ * validate-main.js - Validation orchestrator.
  *
- * Coordinates two independent analysis passes launched in parallel:
+ * Two independent passes launched in parallel:
  *
- *   Pass A — Tile scan (manifest + tiles):
- *     1. Co-location conflicts via conflict-detector.js / signal-mapping.js logic.
- *     2. Unmapped SNCF types: codes absent from SIGNAL_MAPPING.
+ *   Pass A - Tile scan (manifest + all tiles):
+ *     1. Co-location conflicts  - via conflict-detector.js.
+ *     2. Unmapped SNCF types    - codes absent from SIGNAL_MAPPING.
  *
- *   Pass B — Spec diff (wiki fetch, no tiles):
+ *   Pass B - Spec diff (wiki fetch only, no tiles):
  *     3. Cross-check SIGNAL_MAPPING {cat, type} pairs vs wiki-defined pairs.
- *        Rendered as soon as the wiki response arrives, independently of Pass A.
+ *        Rendered as soon as the wiki response arrives.
  *
- * normalizeSignal() from sncf-convert.js is the single source of truth for
- * raw SNCF field names — no field name knowledge lives here.
+ * normalizeSignal() from sncf-convert.js is the single point of knowledge
+ * for raw SNCF field names - no field name appears here directly.
  *
- * Public API:
- *   init()   — wire button event listeners (call once on DOMContentLoaded)
+ * Module entry point: button listeners are wired directly at module scope.
+ * ES modules are deferred by default so the DOM is ready on first execution.
  */
 
-import { SIGNAL_MAPPING }                        from '../signal-types.js';
-import { normalizeSignal }                       from '../sncf-convert.js';
-import { loadManifest, fetchTileByKey }          from '../tiles.js';
-import { fetchWikiSpec }                         from './wiki-parser.js';
-import { buildCodeSpec, compareSpecs }           from './spec-compare.js';
-import { buildLocationGroups, detectOsmNodes,
-         findDirectionConflicts }                from './conflict-detector.js';
-import { renderStats, renderConflicts,
-         renderUnmapped, renderSpecDiff,
-         clearResults }                          from './report-renderer.js';
+import { SIGNAL_MAPPING } from '../signal-types.js';
+import { normalizeSignal } from '../sncf-convert.js';
+import { loadManifest, fetchTileByKey } from '../tiles.js';
+import { fetchWikiSpec } from './wiki-parser.js';
+import { buildCodeSpec, compareSpecs } from './spec-compare.js';
+import {
+    buildLocationGroups, detectOsmNodes,
+    findConflicts
+} from './conflict-detector.js';
+import {
+    renderStats, renderConflicts,
+    renderUnmapped, renderSpecDiff,
+    clearResults
+} from './report-renderer.js';
 
 // ===== Module state =====
 
-let _cancelled   = false;
-let _lastResults = null;   // retained for JSON export
+let _cancelled = false;
+let _lastResults = null;
 
+// ===== Entry point =====
 
-// ===== Public API =====
-
-/** Wire all button event handlers. Call once after DOM is ready. */
-export function init() {
-    document.getElementById('btn-start').addEventListener('click',  _run);
-    document.getElementById('btn-cancel').addEventListener('click', () => { _cancelled = true; });
-    document.getElementById('btn-export').addEventListener('click', _exportJson);
-}
-
+// Modules are deferred — DOM is ready here.
+document.getElementById('btn-start').addEventListener('click', _run);
+document.getElementById('btn-cancel').addEventListener('click', () => { _cancelled = true; });
+document.getElementById('btn-export').addEventListener('click', _exportJson);
 
 // ===== Run =====
 
 async function _run() {
-    _cancelled   = false;
+    _cancelled = false;
     _lastResults = null;
 
     _setButtons({ start: false, cancel: true, export: false });
     _setStatus('');
     clearResults();
     _showProgress(true);
-    _setProgress(0, 'Fetching wiki spec and tile manifest\u2026');
+    _setProgress(0, 'Fetching wiki spec and tile manifest...');
 
-    // Both fetches start in parallel — no dependency between them.
     const [wikiSpec, manifest] = await Promise.all([
         fetchWikiSpec(),
         loadManifest(),
@@ -65,21 +64,21 @@ async function _run() {
 
     if (_cancelled) return _onCancel();
 
-    // ── Pass B: spec diff — render immediately, no tiles needed ──
+    // Pass B: spec diff - render immediately, no tiles needed
     let specStats = null;
     if (wikiSpec) {
-        const codeSpec   = buildCodeSpec(SIGNAL_MAPPING);
+        const codeSpec = buildCodeSpec(SIGNAL_MAPPING);
         const diffResult = compareSpecs(wikiSpec, codeSpec);
         renderSpecDiff(diffResult);
         specStats = {
-            wikiPairs:  wikiSpec.pairs.length,
-            matched:    diffResult.matched.length,
+            wikiPairs: wikiSpec.pairs.length,
+            matched: diffResult.matched.length,
             onlyInWiki: diffResult.onlyInWiki.length,
             onlyInCode: diffResult.onlyInCode.length,
             diffResult,
         };
     } else {
-        _setStatus('\u26a0 Wiki fetch failed \u2014 spec diff skipped.');
+        _setStatus('Warning: wiki fetch failed - spec diff skipped.');
     }
 
     if (!manifest) {
@@ -89,21 +88,19 @@ async function _run() {
     }
 
     // ── Pass A: tile scan ──
-    const tileKeys   = Object.keys(manifest.tiles);
+    const tileKeys = Object.keys(manifest.tiles);
     const totalTiles = tileKeys.length;
 
-    // Accumulate location groups incrementally to avoid a second full pass.
-    const locationGroups = new Map();   // groupKey → { lat, lng, key, feats[] }
-    const unmappedTypes  = new Map();   // signalType → { count, networkIds: Set }
+    const locationGroups = new Map();
+    const unmappedTypes = new Map();
     let totalSignals = 0;
-    let tilesLoaded  = 0;
+    let tilesLoaded = 0;
 
     for (const tileKey of tileKeys) {
         if (_cancelled) return _onCancel(tilesLoaded, totalTiles);
 
         const tile = await fetchTileByKey(tileKey);
 
-        // normalizeSignal() is the only knowledge of raw field names here.
         for (const raw of tile) {
             const p = normalizeSignal(raw);
             if (!SIGNAL_MAPPING[p.signalType]) {
@@ -117,7 +114,6 @@ async function _run() {
         }
         totalSignals += tile.length;
 
-        // Merge tile into running location groups.
         for (const [key, group] of buildLocationGroups([tile])) {
             if (!locationGroups.has(key)) {
                 locationGroups.set(key, group);
@@ -130,38 +126,48 @@ async function _run() {
         _setProgress(
             tilesLoaded / totalTiles,
             `Tile ${tilesLoaded.toLocaleString()} / ${totalTiles.toLocaleString()}`
-            + ` \u2014 ${totalSignals.toLocaleString()} signals`
+            + ` - ${totalSignals.toLocaleString()} signals`
         );
     }
 
     // ── Conflict detection ──
-    _setProgress(1, 'Analysing co-location groups\u2026');
+    _setProgress(1, 'Analysing co-location groups...');
 
     const conflicts = [];
     for (const loc of locationGroups.values()) {
-        const nodes        = detectOsmNodes(loc.feats);
-        const dirConflicts = findDirectionConflicts(nodes);
-        if (dirConflicts.length > 0) {
-            conflicts.push({ key: loc.key, lat: loc.lat, lng: loc.lng, dirConflicts });
+        const nodes = detectOsmNodes(loc.feats);
+        const detected = findConflicts(nodes);
+        if (detected.length > 0) {
+            conflicts.push({
+                key: loc.key,
+                trackCode: loc.trackCode,
+                trackName: loc.trackName,
+                milepost: loc.milepost,
+                lat: loc.lat,
+                lng: loc.lng,
+                conflicts: detected,
+            });
         }
     }
 
-    // ── Store for export ──
-    _lastResults = { date: new Date().toISOString(), specStats, tileScan: {
-        tiles: tilesLoaded, signals: totalSignals,
-        locations: locationGroups.size, conflicts, unmappedTypes,
-    }};
+    _lastResults = {
+        date: new Date().toISOString(),
+        specStats,
+        tileScan: {
+            tiles: tilesLoaded, signals: totalSignals,
+            locations: locationGroups.size, conflicts, unmappedTypes
+        },
+    };
 
-    // ── Render ──
     renderStats({
-        tiles:        tilesLoaded,
-        signals:      totalSignals,
-        locations:    locationGroups.size,
-        conflicts:    conflicts.length,
+        tiles: tilesLoaded,
+        signals: totalSignals,
+        locations: locationGroups.size,
+        conflicts: conflicts.length,
         unmappedTypes: unmappedTypes.size,
         ...(specStats ? {
-            wikiPairs:  specStats.wikiPairs,
-            matched:    specStats.matched,
+            wikiPairs: specStats.wikiPairs,
+            matched: specStats.matched,
             onlyInWiki: specStats.onlyInWiki,
             onlyInCode: specStats.onlyInCode,
         } : {}),
@@ -170,50 +176,51 @@ async function _run() {
     renderUnmapped(unmappedTypes);
 
     _setProgress(1,
-        `Done \u2014 ${tilesLoaded.toLocaleString()} tiles`
-        + ` \u00b7 ${totalSignals.toLocaleString()} signals`
-        + ` \u00b7 ${locationGroups.size.toLocaleString()} locations`
-        + (conflicts.length ? ` \u00b7 ${conflicts.length} conflict(s)` : ' \u00b7 no conflicts')
+        `Done - ${tilesLoaded.toLocaleString()} tiles`
+        + ` - ${totalSignals.toLocaleString()} signals`
+        + ` - ${locationGroups.size.toLocaleString()} locations`
+        + (conflicts.length ? ` - ${conflicts.length} conflict(s)` : ' - no conflicts')
     );
-
     _setButtons({ start: true, cancel: false, export: true });
 }
-
 
 // ===== JSON export =====
 
 function _exportJson() {
     if (!_lastResults) return;
-
     const { date, specStats, tileScan } = _lastResults;
 
     const payload = {
         date,
         specDiff: specStats ? {
-            wikiUrl:    'https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France',
-            wikiPairs:  specStats.wikiPairs,
-            matched:    specStats.matched,
+            wikiUrl: 'https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France',
+            wikiPairs: specStats.wikiPairs,
+            matched: specStats.matched,
             onlyInWiki: specStats.onlyInWiki,
             onlyInCode: specStats.onlyInCode,
-            detail:     specStats.diffResult,
+            detail: specStats.diffResult,
         } : null,
         tileScan: {
-            tiles:     tileScan.tiles,
-            signals:   tileScan.signals,
+            tiles: tileScan.tiles,
+            signals: tileScan.signals,
             locations: tileScan.locations,
             conflicts: tileScan.conflicts.map(c => ({
-                key:          c.key,
-                lat:          c.lat,
-                lng:          c.lng,
-                dirConflicts: c.dirConflicts.map(dc => ({
-                    direction:   dc.direction,
+                key: c.key,
+                trackCode: c.trackCode,
+                trackName: c.trackName,
+                milepost: c.milepost,
+                lat: c.lat,
+                lng: c.lng,
+                conflicts: c.conflicts.map(dc => ({
+                    direction: dc.direction,
+                    placement: dc.placement,
                     forcedNodes: dc.nodes.length,
-                    dupCats:     dc.dupCats,
+                    dupCats: dc.dupCats,
                     nodes: dc.nodes.map(node => ({
                         signals: node.feats.map(f => ({
                             signalType: f.p.signalType,
-                            networkId:  f.p.networkId,
-                            cat:        SIGNAL_MAPPING[f.p.signalType]?.cat ?? null,
+                            networkId: f.p.networkId,
+                            cat: SIGNAL_MAPPING[f.p.signalType]?.cat ?? null,
                         })),
                     })),
                 })),
@@ -222,40 +229,40 @@ function _exportJson() {
                 .sort((a, b) => b[1].count - a[1].count)
                 .map(([type, info]) => ({
                     type,
-                    count:            info.count,
+                    count: info.count,
                     sampleNetworkIds: [...info.networkIds].slice(0, 10),
                 })),
         },
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const a    = Object.assign(document.createElement('a'), {
-        href:     URL.createObjectURL(blob),
+    const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
         download: `signal-validation-${date.slice(0, 10)}.json`,
     });
     a.click();
     URL.revokeObjectURL(a.href);
 }
 
-
 // ===== UI helpers =====
 
 function _onCancel(loaded = 0, total = 0) {
-    const pct = (loaded && total) ? loaded / total : 0;
-    _setProgress(pct, loaded
-        ? `Cancelled after ${loaded.toLocaleString()} / ${total.toLocaleString()} tiles.`
-        : 'Cancelled.');
+    _setProgress(
+        loaded && total ? loaded / total : 0,
+        loaded ? `Cancelled after ${loaded.toLocaleString()} / ${total.toLocaleString()} tiles.`
+            : 'Cancelled.'
+    );
     _setButtons({ start: true, cancel: false, export: false });
 }
 
 function _setButtons({ start, cancel, export: exp }) {
-    document.getElementById('btn-start').disabled  = !start;
+    document.getElementById('btn-start').disabled = !start;
     document.getElementById('btn-cancel').disabled = !cancel;
     document.getElementById('btn-export').disabled = !exp;
 }
 
-function _setStatus(text)           { document.getElementById('status-text').textContent = text; }
-function _showProgress(v)           { document.getElementById('progress-wrap').classList.toggle('visible', v); }
+function _setStatus(text) { document.getElementById('status-text').textContent = text; }
+function _showProgress(v) { document.getElementById('progress-wrap').classList.toggle('visible', v); }
 function _setProgress(fraction, label) {
     document.getElementById('progress-fill').style.width =
         `${(Math.min(fraction, 1) * 100).toFixed(1)}%`;

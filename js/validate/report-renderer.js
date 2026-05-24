@@ -1,13 +1,16 @@
 /**
- * report-renderer.js — DOM rendering for all validation report sections.
+ * report-renderer.js - DOM rendering for all validation report sections.
  *
- * Pure presentation layer: receives pre-computed data and populates the DOM
- * exclusively via <template> elements declared in validate.html.
- * Contains no HTML string literals and no analysis logic.
+ * Pure presentation layer: no analysis logic, no HTML strings.
+ * All structure comes from <template> elements in validate.html.
  *
- * OSM map links are lazy: the href is built only on the first pointerenter
- * event over the link, via a single delegated listener per content container.
- * No OSM URL is constructed or requested until the user hovers the link.
+ * Chips: the entire <a> element is the clickable target.
+ * Conflicting chips receive .chip-conflict (soft dark-red border).
+ *
+ * OSM map links: href built lazily on first pointerenter via one delegated
+ * listener per table — no URL constructed at render time.
+ *
+ * App signal links (/?networkId=...): same-origin relative URL, set immediately.
  *
  * Public API:
  *   renderStats(stats)
@@ -18,47 +21,42 @@
  */
 
 import { SIGNAL_MAPPING } from '../signal-types.js';
+import { initCollapsiblePanelsInRoot } from '../collapsible-panel.js';
+
+const APP_SIGNAL_URL = '.';
+
+// Wire collapsible panels once the module loads (DOM is ready at this point).
+initCollapsiblePanelsInRoot(document.getElementById('main'));
+
+// Floating back-to-top button.
+document.getElementById('btn-toc')?.addEventListener('click', () => {
+    document.querySelector('.page-header')?.scrollIntoView({ behavior: 'smooth' });
+});
 
 // ===== Public API =====
 
-/**
- * Populate the stats cards and optionally reveal the spec-diff row.
- *
- * @param {{
- *   tiles: number, signals: number, locations: number,
- *   conflicts: number, unmappedTypes: number,
- *   wikiPairs?: number, matched?: number,
- *   onlyInWiki?: number, onlyInCode?: number
- * }} stats
- */
 export function renderStats(stats) {
-    _setText('stat-tiles',     stats.tiles.toLocaleString());
-    _setText('stat-signals',   stats.signals.toLocaleString());
+    _setText('stat-tiles', stats.tiles.toLocaleString());
+    _setText('stat-signals', stats.signals.toLocaleString());
     _setText('stat-locations', stats.locations.toLocaleString());
     _setText('stat-conflicts', stats.conflicts.toLocaleString());
-    _setText('stat-unmapped',  stats.unmappedTypes.toLocaleString());
+    _setText('stat-unmapped', stats.unmappedTypes.toLocaleString());
 
     if (stats.wikiPairs !== undefined) {
         _setText('stat-wiki-pairs', stats.wikiPairs.toLocaleString());
-        _setText('stat-matched',    stats.matched.toLocaleString());
-        _setText('stat-only-wiki',  stats.onlyInWiki.toLocaleString());
-        _setText('stat-only-code',  stats.onlyInCode.toLocaleString());
+        _setText('stat-matched', stats.matched.toLocaleString());
+        _setText('stat-only-wiki', stats.onlyInWiki.toLocaleString());
+        _setText('stat-only-code', stats.onlyInCode.toLocaleString());
         _show('stats-spec-row');
     }
 
     _show('stats-grid');
+    _updateHeaderNav(stats);
+    _el('btn-toc').classList.add('visible');
 }
 
-/**
- * Render the co-location conflicts section.
- *
- * @param {Array<{
- *   key: string, lat: number, lng: number,
- *   dirConflicts: Array<{ direction: string, nodes: object[], dupCats: string[] }>
- * }>} conflicts
- */
 export function renderConflicts(conflicts) {
-    const badge   = _el('badge-conflicts');
+    const badge = _el('badge-conflicts');
     const content = _el('conflicts-content');
 
     badge.textContent = conflicts.length;
@@ -77,23 +75,19 @@ export function renderConflicts(conflicts) {
     table.appendChild(_clone('tpl-thead-conflicts'));
 
     const tbody = document.createElement('tbody');
-    for (const conflict of conflicts) {
-        tbody.appendChild(_buildConflictRow(conflict));
+    for (const loc of conflicts) {
+        for (const conflict of loc.conflicts) {
+            tbody.appendChild(_buildConflictRow(loc, conflict));
+        }
     }
     table.appendChild(tbody);
     content.replaceChildren(table);
 
-    // One delegated listener for the whole table — builds OSM href on first hover.
     _registerOsmLinkDelegate(content);
 }
 
-/**
- * Render the unmapped signal types section.
- *
- * @param {Map<string, { count: number, networkIds: Set<string> }>} unmappedTypes
- */
 export function renderUnmapped(unmappedTypes) {
-    const badge   = _el('badge-unmapped');
+    const badge = _el('badge-unmapped');
     const content = _el('unmapped-content');
 
     badge.textContent = unmappedTypes.size;
@@ -111,19 +105,17 @@ export function renderUnmapped(unmappedTypes) {
     table.className = 'data-table';
     table.appendChild(_clone('tpl-thead-unmapped'));
 
-    const tbody  = document.createElement('tbody');
+    const tbody = document.createElement('tbody');
     const sorted = [...unmappedTypes.entries()].sort((a, b) => b[1].count - a[1].count);
 
     for (const [type, info] of sorted) {
-        const row     = _cloneEl('tpl-unmapped-row');
-        const ids     = [...info.networkIds].slice(0, 5);
-        const overflowCount = info.networkIds.size - ids.length;
-
-        _fill(row, 'type',     type || '(empty)');
-        _fill(row, 'count',    info.count.toLocaleString());
-        _fill(row, 'ids',      ids.join(', '));
-        _fill(row, 'overflow', overflowCount > 0 ? ` +${overflowCount} more` : '');
-
+        const row = _cloneEl('tpl-unmapped-row');
+        const ids = [...info.networkIds].slice(0, 5);
+        _fill(row, 'type', type || '(empty)');
+        _fill(row, 'count', info.count.toLocaleString());
+        _fill(row, 'ids', ids.join(', '));
+        _fill(row, 'overflow', info.networkIds.size > ids.length
+            ? ` +${info.networkIds.size - ids.length} more` : '');
         tbody.appendChild(row);
     }
 
@@ -131,81 +123,72 @@ export function renderUnmapped(unmappedTypes) {
     content.replaceChildren(table);
 }
 
-/**
- * Render the wiki spec diff section.
- *
- * @param {{ matched: object[], onlyInWiki: object[], onlyInCode: object[] }} diffResult
- */
 export function renderSpecDiff(diffResult) {
     const { matched, onlyInWiki, onlyInCode } = diffResult;
     _show('section-spec');
 
-    // Only in wiki — not implemented in signal-types.js.
+    // Only in wiki: OSM {cat, type} pairs defined in the wiki but missing from signal-types.js.
     _renderSpecTable({
-        contentId:   'only-wiki-content',
-        badgeId:     'badge-only-wiki',
-        items:       onlyInWiki,
-        emptyMsg:    'All wiki-defined types are implemented in signal-types.js.',
-        theadTplId:  'tpl-thead-spec-wiki',
-        rowTplId:    'tpl-spec-row-wiki',
-        emptyBadge:  'badge-green',
+        contentId: 'only-wiki-content',
+        badgeId: 'badge-only-wiki',
+        items: onlyInWiki,
+        emptyMsg: 'All wiki-defined OSM types are implemented in signal-types.js.',
+        theadId: 'tpl-thead-spec-wiki',
+        rowId: 'tpl-spec-row-wiki',
+        emptyBadge: 'badge-green',
         filledBadge: 'badge-red',
         fillRow(row, { cat, type }) {
-            _fill(row, 'key',  `railway:signal:${cat}`);
+            _fill(row, 'key', `railway:signal:${cat}`);
             _fill(row, 'type', type);
         },
     });
 
-    // Only in code — absent from wiki.
-    // Sorted: catKnown=true (type mismatch, most actionable) first.
+    // Only in code: SIGNAL_MAPPING OSM {cat, type} pairs absent from the wiki.
+    // Sorted: catKnown=true (type value mismatch, most actionable) first.
     _renderSpecTable({
-        contentId:   'only-code-content',
-        badgeId:     'badge-only-code',
-        items:       [...onlyInCode].sort((a, b) => Number(b.catKnown) - Number(a.catKnown)),
-        emptyMsg:    'All signal-types.js entries match the wiki spec.',
-        theadTplId:  'tpl-thead-spec-code',
-        rowTplId:    'tpl-spec-row-code',
-        emptyBadge:  'badge-green',
+        contentId: 'only-code-content',
+        badgeId: 'badge-only-code',
+        items: [...onlyInCode].sort((a, b) => Number(b.catKnown) - Number(a.catKnown)),
+        emptyMsg: 'All signal-types.js OSM types match the wiki spec.',
+        theadId: 'tpl-thead-spec-code',
+        rowId: 'tpl-spec-row-code',
+        emptyBadge: 'badge-green',
         filledBadge: 'badge-amber',
-        fillRow(row, { cat, type, sncfKeys, catKnown }) {
+        fillRow(row, { cat, type, catKnown }) {
             _fill(row, 'key', `railway:signal:${cat}`);
 
             const typeEl = row.querySelector('[data-field="type"]');
             typeEl.textContent = type;
-            typeEl.classList.add(catKnown ? 'text-red' : 'text-dim');
-
-            _fillCodeChips(row.querySelector('[data-field="sncf-keys"]'), sncfKeys);
+            typeEl.classList.add(catKnown ? 'text-amber' : 'text-dim');
 
             const noteEl = row.querySelector('[data-field="note"]');
             if (catKnown) {
-                noteEl.textContent = 'type mismatch \u2014 cat exists in wiki with different value';
-                noteEl.className = 'text-red';
+                noteEl.textContent = 'type mismatch - cat known in wiki with a different value';
+                noteEl.className = 'text-amber';
             } else {
-                noteEl.textContent = 'cat absent from wiki \u2014 extension or undocumented';
+                noteEl.textContent = 'cat absent from wiki - extension or undocumented';
                 noteEl.className = 'dim';
             }
         },
     });
 
-    // Matched — present in both sources.
+    // Matched: pairs present in both sources (collapsible, starts closed).
     _renderSpecTable({
-        contentId:   'matched-content',
-        badgeId:     'badge-matched',
-        items:       matched,
-        emptyMsg:    'No matches found.',
-        theadTplId:  'tpl-thead-spec-matched',
-        rowTplId:    'tpl-spec-row-matched',
-        emptyBadge:  'badge-green',
+        contentId: 'matched-content',
+        badgeId: 'badge-matched',
+        items: matched,
+        emptyMsg: 'No matches found.',
+        theadId: 'tpl-thead-spec-matched',
+        rowId: 'tpl-spec-row-matched',
+        emptyBadge: 'badge-green',
         filledBadge: 'badge-green',
-        fillRow(row, { cat, type, sncfKeys }) {
-            _fill(row, 'key',  `railway:signal:${cat}`);
+        fillRow(row, { cat, type }) {
+            _fill(row, 'key', `railway:signal:${cat}`);
             _fill(row, 'type', type);
-            _fillCodeChips(row.querySelector('[data-field="sncf-keys"]'), sncfKeys);
         },
     });
 }
 
-/** Hide all result sections and reset stat card values to em-dash. */
 export function clearResults() {
     const sections = [
         'stats-grid', 'stats-spec-row',
@@ -213,238 +196,153 @@ export function clearResults() {
     ];
     for (const id of sections) _el(id)?.classList.remove('visible');
 
-    const stats = [
-        'stat-tiles', 'stat-signals', 'stat-locations',
-        'stat-conflicts', 'stat-unmapped',
+    const statIds = [
+        'stat-tiles', 'stat-signals', 'stat-locations', 'stat-conflicts', 'stat-unmapped',
         'stat-wiki-pairs', 'stat-matched', 'stat-only-wiki', 'stat-only-code',
     ];
-    for (const id of stats) _setText(id, '\u2014');
+    for (const id of statIds) _setText(id, '-');
+
+    _el('btn-toc').classList.remove('visible');
+
+    ['nav-conflicts', 'nav-unmapped', 'nav-spec'].forEach(id => {
+        const a = _el(id);
+        if (a) a.className = '';
+    });
 }
 
+// ===== Private - header nav =====
 
-// ===== Private — conflict rendering =====
-
-/**
- * Build a complete <tr> for one conflicting location.
- *
- * @param {{ key: string, lat: number, lng: number, dirConflicts: object[] }} conflict
- * @returns {HTMLTableRowElement}
- */
-function _buildConflictRow(conflict) {
-    const row  = _cloneEl('tpl-conflict-row');
-
-    _fill(row, 'key', conflict.key);
-
-    // Coordinates displayed immediately; href built lazily on first hover.
-    const link = row.querySelector('a.osm-link');
-    link.textContent  = `${conflict.lat.toFixed(5)},\u2009${conflict.lng.toFixed(5)}`;
-    link.dataset.lat  = conflict.lat;
-    link.dataset.lng  = conflict.lng;
-
-    const cell = row.querySelector('.nodes-cell');
-    for (const dc of conflict.dirConflicts) {
-        cell.appendChild(_buildDirBlock(dc));
+function _updateHeaderNav(stats) {
+    const map = [
+        ['nav-conflicts', stats.conflicts > 0],
+        ['nav-unmapped', stats.unmappedTypes > 0],
+        ['nav-spec', stats.onlyInWiki > 0 || stats.onlyInCode > 0],
+    ];
+    for (const [id, hasIssue] of map) {
+        const a = _el(id);
+        if (a) a.className = hasIssue ? 'has-conflict' : 'has-results';
     }
+}
+
+// ===== Private - conflict row =====
+
+function _buildConflictRow(loc, conflict) {
+    const row = _cloneEl('tpl-conflict-row');
+
+    _fill(row, 'track-code', loc.trackCode || '-');
+    _fill(row, 'direction', conflict.direction);
+    _fill(row, 'placement', conflict.placement);
+
+    const link = row.querySelector('a.osm-link');
+    link.textContent = loc.milepost || `${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}`;
+    link.dataset.lat = loc.lat;
+    link.dataset.lng = loc.lng;
+
+    const nodesList = row.querySelector('.nodes-list');
+    conflict.nodes.forEach((node, i) => {
+        nodesList.appendChild(_buildNodeRow(node, i + 1, conflict.dupCats));
+    });
 
     return row;
 }
 
-/**
- * Build a direction block (one per conflicting direction within a location).
- *
- * @param {{ direction: string, nodes: object[], dupCats: string[] }} dc
- * @returns {HTMLElement}
- */
-function _buildDirBlock(dc) {
-    const block = _cloneEl('tpl-dir-block');
-
-    _fill(block, 'direction',  dc.direction);
-    _fill(block, 'node-count', dc.nodes.length);
-
-    const list = block.querySelector('.nodes-list');
-    dc.nodes.forEach((node, i) => list.appendChild(_buildNodeRow(node, i + 1)));
-
-    if (dc.dupCats.length > 0) {
-        const el = block.querySelector('.conflict-reason');
-        el.removeAttribute('hidden');
-        // Build text node + <code> elements without any HTML string.
-        el.appendChild(document.createTextNode('\u21b3 duplicate cat: '));
-        dc.dupCats.forEach((cat, i) => {
-            const code = document.createElement('code');
-            code.textContent = cat;
-            el.appendChild(code);
-            if (i < dc.dupCats.length - 1) el.appendChild(document.createTextNode(', '));
-        });
-    }
-
-    return block;
-}
-
-/**
- * Build a node row (index + signal chips) inside a direction block.
- *
- * @param {{ feats: object[], categories: Set<string> }} node
- * @param {number} index  1-based display index
- * @returns {HTMLElement}
- */
-function _buildNodeRow(node, index) {
-    const row = _cloneEl('tpl-conflict-node');
+function _buildNodeRow(node, index, dupCats) {
+    const row = _cloneEl('tpl-node-row');
     _fill(row, 'idx', `#${index}`);
 
     const chips = row.querySelector('.node-chips');
     for (const feat of node.feats) {
-        chips.appendChild(_buildChip(feat));
+        chips.appendChild(_buildChip(feat, dupCats));
     }
 
     return row;
 }
 
-/**
- * Build a signal chip from the appropriate template.
- *
- * @param {{ p: { signalType: string } }} feat
- * @returns {HTMLElement}
- */
-function _buildChip(feat) {
+function _buildChip(feat, dupCats) {
     const mapping = SIGNAL_MAPPING[feat.p.signalType];
+    const chip = _cloneEl(mapping ? 'tpl-chip' : 'tpl-chip-unmap');
+    const isConflict = mapping && dupCats.includes(mapping.cat);
 
-    if (!mapping) {
-        const chip = _cloneEl('tpl-chip-unmap');
-        _fill(chip, 'sncf-type', feat.p.signalType || '(empty)');
-        chip.title = 'unmapped';
-        return chip;
+    if (isConflict) chip.classList.add('chip-conflict');
+
+    _fill(chip, 'sncf-type', feat.p.signalType || '(empty)');
+    if (mapping) _fill(chip, 'cat', mapping.cat);
+
+    if (feat.p.networkId) {
+        chip.href = `${APP_SIGNAL_URL}/?networkId=${encodeURIComponent(feat.p.networkId)}`;
+    } else {
+        chip.removeAttribute('href');
+        chip.style.pointerEvents = 'none';
     }
 
-    const chip = _cloneEl('tpl-chip');
-    _fill(chip, 'sncf-type', feat.p.signalType);
-    _fill(chip, 'cat',       mapping.cat);
     return chip;
 }
 
+// ===== Private - spec diff table =====
 
-// ===== Private — spec diff rendering =====
+function _renderSpecTable({ contentId, badgeId, items, emptyMsg,
+    theadId, rowId, emptyBadge, filledBadge, fillRow }) {
+    const badge = _el(badgeId);
+    const content = _el(contentId);
 
-/**
- * Generic helper to populate one spec diff sub-section.
- *
- * @param {{
- *   contentId: string, badgeId: string,
- *   items: object[], emptyMsg: string,
- *   theadTplId: string, rowTplId: string,
- *   emptyBadge: string, filledBadge: string,
- *   fillRow: (row: HTMLElement, item: object) => void
- * }} opts
- */
-function _renderSpecTable(opts) {
-    const badge   = _el(opts.badgeId);
-    const content = _el(opts.contentId);
+    badge.textContent = items.length;
 
-    badge.textContent = opts.items.length;
-
-    if (opts.items.length === 0) {
-        badge.className = `badge ${opts.emptyBadge}`;
-        content.replaceChildren(_noResults(opts.emptyMsg));
+    if (items.length === 0) {
+        badge.className = `badge ${emptyBadge}`;
+        content.replaceChildren(_noResults(emptyMsg));
         return;
     }
 
-    badge.className = `badge ${opts.filledBadge}`;
+    badge.className = `badge ${filledBadge}`;
 
     const table = document.createElement('table');
     table.className = 'data-table';
-    table.appendChild(_clone(opts.theadTplId));
+    table.appendChild(_clone(theadId));
 
     const tbody = document.createElement('tbody');
-    for (const item of opts.items) {
-        const row = _cloneEl(opts.rowTplId);
-        opts.fillRow(row, item);
+    for (const item of items) {
+        const row = _cloneEl(rowId);
+        fillRow(row, item);
         tbody.appendChild(row);
     }
     table.appendChild(tbody);
     content.replaceChildren(table);
 }
 
-/**
- * Append <code> chips for each SNCF key into a cell element.
- * Uses only DOM methods — no innerHTML.
- *
- * @param {HTMLElement} cell
- * @param {string[]}    sncfKeys
- */
-function _fillCodeChips(cell, sncfKeys) {
-    sncfKeys.forEach((key, i) => {
-        const code = document.createElement('code');
-        code.textContent = key;
-        cell.appendChild(code);
-        if (i < sncfKeys.length - 1) cell.appendChild(document.createTextNode(' '));
-    });
-}
+// ===== Private - lazy OSM links =====
 
-
-// ===== Private — lazy OSM links =====
-
-/**
- * Register a single delegated pointerenter listener on a container.
- * On first hover over an .osm-link, builds and assigns the OSM href.
- * Subsequent hovers are no-ops (dataset.hrefReady guard).
- *
- * @param {HTMLElement} container
- */
 function _registerOsmLinkDelegate(container) {
     container.addEventListener('pointerenter', e => {
         const link = e.target.closest('a.osm-link[data-lat][data-lng]');
         if (!link || link.dataset.hrefReady) return;
-
         const { lat, lng } = link.dataset;
-        link.href              = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
+        link.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
         link.dataset.hrefReady = '1';
-    }, true);   // capture phase: fires before any child handler
+    }, true);
 }
 
+// ===== Private - template helpers =====
 
-// ===== Private — template helpers =====
-
-/**
- * Clone a <template> by id and return its single root element.
- *
- * @param {string} id
- * @returns {HTMLElement}
- */
 function _cloneEl(id) {
     return document.getElementById(id).content.cloneNode(true).firstElementChild;
 }
 
-/**
- * Clone a <template> by id and return the DocumentFragment.
- * Use when the template contains multiple root-level nodes (e.g. <thead>).
- *
- * @param {string} id
- * @returns {DocumentFragment}
- */
 function _clone(id) {
     return document.getElementById(id).content.cloneNode(true);
 }
 
-/**
- * Set the textContent of the first [data-field] match within a cloned element.
- *
- * @param {HTMLElement}   root
- * @param {string}        field
- * @param {string|number} value
- */
 function _fill(root, field, value) {
-    const el = root.matches(`[data-field="${field}"]`)
-        ? root
-        : root.querySelector(`[data-field="${field}"]`);
+    const selector = `[data-field="${field}"]`;
+    const el = root.matches?.(selector) ? root : root.querySelector(selector);
     if (el) el.textContent = value;
 }
 
-/** Build a no-results placeholder from the shared template. */
 function _noResults(message) {
     const el = _cloneEl('tpl-no-results');
-    el.textContent = `\u2713 ${message}`;
+    el.textContent = `OK - ${message}`;
     return el;
 }
 
-function _el(id)         { return document.getElementById(id); }
+function _el(id) { return document.getElementById(id); }
 function _setText(id, v) { const e = _el(id); if (e) e.textContent = v; }
-function _show(id)       { _el(id)?.classList.add('visible'); }
+function _show(id) { _el(id)?.classList.add('visible'); }
