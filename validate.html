@@ -27,7 +27,12 @@
     <div class="controls">
         <button id="btn-start">Run Validation</button>
         <button id="btn-cancel" disabled>Cancel</button>
-        <button id="btn-export" disabled>Export JSON</button>
+        <button id="btn-export" disabled>Export GeoJSON</button>
+        <label class="settings-toggle-row" style="margin-left:8px;">
+            <input type="checkbox" id="chk-dedup" class="toggle-input" checked>
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="settings-toggle-label">Ignore duplicate idreseau</span>
+        </label>
         <span id="status-text"></span>
     </div>
 
@@ -40,7 +45,8 @@
     </div>
 
     <!-- Stats: 5 columns, up to 2 rows -->
-    <div class="stats-grid" id="stats-grid">
+    <!-- hidden: shown programmatically after a run (report-renderer.js / renderStats) -->
+    <div class="stats-grid" id="stats-grid" hidden>
         <div class="stat-card">
             <div class="stat-label">Tiles</div>
             <div class="stat-value" id="stat-tiles">-</div>
@@ -63,7 +69,7 @@
         </div>
 
         <!-- Row 2: visible only after wiki spec resolves -->
-        <div id="stats-spec-row">
+        <div id="stats-spec-row" hidden>
             <div class="stat-card">
                 <div class="stat-label">Wiki pairs</div>
                 <div class="stat-value" id="stat-wiki-pairs">-</div>
@@ -88,7 +94,8 @@
     </div>
 
     <!-- Section A: Co-location conflicts -->
-    <section class="result-section cp-panel cp-panel--open" id="section-conflicts">
+    <!-- hidden: shown programmatically after a run (report-renderer.js / renderConflicts) -->
+    <section class="result-section cp-panel cp-panel--open" id="section-conflicts" hidden>
         <div class="panel-summary" role="button" tabindex="0"
              aria-expanded="true" aria-controls="body-conflicts">
             <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
@@ -103,7 +110,8 @@
     </section>
 
     <!-- Section B: Unmapped signal types -->
-    <section class="result-section cp-panel cp-panel--open" id="section-unmapped">
+    <!-- hidden: shown programmatically after a run (report-renderer.js / renderUnmapped) -->
+    <section class="result-section cp-panel cp-panel--open" id="section-unmapped" hidden>
         <div class="panel-summary" role="button" tabindex="0"
              aria-expanded="true" aria-controls="body-unmapped">
             <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
@@ -118,7 +126,8 @@
     </section>
 
     <!-- Section C: Wiki spec diff -->
-    <section class="result-section cp-panel cp-panel--open" id="section-spec">
+    <!-- hidden: shown programmatically after a run (report-renderer.js / renderSpecDiff) -->
+    <section class="result-section cp-panel cp-panel--open" id="section-spec" hidden>
         <div class="panel-summary" role="button" tabindex="0"
              aria-expanded="true" aria-controls="body-spec">
             <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
@@ -151,13 +160,13 @@
                 <!-- Matched entries: collapsible via native <details>, starts closed -->
                 <details>
                     <summary>
-                        <span class="sub-header" style="display:inline-flex;gap:8px;align-items:center;padding:6px 0;border:none;">
+                        <div class="sub-header" style="display:inline-flex;gap:8px;align-items:center;padding:6px 0;border:none;">
                             <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
                                 <use href="#icon-chevron"></use>
                             </svg>
                             <h3>Matched entries</h3>
                             <span class="badge badge-green" id="badge-matched">0</span>
-                        </span>
+                        </div>
                     </summary>
                     <div id="matched-content" style="margin-top:8px;"></div>
                 </details>
@@ -187,6 +196,7 @@
 <template id="tpl-thead-conflicts">
     <thead>
         <tr>
+            <th class="col-row-num">#</th>
             <th>Track code</th>
             <th>Location</th>
             <th>Direction</th>
@@ -198,10 +208,11 @@
 
 <template id="tpl-conflict-row">
     <tr>
+        <td class="col-row-num dim" data-field="row-num"></td>
         <td class="mono-sm text-hi" data-field="track-code"></td>
         <td>
-            <!-- Lazy OSM link: href built on first pointerenter -->
-            <a class="link osm-link" data-lat="" data-lng=""
+            <!-- Google Maps link: href built lazily on first pointerenter -->
+            <a class="link gmaps-link" data-lat="" data-lng=""
                target="_blank" rel="noopener"></a>
         </td>
         <td class="dim" data-field="direction"></td>
@@ -224,6 +235,7 @@
     <a class="chip" target="_blank" rel="noopener">
         <span class="chip-type" data-field="sncf-type"></span>
         <span class="chip-cat"  data-field="cat"></span>
+        <span class="chip-id"   data-field="chip-id"></span>
     </a>
 </template>
 
@@ -231,6 +243,7 @@
 <template id="tpl-chip-unmap">
     <a class="chip chip-unmap" target="_blank" rel="noopener">
         <span class="chip-type" data-field="sncf-type"></span>
+        <span class="chip-id"   data-field="chip-id"></span>
     </a>
 </template>
 
@@ -238,8 +251,9 @@
 <template id="tpl-thead-unmapped">
     <thead>
         <tr>
-            <th>SNCF signal type</th>
-            <th>Occurrences</th>
+            <th class="col-row-num">#</th>
+            <th class="col-key">SNCF signal type</th>
+            <th class="col-type">Occurrences</th>
             <th>Sample network IDs</th>
         </tr>
     </thead>
@@ -247,59 +261,83 @@
 
 <template id="tpl-unmapped-row">
     <tr>
-        <td class="text-amber mono-sm" data-field="type"></td>
-        <td data-field="count"></td>
-        <td class="dim">
+        <td class="col-row-num dim" data-field="row-num"></td>
+        <td class="col-key text-amber mono-sm" data-field="type"></td>
+        <td class="col-type" data-field="count"></td>
+        <td class="col-ids dim">
             <span data-field="ids"></span><span class="dim" data-field="overflow"></span>
         </td>
     </tr>
 </template>
 
-<!-- Spec diff tables -->
+<!--
+    Spec diff tables: all three share col-key + col-type widths for horizontal alignment.
+    The 4th column is intentionally empty in wiki/matched tables (no heading, no cell value)
+    to keep column counts equal so CSS table-layout can align the first three columns.
+-->
 <template id="tpl-thead-spec-wiki">
-    <thead><tr><th>OSM key (railway:signal:cat)</th><th>Type value</th></tr></thead>
+    <thead>
+        <tr>
+            <th class="col-row-num">#</th>
+            <th class="col-key">OSM key</th>
+            <th class="col-type">Type value</th>
+            <th></th>
+        </tr>
+    </thead>
 </template>
 
 <template id="tpl-thead-spec-code">
     <thead>
         <tr>
-            <th>OSM key (railway:signal:cat)</th>
-            <th>Type value</th>
+            <th class="col-row-num">#</th>
+            <th class="col-key">OSM key</th>
+            <th class="col-type">Type value</th>
             <th>Classification</th>
         </tr>
     </thead>
 </template>
 
 <template id="tpl-thead-spec-matched">
-    <thead><tr><th>OSM key (railway:signal:cat)</th><th>Type value</th></tr></thead>
+    <thead>
+        <tr>
+            <th class="col-row-num">#</th>
+            <th class="col-key">OSM key</th>
+            <th class="col-type">Type value</th>
+            <th></th>
+        </tr>
+    </thead>
 </template>
 
 <template id="tpl-spec-row-wiki">
     <tr>
-        <td class="mono-sm" data-field="key"></td>
-        <td class="text-amber mono-sm" data-field="type"></td>
+        <td class="col-row-num dim" data-field="row-num"></td>
+        <td class="col-key mono-sm" data-field="key"></td>
+        <td class="col-type text-amber mono-sm" data-field="type"></td>
+        <td></td>
     </tr>
 </template>
 
 <template id="tpl-spec-row-code">
     <tr>
-        <td class="mono-sm" data-field="key"></td>
-        <td class="mono-sm" data-field="type"></td>
+        <td class="col-row-num dim" data-field="row-num"></td>
+        <td class="col-key mono-sm" data-field="key"></td>
+        <td class="col-type mono-sm" data-field="type"></td>
         <td data-field="note"></td>
     </tr>
 </template>
 
 <template id="tpl-spec-row-matched">
     <tr>
-        <td class="mono-sm" data-field="key"></td>
-        <td class="text-green mono-sm" data-field="type"></td>
+        <td class="col-row-num dim" data-field="row-num"></td>
+        <td class="col-key mono-sm" data-field="key"></td>
+        <td class="col-type text-blue mono-sm" data-field="type"></td>
+        <td></td>
     </tr>
 </template>
 
 
-<!-- SVG sprite - subset of main app icons used on this page -->
+<!-- SVG sprite -->
 <svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
-    <!-- Single chevron pointing right. Rotated 90deg by CSS when panel is open. -->
     <symbol id="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="9 18 15 12 9 6" />

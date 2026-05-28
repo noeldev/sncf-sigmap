@@ -10,20 +10,18 @@
  *   cat        - OSM tag category suffix  (railway:signal:<cat>=...)
  *   type       - OSM tag value            (the FR:* string)
  *   properties - additional static OSM tags written under railway:signal:<cat>:*
- *   linkedTo   - (optional) preferred co-node affinity. Accepts either:
- *                  - a single object  { cat?, type? }
- *                  - an array of such objects (when linked to more than one anchor)
- *                Each entry expresses "prefer the node that already contains a
- *                signal matching these cat/type criteria". Both cat and type are
- *                optional: omit type to match any type within that cat, omit cat
- *                to match by type alone. Matching is tried in array order and
- *                the first hit wins.
- *
- *                Examples of use:
- *                  FR:Z  (speed limit start) -> linkedTo FR:TIV-D
- *                  FR:L  (locomotive plate)  -> linkedTo FR:TIV_PENDIS
- *                  FR:TIV-D_B and FR:TIV-D_C prefer to join a node that already
- *                  holds FR:TIV-D (ordinary distant speed indicator).
+ *   linkedTo   - (optional) preferred co-node affinity. Accepts a GAIA key
+ *                string (e.g. "TIV D FIXE") or an array of such strings.
+ *                GAIA keys are the primary keys of SIGNAL_MAPPING and equal to
+ *                p.signalType in normalised signals. Using key strings avoids
+ *                duplicating OSM tag values and is resilient to tag changes.
+ *                When multiple groups qualify (e.g. two Z pancartes both want
+ *                the same TIV-D), the group whose anchor networkId is
+ *                numerically closest to the signal's networkId wins.
+ *                Examples:
+ *                  FR:Z  (speed limit start) -> linkedTo "TIV D FIXE"
+ *                  FR:L  (locomotive plate)  -> linkedTo "TIV PENDIS"
+ *                  FR:DD (departure plate)   -> linkedTo "CARRE"
  *
  * Consumed exclusively by signal-mapping.js / signal-grouping.js.
  */
@@ -54,21 +52,17 @@ export const SIGNAL_MAPPING = {
     "R30": {
         group: "main",
         cat: "main",
-        type: "FR:C",
+        type: "FR:R30",
         properties: {
-            form: "light",
-            shape: "FR:F",
-            states: "FR:C;FR:VL;FR:R"
+            form: "sign"
         }
     },
     "RR30": {
         group: "main",
         cat: "main",
-        type: "FR:C",
+        type: "FR:RR30",
         properties: {
-            form: "light",
-            shape: "FR:H",
-            states: "FR:C;FR:VL;FR:RR"
+            form: "sign"
         }
     },
     "S": {
@@ -92,12 +86,13 @@ export const SIGNAL_MAPPING = {
     },
 
     // Distant signals
-    "CARRE A": {
+    "D": {
         group: "distant",
         cat: "distant",
-        type: "FR:CARRE_A",
+        type: "FR:D",
         properties: {
-            form: "sign"
+            form: "light",
+            states: "FR:D;FR:A;FR:VL"
         }
     },
     "A": {
@@ -109,13 +104,12 @@ export const SIGNAL_MAPPING = {
             states: "FR:A;FR:VL"
         }
     },
-    "D": {
+    "CARRE A": {
         group: "distant",
         cat: "distant",
-        type: "FR:D",
+        type: "FR:CARRE_A",
         properties: {
-            form: "light",
-            states: "FR:D;FR:A;FR:VL"
+            form: "sign"
         }
     },
 
@@ -123,8 +117,9 @@ export const SIGNAL_MAPPING = {
     "TIV D MOB": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-D_MOB",
+        type: "FR:TIV-D", // TODO FR:TIV-D_MOB
         properties: {
+            type: "switchable",
             form: "light",
             condition: "diverting",
             speed: "0"
@@ -143,12 +138,9 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D",
-        linkedTo: {
-            cat: "main", type: "FR:C"
-        },
+        linkedTo: "CARRE",
         properties: {
             form: "sign",
-            shape: "square",
             speed: "0"
         }
     },
@@ -156,10 +148,7 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:fast",
         type: "FR:TIV-D_B",
-        linkedTo: [
-            { type: "FR:TIV-D" },
-            { type: "FR:TIV-D_C" },
-        ],
+        linkedTo: ["TIV D FIXE", "TIVD C FIX"],
         properties: {
             form: "sign",
             speed: "120"
@@ -169,10 +158,7 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:self",
         type: "FR:TIV-D_C",
-        linkedTo: [
-            { type: "FR:TIV-D" },
-            { type: "FR:TIV-D_B" },
-        ],
+        linkedTo: ["TIV D FIXE", "TIVD B FIX"],
         properties: {
             form: "sign",
             speed: "120"
@@ -187,14 +173,16 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // FR:Z marks the start of the reduced-speed zone announced by a FR:TIV-D.
-    // It is co-located with that TIV-D, so linkedTo groups them on the same node
-    // rather than pairing Z with an unrelated speed_limit signal (e.g. TIV_PENEXE).
+    // FR:Z marks the start of the speed-limited zone announced by the fixed TIV-D.
+    // linkedTo groups Z with the TIV D FIXE rather than an unrelated speed_limit
+    // signal (e.g. TIV_PENEXE). When two Z signals compete, the one with the
+    // networkId closest to the TIV-D wins (networkId proximity selection).
+    // FR:R marks the end of the zone; it is not co-located with the TIV-D.
     "Z": {
         group: "speedLimit",
         cat: "speed_limit",
         type: "FR:Z",
-        linkedTo: { type: "FR:TIV-D" },
+        linkedTo: "TIV D FIXE",
         properties: {
             form: "sign",
             function: "entry"
@@ -213,7 +201,7 @@ export const SIGNAL_MAPPING = {
     "CHEVRON": {
         group: "miscellaneous",
         cat: "minor",
-        type: "FR:Chevron",
+        type: "FR:chevron",
         properties: {
             type: "down",
             form: "sign"
@@ -235,7 +223,7 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:condition",
         type: "FR:L",
-        linkedTo: { type: "FR:TIV_PENDIS" },
+        linkedTo: "TIV PENDIS",
         properties: {
             form: "sign"
         }
@@ -261,6 +249,8 @@ export const SIGNAL_MAPPING = {
             function: "exit"
         }
     },
+    // The Km sign marks the transition point of a speed limit zone.
+    // Always co-located with a fixed TIV-D (ordinary, B-type, or C-type).
     "REPER VIT": {
         group: "speedLimit",
         cat: "speed_limit:marker",
@@ -299,8 +289,8 @@ export const SIGNAL_MAPPING = {
     },
     "DESTI": {
         group: "route",
-        cat: "route",
-        type: "FR:Voie",
+        cat: "route_info",
+        type: "FR:track_name",
         properties: {
             form: "sign"
         }
@@ -487,7 +477,7 @@ export const SIGNAL_MAPPING = {
     // Wrong-road (IPCS)
     "TECS": {
         group: "wrongRoad",
-        cat: "wrong_road",
+        cat: "wrong_road:entry",
         type: "FR:TECS",
         properties: {
             form: "light",
@@ -496,7 +486,7 @@ export const SIGNAL_MAPPING = {
     },
     "TSCS": {
         group: "wrongRoad",
-        cat: "wrong_road",
+        cat: "wrong_road:exit",
         type: "FR:TSCS",
         properties: {
             form: "light",
@@ -604,6 +594,7 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:SLD",
+        linkedTo: ["CARRE", "CV"],
         properties: {
             type: "await",
             form: "light"
@@ -613,6 +604,7 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:MIB-MIV",
+        linkedTo: "CARRE",
         properties: {
             type: "allow",
             form: "plate"
@@ -622,10 +614,7 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:DD",
-        // The DD plate is physically attached to the Carre signal it belongs to.
-        linkedTo: {
-            cat: "main", type: "FR:C"
-        },
+        linkedTo: "CARRE",
         properties: {
             type: "request",
             form: "plate"
@@ -633,7 +622,7 @@ export const SIGNAL_MAPPING = {
     },
     "REP ITIN": {
         group: "station",
-        cat: "departure",
+        cat: "station",
         type: "FR:RLI",
         properties: {
             form: "light"
@@ -662,14 +651,15 @@ export const SIGNAL_MAPPING = {
     "JAL MAN": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:Jalon",
+        type: "FR:shunting_marker",
         properties: {
-            form: "sign"
+            form: "sign",
+            type: "shunting_marker"
         }
     },
     "DEPOT": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:depot",
         type: "FR:D",
         properties: {
             form: "sign"
@@ -677,7 +667,7 @@ export const SIGNAL_MAPPING = {
     },
     "G": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:stabling",
         type: "FR:G",
         properties: {
             form: "sign"
@@ -685,7 +675,7 @@ export const SIGNAL_MAPPING = {
     },
     "IMP": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:dead_end",
         type: "FR:Imp",
         properties: {
             form: "sign"
@@ -718,7 +708,7 @@ export const SIGNAL_MAPPING = {
     "HEURT...": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:Heurtoir",
+        type: "FR:buffer_stop",
         properties: {
             type: "buffer_stop",
             form: "sign"

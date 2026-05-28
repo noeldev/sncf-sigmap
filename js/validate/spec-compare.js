@@ -27,7 +27,7 @@
  *   compareSpecs(wikiSpec, codeSpec) - DiffResult
  *
  * Types:
- *   CodeSpec   = Map<pairKey, { cat, type, sncfKeys[] }>
+ *   CodeSpec   = Map<pairKey, { cat, type, signalKeys[] }>
  *   DiffResult = { matched, onlyInWiki, onlyInCode }
  */
 
@@ -44,12 +44,12 @@
 export function buildCodeSpec(signalMapping) {
     const spec = new Map();
 
-    for (const [sncfKey, def] of Object.entries(signalMapping)) {
+    for (const [gaiaKey, def] of Object.entries(signalMapping)) {
         const pairKey = `${def.cat}|${def.type}`;
         if (!spec.has(pairKey)) {
-            spec.set(pairKey, { cat: def.cat, type: def.type, sncfKeys: [] });
+            spec.set(pairKey, { cat: def.cat, type: def.type, signalKeys: [] });
         }
-        spec.get(pairKey).sncfKeys.push(sncfKey);
+        spec.get(pairKey).signalKeys.push(gaiaKey);
     }
 
     return spec;
@@ -71,7 +71,7 @@ export function compareSpecs(wikiSpec, codeSpec) {
     for (const { cat, type } of wikiSpec.pairs) {
         const pairKey = `${cat}|${type}`;
         if (codeSpec.has(pairKey)) {
-            matched.push({ cat, type, sncfKeys: codeSpec.get(pairKey).sncfKeys });
+            matched.push({ cat, type, signalKeys: codeSpec.get(pairKey).signalKeys });
         } else {
             onlyInWiki.push({ cat, type });
         }
@@ -84,7 +84,7 @@ export function compareSpecs(wikiSpec, codeSpec) {
 
         // catKnown: true if the wiki knows the category but with a different type value.
         const catKnown = wikiSpec.byCat.has(entry.cat);
-        onlyInCode.push({ cat: entry.cat, type: entry.type, sncfKeys: entry.sncfKeys, catKnown });
+        onlyInCode.push({ cat: entry.cat, type: entry.type, signalKeys: entry.signalKeys, catKnown });
     }
 
     return { matched, onlyInWiki, onlyInCode };

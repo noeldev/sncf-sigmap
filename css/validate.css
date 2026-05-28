@@ -1,25 +1,26 @@
 /* validate.css - styles for validate.html */
 
 :root {
-    --bg:          #0c0e0d;
-    --surface:     #141716;
-    --surface-2:   #1c1f1e;
-    --border:      #262b28;
-    --text:        #b8c4be;
-    --text-dim:    #6a7870;
-    --text-hi:     #dce8e2;
-    --red:         #cc2020;
-    --red-bg:      rgba(140, 24, 24, .25);
-    --red-border:  rgba(180, 48, 48, .45);
-    --amber:       #d09010;
-    --amber-bg:    rgba(160, 112, 0, .20);
-    --green:       #40906a;
-    --green-bg:    rgba(48, 120, 80, .18);
-    --blue:        #3880b0;
+    --bg: #0c0e0d;
+    --surface: #141716;
+    --surface-2: #1c1f1e;
+    --border: #262b28;
+    --text: #b8c4be;
+    --text-dim: #6a7870;
+    --text-hi: #dce8e2;
+    --red: #cc2020;
+    --amber: #d09010;
+    --amber-bg: rgba(160, 112, 0, .18);
+    --blue: #3880b0;
+    --blue-bg: rgba(48, 112, 176, .18);
     --mono: ui-monospace, 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 body {
     background: var(--bg);
@@ -42,15 +43,14 @@ body {
     flex-wrap: wrap;
 }
 
-.page-header h1 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-hi);
-    letter-spacing: .04em;
-    flex-shrink: 0;
-}
+    .page-header h1 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-hi);
+        letter-spacing: .04em;
+        flex-shrink: 0;
+    }
 
-/* Section anchor links in the header */
 .header-nav {
     display: flex;
     align-items: center;
@@ -62,23 +62,17 @@ body {
         font-size: 12px;
         color: var(--blue);
         text-decoration: none;
-        transition: color .1s;
+        transition: opacity .1s;
     }
 
         .header-nav a:hover {
             text-decoration: underline;
         }
 
-        .header-nav a.has-results {
-            color: var(--blue);
-        }
-
-.header-nav a.has-conflict { color: var(--amber); }
-
-.header-nav .nav-sep {
-    color: var(--border);
-    font-size: 11px;
-}
+    .header-nav .nav-sep {
+        color: var(--border);
+        font-size: 11px;
+    }
 
 /* -- Layout -- */
 
@@ -109,33 +103,66 @@ button {
     transition: opacity .1s;
 }
 
-button:disabled { opacity: .35; cursor: not-allowed; }
+    button:disabled {
+        opacity: .35;
+        cursor: not-allowed;
+    }
 
-#btn-start  { background: var(--green);  border-color: var(--green);  color: #fff; }
-#btn-cancel { background: transparent;   border-color: var(--red);    color: var(--red); }
-#btn-export { background: transparent;   border-color: var(--blue);   color: var(--blue); }
-#status-text { color: var(--text-dim); font-size: 12px; margin-left: 4px; }
+#btn-start {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+
+#btn-cancel {
+    background: transparent;
+    border-color: var(--red);
+    color: var(--red);
+}
+
+#btn-export {
+    background: transparent;
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
+#status-text {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-left: 4px;
+}
 
 /* -- Progress -- */
 
-.progress-wrap { display: none; flex-direction: column; gap: 7px; }
-.progress-wrap.visible { display: flex; }
+.progress-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 0;
+}
+
+    .progress-wrap.visible {
+        display: flex;
+    }
 
 .progress-track {
-    height: 3px;
+    height: 2px;
     background: var(--surface-2);
-    border-radius: 1px;
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
-    background: var(--green);
+    background: var(--blue);
     width: 0%;
     transition: width .15s linear;
 }
 
-.progress-label { font-size: 12px; color: var(--text-dim); }
+.progress-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 5px 0 0;
+    min-height: 20px;
+}
 
 /* -- Stats grid -- */
 
@@ -147,12 +174,22 @@ button:disabled { opacity: .35; cursor: not-allowed; }
     border: 1px solid var(--border);
 }
 
-.stats-grid.visible { display: grid; }
+    .stats-grid.visible {
+        display: grid;
+    }
 
-#stats-spec-row { display: contents; }
-#stats-spec-row:not(.visible) .stat-card { display: none; }
+#stats-spec-row {
+    display: contents;
+}
 
-.stat-card { background: var(--surface); padding: 13px 16px; }
+    #stats-spec-row:not(.visible) .stat-card {
+        display: none;
+    }
+
+.stat-card {
+    background: var(--surface);
+    padding: 13px 16px;
+}
 
 .stat-label {
     font-size: 11px;
@@ -168,24 +205,31 @@ button:disabled { opacity: .35; cursor: not-allowed; }
     color: var(--text-hi);
 }
 
-.stat-card.c-conflict .stat-value { color: var(--red); }
-.stat-card.c-warn     .stat-value { color: var(--amber); }
-.stat-card.c-ok       .stat-value { color: var(--green); }
+.stat-card.c-conflict .stat-value {
+    color: var(--red);
+}
 
-/* -- Collapsible panels (cp-panel pattern, shared with main app via collapsible-panel.js)
- *
- * Uses the same conventions as panel.css:
- *   .cp-panel             container
- *   .panel-summary        clickable header (role="button")
- *   .panel-arrow          SVG chevron: 0deg closed, 90deg open (CSS transition)
- *   .cp-body[hidden]      body toggled via [hidden] attribute by JS
- * -- */
+.stat-card.c-warn .stat-value {
+    color: var(--amber);
+}
 
-.result-section { display: none; }
-.result-section.visible { display: block; }
+.stat-card.c-ok .stat-value {
+    color: var(--blue);
+}
 
-/* cp-body visibility is controlled by JS via the [hidden] attribute */
-.cp-body[hidden] { display: none; }
+/* -- Collapsible panels (cp-panel, shared with main app) -- */
+
+.result-section {
+    display: none;
+}
+
+    .result-section.visible {
+        display: block;
+    }
+
+.cp-body[hidden] {
+    display: none;
+}
 
 .cp-body {
     border: 1px solid var(--border);
@@ -205,22 +249,21 @@ button:disabled { opacity: .35; cursor: not-allowed; }
     outline: none;
 }
 
-.panel-summary:hover { background: var(--surface-2); }
+    .panel-summary:hover {
+        background: var(--surface-2);
+    }
 
-.panel-summary:focus-visible {
-    outline: 2px solid var(--blue);
-    outline-offset: -2px;
-}
+    .panel-summary:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: -2px;
+    }
 
-.panel-summary h2 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-hi);
-}
+    .panel-summary h2 {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-hi);
+    }
 
-/* SVG chevron arrow: same rotation as panel.css
- *   closed: 0deg (pointing right)
- *   open:   90deg (pointing down) */
 .panel-arrow {
     color: var(--text-dim);
     flex-shrink: 0;
@@ -239,11 +282,15 @@ button:disabled { opacity: .35; cursor: not-allowed; }
     margin-left: auto;
 }
 
-.wiki-link:hover { text-decoration: underline; }
+    .wiki-link:hover {
+        text-decoration: underline;
+    }
 
 /* -- Sub-sections (spec diff) -- */
 
-.sub-section { margin-bottom: 20px; }
+.sub-section {
+    margin-bottom: 20px;
+}
 
 .sub-header {
     display: flex;
@@ -254,44 +301,84 @@ button:disabled { opacity: .35; cursor: not-allowed; }
     margin-bottom: 10px;
 }
 
-.sub-header h3 {
-    font-size: 12px;
-    color: var(--text-hi);
-    font-weight: 500;
-}
+    .sub-header h3 {
+        font-size: 12px;
+        color: var(--text-hi);
+        font-weight: 500;
+    }
 
-/* <details> matched section uses the same panel-arrow SVG for its toggle */
 details > summary {
     cursor: pointer;
     list-style: none;
     user-select: none;
 }
 
-details > summary::-webkit-details-marker { display: none; }
+    details > summary::-webkit-details-marker {
+        display: none;
+    }
 
-details > summary .panel-arrow { transition: transform .15s; transform: rotate(0deg); }
-details[open] > summary .panel-arrow { transform: rotate(90deg); }
+    details > summary .panel-arrow {
+        transition: transform .15s;
+        transform: rotate(0deg);
+    }
+
+details[open] > summary .panel-arrow {
+    transform: rotate(90deg);
+}
 
 /* -- Badges -- */
 
 .badge {
     font-size: 11px;
     font-weight: 600;
-    padding: 2px 7px;
-    border-radius: 10px;
+    padding: 2px 9px;
+    border-radius: 4px;
+    color: #fff;
 }
 
-.badge-red   { background: var(--red-bg);   color: var(--red); }
-.badge-amber { background: var(--amber-bg); color: var(--amber); }
-.badge-green { background: var(--green-bg); color: var(--green); }
+/* Conflicts badge: muted dark-red, not aggressive */
+.badge-blue {
+    background: var(--blue);
+}
 
-/* -- Tables
+.badge-amber {
+    background: var(--amber);
+}
+
+.badge-red {
+    background: rgba(160, 40, 40, .85);
+}
+
+.badge-green {
+    background: var(--blue);
+}
+
+/* -- Column system
  *
- * table-layout: auto so each column sizes to its content.
- * All <td> are white-space: nowrap except .col-nodes which is normal
- * and gets all remaining width via width: 100%.
+ * All section tables share the SAME fixed widths so their columns align
+ * horizontally across sections (wiki, code, matched, unmapped):
+ *
+ *   col-row-num  #  row number
+ *   col-key         OSM key / SNCF type
+ *   col-type        Type value / Occurrences
+ *   col-note        Classification / (overflows in 3-col tables)
+ *   (last col)      Sample IDs / auto
+ *
+ * The row-num column sits outside the alignment grid; col-key and col-type
+ * are identical in every table so "Type Value" aligns regardless of the
+ * presence of a third column.
+ *
+ * table-layout: auto on .spec-table lets content breathe without truncation
+ * while still respecting min-width constraints.
  * -- */
 
+:root {
+    --col-row-num-w: 32px;
+    --col-key-w: min(55%, 340px);
+    --col-type-w: min(25%, 200px);
+}
+
+/* Base table */
 .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -299,30 +386,69 @@ details[open] > summary .panel-arrow { transform: rotate(90deg); }
     table-layout: auto;
 }
 
-.data-table th {
-    text-align: left;
-    padding: 6px 10px;
-    font-size: 11px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    border-bottom: 1px solid var(--border);
-    font-weight: 500;
-    white-space: nowrap;
+    .data-table th {
+        text-align: left;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        border-bottom: 1px solid var(--border);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .data-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid var(--surface-2);
+        vertical-align: top;
+        white-space: nowrap;
+    }
+
+        /* Nodes column: wraps, takes all remaining width */
+        .data-table th.col-nodes,
+        .data-table td.col-nodes {
+            white-space: normal;
+            width: 100%;
+        }
+
+    .data-table tbody tr:hover td {
+        background: var(--surface);
+    }
+
+/* Column width classes applied to both <th> and <td> */
+.col-row-num {
+    width: var(--col-row-num-w);
+    min-width: var(--col-row-num-w);
 }
 
-.data-table td {
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--surface-2);
-    vertical-align: top;
-    white-space: nowrap;
+.col-key {
+    width: var(--col-key-w);
+    min-width: 180px;
 }
 
-/* Nodes column: wraps and expands to fill remaining width */
-.data-table th.col-nodes,
-.data-table td.col-nodes { white-space: normal; width: 100%; }
+.col-type {
+    width: var(--col-type-w);
+    min-width: 110px;
+}
 
-.data-table tbody tr:hover td { background: var(--surface); }
+/* Sample IDs / overflow column: allow wrapping */
+.col-ids {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* Spec-diff tables: all three sections use identical column widths so
+   the Type Value column aligns horizontally even in 2-column tables. */
+.spec-table {
+    table-layout: fixed;
+}
+
+    .spec-table th.col-type,
+    .spec-table td.col-type {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
 /* -- Conflict node rows -- */
 
@@ -334,7 +460,9 @@ details[open] > summary .panel-arrow { transform: rotate(90deg); }
     border-bottom: 1px solid var(--surface-2);
 }
 
-.node-row:last-child { border-bottom: none; }
+    .node-row:last-child {
+        border-bottom: none;
+    }
 
 .node-label {
     flex-shrink: 0;
@@ -344,55 +472,282 @@ details[open] > summary .panel-arrow { transform: rotate(90deg); }
     padding-top: 3px;
 }
 
-.node-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.node-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
 
-/* -- Chips: entire <a> is the clickable target -- */
+/* -- Chips
+ *
+ * Each chip shows the SNCF type, the OSM cat, and optionally the networkId.
+ * The left border is colored with the category's app color (set inline by JS).
+ * No red-dark conflict highlighting — the category color already distinguishes
+ * which signals are conflicting across nodes.
+ * -- */
 
 .chip {
     display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
     padding: 2px 7px;
     border-radius: 2px;
     font-size: 11px;
     background: var(--surface-2);
     border: 1px solid var(--border);
+    border-left-width: 3px;
     white-space: nowrap;
     text-decoration: none;
     color: var(--text);
     transition: border-color .1s;
+    gap: 1px;
 }
 
-.chip:hover { border-color: var(--blue); }
+    .chip:hover {
+        opacity: .85;
+    }
 
-.chip .chip-type { color: var(--text-hi); }
-.chip .chip-cat  { color: var(--text-dim); font-size: 10px; }
-
-/* Conflicting chip: soft dark-red border, subtle background */
-.chip.chip-conflict {
-    border-color: var(--red-border);
-    background: var(--red-bg);
+.chip-top {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
 }
 
-/* Unmapped chip: amber */
+.chip .chip-type {
+    color: var(--text-hi);
+    font-size: 11px;
+}
+
+.chip .chip-cat {
+    color: var(--text-dim);
+    font-size: 10px;
+}
+
+.chip .chip-id {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-style: italic;
+}
+
+/* Unmapped chip: amber left border and text */
 .chip.chip-unmap {
     background: var(--amber-bg);
-    border-color: var(--amber);
+    border-color: var(--border);
+    border-left-color: var(--amber);
 }
 
-.chip.chip-unmap .chip-type { color: var(--amber); }
+    .chip.chip-unmap .chip-type {
+        color: var(--amber);
+    }
+
+    .chip.chip-unmap .chip-id {
+        color: var(--amber);
+        opacity: .7;
+    }
+
+/* -- Dedup toggle switch (mirrors base.css toggle pattern from main app) -- */
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-dim);
+    user-select: none;
+}
+
+    .settings-toggle-row:hover {
+        color: var(--text);
+    }
+
+.settings-toggle-label {
+    flex: 1;
+    line-height: 1.3;
+}
+
+/* Visually hidden checkbox — keyboard/screen-reader accessible */
+.toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.toggle-track {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 30px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--border);
+    flex-shrink: 0;
+    transition: background .15s;
+}
+
+.toggle-thumb {
+    position: absolute;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: left .15s, background .15s;
+}
+
+.toggle-input:checked + .toggle-track {
+    background: var(--blue);
+}
+
+    .toggle-input:checked + .toggle-track .toggle-thumb {
+        left: 16px;
+        background: #fff;
+    }
+
+.toggle-input:focus-visible + .toggle-track {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+/* -- Filter dropdown (appended to Nodes column header) -- */
+
+.filter-btn-wrap {
+    float: right;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.filter-dropdown-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    border-radius: 2px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 400;
+    transition: color .1s, border-color .1s;
+}
+
+    .filter-dropdown-btn:hover {
+        color: var(--blue);
+        border-color: var(--blue);
+    }
+
+    .filter-dropdown-btn.is-active {
+        color: var(--blue);
+        border-color: var(--blue);
+        background: var(--blue-bg);
+    }
+
+/* Chevron always points down (90deg) — does not rotate, it is a dropdown indicator */
+.filter-dropdown-chevron {
+    display: inline-flex;
+    transform: rotate(90deg);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.filter-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    overflow: hidden;
+}
+
+.filter-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text);
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .1s;
+    white-space: nowrap;
+    font-family: var(--mono);
+}
+
+    .filter-dropdown-item:hover {
+        background: var(--surface-2);
+    }
+
+    /* "All" row: separator below, slightly brighter */
+    .filter-dropdown-item.item-all {
+        color: var(--text-hi);
+        border-bottom: 1px solid var(--surface-2);
+    }
+
+    .filter-dropdown-item input[type="checkbox"] {
+        accent-color: var(--blue);
+        flex-shrink: 0;
+        cursor: pointer;
+        width: 12px;
+        height: 12px;
+    }
+
+tr.filtered-out {
+    display: none;
+}
+
+/* -- Row number column -- */
+
+.col-row-num {
+    width: var(--col-row-num-w);
+    min-width: var(--col-row-num-w);
+    color: var(--text-dim);
+    font-size: 11px;
+}
 
 /* -- Utility classes -- */
 
-.text-hi    { color: var(--text-hi); }
-.text-dim   { color: var(--text-dim); }
-.text-amber { color: var(--amber); }
-.text-green { color: var(--green); }
-.mono-sm    { font-family: var(--mono); font-size: 12px; }
-.dim        { color: var(--text-dim); }
+.text-hi {
+    color: var(--text-hi);
+}
 
-.link { color: var(--blue); text-decoration: none; }
-.link:hover { text-decoration: underline; }
+.text-dim {
+    color: var(--text-dim);
+}
+
+.text-amber {
+    color: var(--amber);
+}
+
+.text-blue {
+    color: var(--blue);
+}
+
+.mono-sm {
+    font-family: var(--mono);
+    font-size: 12px;
+}
+
+.dim {
+    color: var(--text-dim);
+}
+
+.link {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+    .link:hover {
+        text-decoration: underline;
+    }
 
 code {
     font-family: var(--mono);
@@ -426,8 +781,16 @@ code {
     cursor: pointer;
     display: none;
     z-index: 100;
+    align-items: center;
+    gap: 5px;
     transition: color .1s, border-color .1s;
 }
 
-#btn-toc.visible { display: block; }
-#btn-toc:hover   { color: var(--blue); border-color: var(--blue); }
+    #btn-toc.visible {
+        display: flex;
+    }
+
+    #btn-toc:hover {
+        color: var(--blue);
+        border-color: var(--blue);
+    }

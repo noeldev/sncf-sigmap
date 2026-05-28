@@ -23,106 +23,13 @@
  * @reference https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France
  */
 
-import { milepostToDecimalKm } from './sncf-convert.js';
 import { getColorForCategory } from './cat-mapping.js';
 import { t } from './translation.js';
 import { SIGNAL_MAPPING } from './signal-types.js';
 import { groupFeats, getHighestPriorityType } from './signal-grouping.js';
+import { buildNodeTags } from './osm-tags.js';
 
 // ===== Internal Helpers =====
-
-/**
- * Writes standard node metadata tags.
- * @param {Map<string, string>} tags
- * @param {object} first  First signal's normalized properties.
- */
-function _writeCommonTags(tags, first) {
-    tags.set('railway', 'signal');
-    tags.set('railway:position:exact', milepostToDecimalKm(first.milepost));
-
-    if (first.direction !== 'unknown') {
-        tags.set('railway:signal:direction', first.direction);
-    }
-    if (first.placement !== 'unknown') {
-        tags.set('railway:signal:position', first.placement);
-    }
-}
-
-/**
- * Writes OSM tags for a mapped signal.
- * @param {{ p: object }} feat
- * @param {object} mapping
- * @param {Map<string, string>} tags
- */
-function _writeSignalTags(feat, mapping, tags) {
-    const prefix = `railway:signal:${mapping.cat}`;
-    tags.set(prefix, mapping.type);
-
-    for (const [k, v] of Object.entries(mapping.properties || {})) {
-        tags.set(`${prefix}:${k}`, v);
-    }
-
-    if (feat.p.networkId) {
-        tags.set(`${prefix}:ref`, feat.p.networkId);
-    }
-}
-
-/**
- * Builds the 'fixme' tag for unsupported signals.
- * @param {Map<string, string>} tags
- * @param {Map<string, string[]>} unsupportedByType
- */
-function _writeUnsupportedFixme(tags, unsupportedByType) {
-    if (unsupportedByType.size === 0) return;
-
-    const items = [];
-    for (const [type, ids] of unsupportedByType) {
-        const idsStr = ids.length ? ids.join(', ') : '';
-        if (type) {
-            items.push(idsStr ? `'${type}' (${idsStr})` : `'${type}'`);
-        } else if (idsStr) {
-            items.push(idsStr);
-        }
-    }
-
-    const content = items.join('; ') || '?';
-    tags.set('fixme', t('osm.fixme', content));
-}
-
-/**
- * Builds the complete OSM tag Map for a group of signals.
- * @param {object[]} feats
- * @returns {Map<string, string>}
- */
-function _buildNodeTags(feats) {
-    const tags = new Map();
-    const first = feats[0].p;
-
-    _writeCommonTags(tags, first);
-
-    const unsupportedByType = new Map();
-
-    for (const feat of feats) {
-        const { signalType, networkId } = feat.p;
-        const mapping = SIGNAL_MAPPING[signalType];
-
-        if (mapping) {
-            _writeSignalTags(feat, mapping, tags);
-        } else {
-            if (!unsupportedByType.has(signalType)) {
-                unsupportedByType.set(signalType, []);
-            }
-            if (networkId) {
-                unsupportedByType.get(signalType).push(networkId);
-            }
-        }
-    }
-
-    _writeUnsupportedFixme(tags, unsupportedByType);
-    tags.set('source', 'SNCF - 03/2022');
-
-    return tags;
-}
 
 // ===== Public API =====
 
@@ -254,7 +161,11 @@ export function getOsmNodes(feats) {
     for (const [oldIdx, newIdx] of indexRemap) {
         const groupFeatsArr = nodeGroups[oldIdx].feats;
         const id = groupFeatsArr.map(f => f.p.networkId || f.p.signalType).sort().join('|');
-        nodes[newIdx] = { id, index: newIdx, tags: _buildNodeTags(groupFeatsArr) };
+        nodes[newIdx] = {
+            id,
+            index: newIdx,
+            tags: buildNodeTags(groupFeatsArr, { fixmeLabel: t('osm.fixme.label') }),
+        };
     }
 
     const featToNodeIdx = new Map();

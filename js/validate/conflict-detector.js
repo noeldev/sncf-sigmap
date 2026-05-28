@@ -1,41 +1,49 @@
 /**
- * conflict-detector.js — Co-location OSM node conflict detection.
+ * conflict-detector.js - Co-location OSM node conflict detection.
  *
  * Analyses location groups produced by buildLocationGroups() and reports
- * any locations where getOsmNodes() is forced to create more than one OSM
- * node for the same direction+placement combination, meaning at least one
- * OSM category appears twice at that location and direction.
+ * locations where getOsmNodes() is forced to create more than one OSM node
+ * for the same direction+placement combination (duplicated OSM category).
  *
- * Grouping logic is fully delegated to signal-grouping.js so there is no
- * duplication of rules between this module and signal-mapping.js.
+ * Location group key: trackCode|milepost
+ *   All three SNCF identifiers are used so that signals referenced by
+ *   different lines at the same PK are kept in separate groups. This matches
+ *   the data semantics: the same physical signal can appear once per line in
+ *   the SNCF dataset (bifurcation points, shared infrastructure).
+ *   sens (direction) and position (placement) are handled by canFit() inside
+ *   groupFeats() - they determine node splitting, not location grouping.
+ *   nom_voie is excluded: it is always the trailing segment of code_voie and
+ *   carries no additional identity information.
+ *
+ *   Note: this groupKey intentionally diverges from tiles-worker.js _groupKey
+ *   (trackCode|milepost only) because the two have different goals:
+ *     - tiles-worker.js: physical co-location for map rendering
+ *     - conflict-detector.js: data identity for OSM tagging analysis
+ *
+ * Grouping logic is fully delegated to signal-grouping.js (no mirrored rules).
  *
  * Public API:
- *   buildLocationGroups(tiles) → Map<key, LocationGroup>
- *   detectOsmNodes(feats)      → NodeGroup[]   (re-exported from signal-grouping)
- *   findConflicts(nodes)       → Conflict[]
+ *   buildLocationGroups(tiles) -> Map<key, LocationGroup>
+ *   detectOsmNodes(feats)      -> NodeGroup[]   (re-exported from signal-grouping)
+ *   findConflicts(nodes)       -> Conflict[]
  *
  * Types:
- *   LocationGroup = { lat, lng, key, trackCode, trackName, milepost, feats[] }
- *   NodeGroup     = { direction, placement, feats[], categories: Set<string> }
+ *   LocationGroup = { lat, lng, key, trackCode, milepost, feats[] }
+ *   NodeGroup     = { direction, placement, feats[], categories: Set, types: Set }
  *   Conflict      = { direction, placement, nodes: NodeGroup[], dupCats: string[] }
  */
 
 import { normalizeSignal } from '../sncf-convert.js';
 import { groupFeats as detectOsmNodes } from '../signal-grouping.js';
 
-// Re-export so callers only need one import for both grouping and conflict detection.
 export { detectOsmNodes };
 
 // ===== Public API =====
 
 /**
  * Build location groups from an array of raw tile signal arrays.
- * Mirrors _groupByLocation() in tiles-worker.js.
  *
- * Stores trackCode, trackName and milepost on the group so the renderer
- * can display them without re-scanning the feats array.
- *
- * @param {object[][]} tiles  Array of raw tile signal arrays.
+ * @param {object[][]} tiles
  * @returns {Map<string, LocationGroup>}
  */
 export function buildLocationGroups(tiles) {
@@ -53,7 +61,6 @@ export function buildLocationGroups(tiles) {
                     lng: raw.lng,
                     key,
                     trackCode: p.trackCode,
-                    trackName: p.trackName,
                     milepost: p.milepost,
                     feats: [],
                 });
@@ -66,14 +73,13 @@ export function buildLocationGroups(tiles) {
 }
 
 /**
- * Find NodeGroups where the same direction+placement combination produced
- * more than one node, implying a duplicated OSM category at that location.
+ * Find NodeGroups where the same direction+placement produced more than one
+ * node, implying a duplicated OSM category.
  *
- * @param {NodeGroup[]} nodes  Output of detectOsmNodes() (i.e. groupFeats()).
+ * @param {NodeGroup[]} nodes
  * @returns {Conflict[]}
  */
 export function findConflicts(nodes) {
-    // Bucket nodes by their direction+placement key.
     const byKey = new Map();
     for (const node of nodes) {
         const k = `${node.direction}|${node.placement}`;
@@ -87,7 +93,6 @@ export function findConflicts(nodes) {
     for (const { direction, placement, nodes: grpNodes } of byKey.values()) {
         if (grpNodes.length < 2) continue;
 
-        // Identify which categories appear on more than one node.
         const catCounts = new Map();
         for (const node of grpNodes) {
             for (const cat of node.categories) {
@@ -107,8 +112,8 @@ export function findConflicts(nodes) {
 // ===== Private helpers =====
 
 /**
- * Derive the location group key for a signal.
- * Exact mirror of _groupKey() in tiles-worker.js — must stay in sync.
+ * Derive the location group key using all three SNCF identity fields.
+ * Falls back to lat/lng when any identifier is missing.
  *
  * @param {object} p    Normalized signal properties.
  * @param {object} raw  Raw tile signal (has .lat / .lng).

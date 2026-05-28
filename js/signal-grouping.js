@@ -1,115 +1,83 @@
 /**
  * signal-grouping.js - Pure OSM node grouping logic.
  *
- * Contains the sort order and placement rules that determine how co-located
- * signals are distributed across OSM nodes. Has NO dependency on translation.js
- * or any other module with side-effects, making it safe to import from both
- * signal-mapping.js (main thread, full app) and conflict-detector.js
- * (validation tool, no translation context).
- *
- * This module is the single source of truth for the grouping algorithm.
- * signal-mapping.js calls groupFeats() then builds tags on top.
- * conflict-detector.js calls groupFeats() then analyses the groups for conflicts.
+ * Single source of truth for how co-located signals are distributed across
+ * OSM nodes. No dependency on translation.js or any DOM module.
  *
  * Grouping rules - a signal can join an existing node group when ALL hold:
- *   1. direction  - must match the group's direction.
- *   2. placement  - must match the group's placement (left/right/bridge/...).
- *      Signals on physically different sides of the track are separate nodes.
- *   3. category   - the signal's OSM cat must not already appear in the group.
- *      Each physical node carries at most one signal per OSM category.
- *   Unsupported signals (no SIGNAL_MAPPING entry) satisfy rules 2 and 3
- *   automatically - they never produce a category conflict.
+ *   1. direction  - matches the group's direction.
+ *   2. placement  - matches the group's placement (left/right/bridge/...).
+ *   3. category   - the signal's OSM cat is not already in the group.
+ *   Unsupported signals (no SIGNAL_MAPPING entry) skip rules 2 and 3.
  *
- * Sort order applied before placement:
- *   a. Signals with linkedTo sort after any signal that matches their link
- *      criteria, ensuring the anchor signal lands in a group first.
- *   b. Within the same tier: networkId cluster (first 4 digits) ascending,
- *      then type priority ascending.
+ * linkedTo - network key affinity:
+ *   A SIGNAL_MAPPING entry can declare linkedTo as a GAIA key string
+ *   (e.g. "TIV D FIXE") or an array of such strings. These are primary keys
+ *   of SIGNAL_MAPPING and equal to p.signalType in normalised signals.
  *
- * Group selection for signals with linkedTo:
- *   The placement loop iterates the linkedTo entries in order and picks the
- *   first group that already holds a signal matching all specified criteria
- *   (cat and/or type) and can still accept the new signal (canFit). Falls back
- *   to the first available group when no linked group is found.
+ * Sort order:
+ *   Tier 0 - Anchor signals (their GAIA key is a linkedTo target in this batch).
+ *            Must land first so linked signals can find their group.
+ *   Tier 1 - Signals with linkedTo. Sorted by proximity to their nearest anchor
+ *            signal's networkId so the closest signal claims the preferred slot
+ *            before a distant outlier does (e.g. TIV D FIXE 160519 beats 10326116
+ *            for the CARRE 160521 slot because |160519-160521|=2 vs ~10M).
+ *   Tier 2 - Signals without linkedTo whose OSM cat is claimed by a tier-1 signal.
+ *            Deferred so linked signals (e.g. Z) get priority for the slot.
+ *   Tier 3 - Everything else: networkId cluster ascending, type priority ascending.
  *
- *   linkedTo is normalised internally to an array, so both the single-object
- *   form { cat, type } and the array form [{...}, {...}] are supported.
+ *   When multiple candidate groups qualify (same anchor key, canFit), the group
+ *   whose anchor networkId is numerically closest to the signal's own networkId
+ *   is preferred. SNCF-paired signals have quasi-consecutive identifiers.
  *
  * NodeGroup shape:
- *   { direction, placement, feats[], categories: Set<string>, types: Set<string> }
- *   categories tracks OSM cats present (for cat-based linking).
- *   types      tracks OSM type values present (for type-based linking).
+ *   { direction, placement, feats[], categories: Set<string>,
+ *     networkKeys: Map<gaiaKey, string> }
+ *   networkKeys maps each GAIA key in the group to the networkId of the signal
+ *   that introduced it, used for proximity scoring.
  *
  * Public API:
  *   groupFeats(feats) -> NodeGroup[]
  *   canFit(feat, group) -> boolean
+ *   getTypePriority(type) -> number
+ *   getHighestPriorityType(types) -> string|null
  */
 
 import { SIGNAL_MAPPING } from './signal-types.js';
 
 // ===== Priority table =====
 
-/** Priority lookup derived from SIGNAL_MAPPING insertion order. */
 export const TYPE_PRIORITY = Object.freeze(
-    Object.fromEntries(Object.keys(SIGNAL_MAPPING).map((type, i) => [type, i]))
+    Object.fromEntries(Object.keys(SIGNAL_MAPPING).map((key, i) => [key, i]))
 );
 
 const UNSUPPORTED_PRIORITY = Infinity;
 
-/**
- * @param {string} type
- * @returns {number}
- */
 export function getTypePriority(type) {
     return TYPE_PRIORITY[type] ?? UNSUPPORTED_PRIORITY;
 }
 
-/**
- * Determines the signal type with the highest priority from a list.
- * @param {string[]} types
- * @returns {string|null}
- */
 export function getHighestPriorityType(types) {
-    let primaryType = null;
-    let primaryPriority = UNSUPPORTED_PRIORITY;
-
-    for (const type of types) {
-        const priority = getTypePriority(type);
-        if (priority < primaryPriority) {
-            primaryPriority = priority;
-            primaryType = type;
-        }
+    let best = null, bestRank = UNSUPPORTED_PRIORITY;
+    for (const t of types) {
+        const r = getTypePriority(t);
+        if (r < bestRank) { bestRank = r; best = t; }
     }
-    return primaryType;
+    return best;
 }
-
 
 // ===== Public API =====
 
-/**
- * Returns true when feat can be added to group without conflicts.
- * Exported so that consumers (e.g. conflict-detector.js) can test
- * individual placement decisions without re-implementing the rules.
- *
- * @param {{ p: { signalType: string, direction: string, placement: string } }} feat
- * @param {{ direction: string, placement: string, categories: Set<string> }}   group
- * @returns {boolean}
- */
 export function canFit(feat, group) {
     const mapping = SIGNAL_MAPPING[feat.p.signalType];
     if (group.direction !== feat.p.direction) return false;
     if (group.placement !== feat.p.placement) return false;
-    if (!mapping) return true;                           // unsupported: no cat conflict
+    if (!mapping) return true;
     return !group.categories.has(mapping.cat);
 }
 
 /**
- * Distribute feats into NodeGroups following the grouping rules above.
- * Returns the groups in the order they were created (i.e. in the order the
- * first signal of each group appears in the sorted input).
- *
- * Callers that need the result in original feat order (e.g. getOsmNodes for
- * tag output) must apply their own index remapping afterwards.
+ * Distribute feats into NodeGroups.
  *
  * @param {Array<{ p: object }>} feats
  * @returns {NodeGroup[]}
@@ -123,16 +91,32 @@ export function groupFeats(feats) {
         const links = _links(mapping);
         let idx = -1;
 
-        // Try each linkedTo entry in order; use the first group that matches.
-        for (const link of links) {
-            idx = groups.findIndex(g => _matchesLink(g, link) && canFit(feat, g));
-            if (idx !== -1) break;
+        if (links.length > 0) {
+            // Collect all candidate groups holding a linked anchor key.
+            const candidates = [];
+            for (let i = 0; i < groups.length; i++) {
+                const g = groups[i];
+                if (!canFit(feat, g)) continue;
+                for (const link of links) {
+                    if (g.networkKeys.has(link)) {
+                        candidates.push({ i, anchorId: g.networkKeys.get(link) });
+                        break;
+                    }
+                }
+            }
+            if (candidates.length === 1) {
+                idx = candidates[0].i;
+            } else if (candidates.length > 1) {
+                // Prefer the candidate whose anchor networkId is closest to ours.
+                const myId = _numId(feat.p.networkId);
+                idx = candidates.reduce((best, c) =>
+                    Math.abs(_numId(c.anchorId) - myId) <
+                        Math.abs(_numId(best.anchorId) - myId) ? c : best
+                ).i;
+            }
         }
 
-        // Fallback: first available group.
-        if (idx === -1) {
-            idx = groups.findIndex(g => canFit(feat, g));
-        }
+        if (idx === -1) idx = groups.findIndex(g => canFit(feat, g));
 
         if (idx === -1) {
             groups.push({
@@ -140,14 +124,12 @@ export function groupFeats(feats) {
                 placement: feat.p.placement,
                 feats: [feat],
                 categories: mapping ? new Set([mapping.cat]) : new Set(),
-                types: mapping ? new Set([mapping.type]) : new Set(),
+                networkKeys: new Map([[feat.p.signalType, feat.p.networkId]]),
             });
         } else {
             groups[idx].feats.push(feat);
-            if (mapping) {
-                groups[idx].categories.add(mapping.cat);
-                groups[idx].types.add(mapping.type);
-            }
+            groups[idx].networkKeys.set(feat.p.signalType, feat.p.networkId);
+            if (mapping) groups[idx].categories.add(mapping.cat);
         }
     }
 
@@ -156,65 +138,78 @@ export function groupFeats(feats) {
 
 // ===== Private =====
 
-/**
- * Normalise a SIGNAL_MAPPING entry's linkedTo field to an array.
- * Returns an empty array when no affinity is defined.
- *
- * @param {object|undefined} mapping
- * @returns {Array<{ cat?: string, type?: string }>}
- */
 function _links(mapping) {
     if (!mapping?.linkedTo) return [];
     return Array.isArray(mapping.linkedTo) ? mapping.linkedTo : [mapping.linkedTo];
 }
 
-/**
- * Returns true when a group already contains a signal matching a linkedTo entry.
- * Both cat and type criteria are optional; only the fields present in the link
- * object are checked.
- *
- * @param {{ categories: Set<string>, types: Set<string> }} group
- * @param {{ cat?: string, type?: string }} link
- * @returns {boolean}
- */
-function _matchesLink(group, link) {
-    if (link.cat && !group.categories.has(link.cat)) return false;
-    if (link.type && !group.types.has(link.type)) return false;
-    return true;
+function _numId(id) {
+    const n = parseInt(id ?? '', 10);
+    return Number.isFinite(n) ? n : 0;
 }
 
 /**
- * Sort feats for stable, deterministic grouping.
- * Signals with linkedTo sort after any signal that matches their link criteria,
- * ensuring the anchor signal lands in a group first.
+ * Sort feats for deterministic grouping (see tier documentation in module header).
  *
  * @param {Array<{ p: object }>} feats
  * @returns {Array<{ p: object }>}
  */
 function _sort(feats) {
+    // Set of GAIA keys referenced as anchors in this batch.
+    const anchorKeys = new Set();
+    for (const feat of feats) {
+        for (const k of _links(SIGNAL_MAPPING[feat.p.signalType])) anchorKeys.add(k);
+    }
+
+    // OSM cats claimed by signals with linkedTo (used to defer unlinked competitors).
+    const linkedCats = new Set();
+    for (const feat of feats) {
+        const m = SIGNAL_MAPPING[feat.p.signalType];
+        if (m && _links(m).length > 0) linkedCats.add(m.cat);
+    }
+
+    // For each anchor GAIA key, collect networkIds of all anchor signals in this batch.
+    const anchorIds = new Map();
+    for (const feat of feats) {
+        if (!anchorKeys.has(feat.p.signalType)) continue;
+        if (!anchorIds.has(feat.p.signalType)) anchorIds.set(feat.p.signalType, []);
+        anchorIds.get(feat.p.signalType).push(_numId(feat.p.networkId));
+    }
+
+    // Minimum networkId distance from a feat to any of its anchor signals.
+    const minDistToAnchor = feat => {
+        const myId = _numId(feat.p.networkId);
+        let min = Infinity;
+        for (const link of _links(SIGNAL_MAPPING[feat.p.signalType])) {
+            for (const anchorId of (anchorIds.get(link) ?? [])) {
+                const d = Math.abs(anchorId - myId);
+                if (d < min) min = d;
+            }
+        }
+        return min;
+    };
+
+    const tier = feat => {
+        const m = SIGNAL_MAPPING[feat.p.signalType];
+        if (anchorKeys.has(feat.p.signalType)) return 0;
+        if (_links(m).length > 0) return 1;
+        if (m && linkedCats.has(m.cat)) return 2;
+        return 3;
+    };
+
     return [...feats].sort((a, b) => {
-        const mA = SIGNAL_MAPPING[a.p.signalType];
-        const mB = SIGNAL_MAPPING[b.p.signalType];
+        const ta = tier(a), tb = tier(b);
+        if (ta !== tb) return ta - tb;
 
-        // A links to B's signal (any of A's linkedTo entries matches B's cat/type)
-        // -> A must sort after B so B's group exists when A is placed.
-        const aLinksToB = _links(mA).some(link =>
-            (!link.cat || link.cat === mB?.cat) &&
-            (!link.type || link.type === mB?.type)
-        );
-        const bLinksToA = _links(mB).some(link =>
-            (!link.cat || link.cat === mA?.cat) &&
-            (!link.type || link.type === mA?.type)
-        );
+        // Tier 1: closest-to-anchor first, so outliers don't steal preferred slots.
+        if (ta === 1) {
+            const da = minDistToAnchor(a), db = minDistToAnchor(b);
+            if (da !== db) return da - db;
+        }
 
-        if (aLinksToB && !bLinksToA) return 1;
-        if (bLinksToA && !aLinksToB) return -1;
-
-        // Secondary: networkId cluster (first 4 digits) then type priority.
         const clA = (a.p.networkId ?? '').slice(0, 4);
         const clB = (b.p.networkId ?? '').slice(0, 4);
         if (clA !== clB) return clA < clB ? -1 : 1;
         return getTypePriority(a.p.signalType) - getTypePriority(b.p.signalType);
     });
 }
-
