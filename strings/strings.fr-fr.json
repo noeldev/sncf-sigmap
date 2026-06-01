@@ -116,7 +116,8 @@
     "tabSignals": "Signaux",
     "tabTags": "Tags OSM",
     "captionSignal": "Signal",
-    "captionNode": "Nœud"
+    "captionNode": "Nœud",
+    "mechanical": "Signal Mécanique"
   },
   "osm": {
     "locateOnOsm": "Localiser dans OpenStreetMap",
@@ -125,8 +126,7 @@
     "error": "Échec de la vérification OSM",
     "retry": "Relancer la vérification OSM",
     "warnSingle": "Ce signal semble déjà présent dans OpenStreetMap. Exporter quand même ?",
-    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?",
-    "fixme": "Spécifications non disponibles : {0}"
+    "warnMulti": "Un ou plusieurs signaux semblent déjà présents dans OpenStreetMap. Exporter quand même ?"
   },
   "josm": {
     "notReachable": "JOSM inaccessible: {0}",
@@ -143,7 +143,7 @@
       "website": "Site web de JOSM"
     }
   },
-  "cat": {
+  "group": {
     "main": "Signaux principaux",
     "distant": "Signaux distants",
     "speedLimit": "Limitations de vitesse",

@@ -5,100 +5,93 @@
  *
  *   Pass A - Tile scan (manifest + all tiles):
  *     1. Co-location conflicts  - via conflict-detector.js.
- *     2. Unmapped SNCF types    - codes absent from SIGNAL_MAPPING.
+ *     2. Unmapped SNCF types    - codes absent from both SIGNAL_MAPPING
+ *                                 and MECHANICAL_MAPPING.
  *
  *   Pass B - Spec diff (wiki fetch only, no tiles):
- *     3. Cross-check SIGNAL_MAPPING {cat, type} OSM values against wiki.
+ *     3. Cross-check all OSM (cat, type) pairs against wiki.
  *        Rendered as soon as the wiki response arrives.
- *
- * Deduplication:
- *   Signals with the same networkId appearing in multiple tiles (e.g. at
- *   bifurcation points referenced by several lines) are deduplicated per
- *   location group before conflict detection. Controlled by a checkbox so
- *   the user can compare results with and without deduplication.
- *
- * Stats note:
- *   conflictLocations = number of location groups with at least one conflict.
- *   conflictRows      = total direction+placement conflict entries (table rows).
  *
  * GeoJSON export:
  *   Exports ALL signals as a FeatureCollection for OSM integration.
- *   Conflict locations are flagged with has_conflict=true and conflict details.
+ *   Co-located nodes are offset by ~50 cm so JOSM can distinguish them.
  *   Compatible with JOSM, QGIS, MapRoulette, and any GIS tool.
- *
- * Shared modules (unchanged from main app):
- *   sncf-convert.js, signal-types.js, signal-grouping.js, tiles.js, cat-mapping.js.
- *
- * Entry point: init() called at module scope (ES modules are deferred by default).
  */
 
-import { SIGNAL_MAPPING } from '../signal-types.js';
+import { isMapped } from '../signal-types.js';
 import { normalizeSignal } from '../sncf-convert.js';
 import { loadManifest, fetchTileByKey } from '../tiles.js';
 import { buildNodeTags } from '../osm-tags.js';
+import { loadStrings, translateAll, t } from '../translation.js';
+import { NODE_OFFSET_DEG } from '../config.js';
 import { fetchWikiSpec } from './wiki-parser.js';
 import { buildCodeSpec, compareSpecs } from './spec-compare.js';
+import { groupFeats } from '../signal-grouping.js';
 import {
-    buildLocationGroups, detectOsmNodes,
+    buildLocationGroups,
+    flagDuplicates,
     findConflicts
 } from './conflict-detector.js';
 import {
-    renderStats, renderConflicts,
-    renderUnmapped, renderSpecDiff,
-    clearResults, hideProgress
+    renderStats, renderConflicts, renderUnmapped,
+    renderSpecDiff, clearResults
 } from './report-renderer.js';
 
 // ===== State =====
 
-let _cancelled = false;
 let _lastResults = null;
-let _dedup = true;
 
 // ===== Entry point =====
 
-init();
+_init();
 
-export function init() {
-    document.getElementById('btn-start').addEventListener('click', _run);
-    document.getElementById('btn-cancel').addEventListener('click', () => { _cancelled = true; });
-    document.getElementById('btn-export').addEventListener('click', _exportGeoJSON);
-    document.getElementById('chk-dedup')?.addEventListener('change', e => { _dedup = e.target.checked; });
+async function _init() {
+    await _initI18n();
+    _bindEvents();
+    _run();
+}
+
+// ===== Initialisation helpers =====
+
+async function _initI18n() {
+    // Detect the browser language and try the matching validate strings file.
+    // loadStrings() already falls back to en-US when the requested locale fails.
+    const locale = _detectLocale();
+    await loadStrings(locale, 'validate');
+    translateAll();
+}
+
+/**
+ * Return the browser locale to use for validate strings.
+ * Uses navigator.language directly — no fixed supported-locale list.
+ * loadStrings() constructs the filename as validate.{locale.toLowerCase()}.json
+ * and falls back to en-US when the file cannot be loaded.
+ */
+function _detectLocale() {
+    return navigator.language ?? 'en-US';
+}
+
+function _bindEvents() {
+    const btn = document.getElementById('btn-export');
+    btn.addEventListener('click', _exportGeoJSON);
 }
 
 // ===== Run =====
 
 async function _run() {
-    _cancelled = false;
     _lastResults = null;
 
-    _setButtons({ start: false, cancel: true, export: false });
-    _setStatus('');
+    _enableExport(false);
     clearResults();
-    _showProgress(true);
-    _setProgress(0, 'Fetching wiki spec and tile manifest...');
+    _setProgress(0, t('progress.fetching'));
 
     const [wikiSpec, manifest] = await Promise.all([fetchWikiSpec(), loadManifest()]);
 
-    if (_cancelled) return _onCancel();
-
-    // Pass B: spec diff.
-    let specStats = null;
-    if (wikiSpec) {
-        const diffResult = compareSpecs(wikiSpec, buildCodeSpec(SIGNAL_MAPPING));
-        renderSpecDiff(diffResult);
-        specStats = {
-            wikiPairs: wikiSpec.pairs.length,
-            matched: diffResult.matched.length,
-            onlyInWiki: diffResult.onlyInWiki.length,
-            onlyInCode: diffResult.onlyInCode.length,
-        };
-    } else {
-        _setStatus('Warning: wiki fetch failed - spec diff skipped.');
-    }
+    // Pass B: spec diff — rendered immediately when wiki arrives.
+    const specStats = _runSpecDiff(wikiSpec);
 
     if (!manifest) {
-        _setProgress(0, 'Error: failed to load manifest.json');
-        _setButtons({ start: true, cancel: false, export: false });
+        _setProgress(0, t('error.manifest'));
         return;
     }
 
@@ -106,19 +99,14 @@ async function _run() {
     const { locationGroups, unmappedTypes, totalSignals, tilesLoaded } =
         await _scanTiles(Object.keys(manifest.tiles));
 
-    if (_cancelled) return _onCancel(tilesLoaded, Object.keys(manifest.tiles).length);
 
-    // Optional deduplication by networkId.
-    const dedupedCount = _dedup ? _deduplicateGroups(locationGroups) : 0;
-
-    // Conflict detection.
-    _setProgress(1, 'Analysing co-location groups...');
+    _setProgress(1, t('progress.analysing'));
+    flagDuplicates(locationGroups);
     const { conflicts, conflictRows } = _detectConflicts(locationGroups);
 
     _lastResults = {
         date: new Date().toISOString(),
         specStats,
-        dedupedCount,
         tileScan: {
             tiles: tilesLoaded,
             signals: totalSignals,
@@ -126,7 +114,7 @@ async function _run() {
             conflicts,
             conflictRows,
             unmappedTypes,
-            locationGroups, // retained for all-signals GeoJSON export
+            locationGroups,
         },
     };
 
@@ -136,14 +124,31 @@ async function _run() {
         locations: locationGroups.size,
         conflictLocations: conflicts.length,
         unmappedTypes: unmappedTypes.size,
-        dedupedCount,
         ...(specStats ?? {}),
     });
 
     renderConflicts(conflicts);
     renderUnmapped(unmappedTypes);
-    hideProgress();
-    _setButtons({ start: true, cancel: false, export: true });
+    _setStatus('');
+    _enableExport(true);
+}
+
+// ===== Pass B: spec diff =====
+
+function _runSpecDiff(wikiSpec) {
+    if (!wikiSpec) {
+        _setStatus(t('error.warnWikiFailed'));
+        return null;
+    }
+    // buildCodeSpec() derives its data from signal-types.js internally.
+    const diffResult = compareSpecs(wikiSpec, buildCodeSpec());
+    renderSpecDiff(diffResult);
+    return {
+        wikiPairs: wikiSpec.pairs.length,
+        matched: diffResult.matched.length,
+        onlyInWiki: diffResult.onlyInWiki.length,
+        onlyInCode: diffResult.onlyInCode.length,
+    };
 }
 
 // ===== Pass A helpers =====
@@ -154,9 +159,17 @@ async function _scanTiles(tileKeys) {
     let totalSignals = 0, tilesLoaded = 0;
 
     for (const tileKey of tileKeys) {
-        if (_cancelled) break;
-
-        const tile = await fetchTileByKey(tileKey);
+        let tile;
+        try {
+            tile = await fetchTileByKey(tileKey);
+        } catch (err) {
+            console.warn(`Tile ${tileKey} failed:`, err);
+            _setStatus(t('error.tileLoad', tileKey));
+            tilesLoaded++;
+            _setProgress(tilesLoaded / tileKeys.length,
+                t('progress.tile', tilesLoaded, tileKeys.length, totalSignals));
+            continue;
+        }
         _accumulateUnmapped(tile, unmappedTypes);
         totalSignals += tile.length;
 
@@ -166,9 +179,10 @@ async function _scanTiles(tileKeys) {
         }
 
         tilesLoaded++;
-        _setProgress(tilesLoaded / tileKeys.length,
-            `Tile ${tilesLoaded.toLocaleString()} / ${tileKeys.length.toLocaleString()}`
-            + ` - ${totalSignals.toLocaleString()} signals`);
+        _setProgress(
+            tilesLoaded / tileKeys.length,
+            t('progress.tile', tilesLoaded, tileKeys.length, totalSignals)
+        );
     }
 
     return { locationGroups, unmappedTypes, totalSignals, tilesLoaded };
@@ -177,7 +191,7 @@ async function _scanTiles(tileKeys) {
 function _accumulateUnmapped(tile, unmappedTypes) {
     for (const raw of tile) {
         const p = normalizeSignal(raw);
-        if (SIGNAL_MAPPING[p.signalType]) continue;
+        if (isMapped(p.signalType)) continue; // checks both SIGNAL_MAPPING and MECHANICAL_MAPPING
         if (!unmappedTypes.has(p.signalType)) {
             unmappedTypes.set(p.signalType, { count: 0, networkIds: new Set() });
         }
@@ -187,26 +201,13 @@ function _accumulateUnmapped(tile, unmappedTypes) {
     }
 }
 
-function _deduplicateGroups(locationGroups) {
-    let count = 0;
-    for (const loc of locationGroups.values()) {
-        const seen = new Set();
-        loc.feats = loc.feats.filter(feat => {
-            const id = feat.p.networkId;
-            if (id && seen.has(id)) { count++; return false; }
-            if (id) seen.add(id);
-            return true;
-        });
-    }
-    return count;
-}
-
 function _detectConflicts(locationGroups) {
     const conflicts = [];
     let conflictRows = 0;
 
     for (const loc of locationGroups.values()) {
-        const detected = findConflicts(detectOsmNodes(loc.feats));
+        const { nodeGroups, isMech } = groupFeats(loc.feats);
+        const detected = findConflicts(nodeGroups);
         if (!detected.length) continue;
         conflictRows += detected.length;
         conflicts.push({
@@ -219,9 +220,15 @@ function _detectConflicts(locationGroups) {
                 direction: dc.direction,
                 placement: dc.placement,
                 dupCats: dc.dupCats,
+                isMech,
                 nodes: dc.nodes.map(node => ({
                     feats: node.feats.map(f => ({
-                        p: { signalType: f.p.signalType, networkId: f.p.networkId },
+                        p: {
+                            signalType: f.p.signalType,
+                            networkId: f.p.networkId,
+                            isDupId: f.p.isDupId ?? false,
+                            isDupType: f.p.isDupType ?? false,
+                        },
                     })),
                 })),
             })),
@@ -236,25 +243,29 @@ function _detectConflicts(locationGroups) {
 /**
  * Export all signals as a standard GeoJSON FeatureCollection.
  *
- * One Feature per OSM node (signals grouped by groupFeats, same algorithm as
- * the main application). Properties are pure OSM key=value tags — no custom
- * or proprietary fields. Compatible with JOSM, QGIS, geojson.io, MapRoulette.
+ * Co-located signals at the same location produce multiple OSM nodes.
+ * Each node is offset by ~50 cm along the longitude axis so that JOSM
+ * and other editors can distinguish them visually and edit each one
+ * independently.
  *
- * Tag building is delegated to osm-tags.js (shared with signal-mapping.js).
+ * Properties are pure OSM key=value tags. Compatible with JOSM, QGIS,
+ * geojson.io, and MapRoulette.
  */
 function _exportGeoJSON() {
     if (!_lastResults) return;
-    const { date, tileScan } = _lastResults;
+    const { tileScan } = _lastResults;
 
     const features = [];
     for (const loc of tileScan.locationGroups.values()) {
-        // groupFeats (via detectOsmNodes) is the SAME function used by the app.
-        const nodeGroups = detectOsmNodes(loc.feats);
-        for (const node of nodeGroups) {
-            const tags = buildNodeTags(node.feats);
+        const { nodeGroups, isMech } = groupFeats(loc.feats);
+        for (let i = 0; i < nodeGroups.length; i++) {
+            const tags = buildNodeTags(nodeGroups[i].feats, { isMech });
+            // Offset each node on the latitude axis so co-located nodes are
+            // individually selectable in JOSM. Same constant as signal-popup.js.
+            const lat = loc.lat + i * NODE_OFFSET_DEG;
             features.push({
                 type: 'Feature',
-                geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+                geometry: { type: 'Point', coordinates: [loc.lng, lat] },
                 properties: Object.fromEntries(tags),
             });
         }
@@ -277,43 +288,21 @@ function _exportGeoJSON() {
     a.click();
     URL.revokeObjectURL(a.href);
 
-    // The exported node count will be lower than the "Signals" stat because
-    // co-located signals sharing an OSM node are merged into one Feature.
-    _flashStatus(`Exported ${features.length.toLocaleString()} OSM nodes (${_lastResults.tileScan.signals.toLocaleString()} raw signals)`);
+    _setStatus(t('export.done', features.length, tileScan.signals));
 }
 
 // ===== UI helpers =====
 
-function _onCancel(loaded = 0, total = 0) {
-    _setProgress(loaded && total ? loaded / total : 0,
-        loaded ? `Cancelled after ${loaded.toLocaleString()} / ${total.toLocaleString()} tiles.`
-            : 'Cancelled.');
-    _setButtons({ start: true, cancel: false, export: false });
+function _enableExport(enable) {
+    document.getElementById('btn-export').disabled = !enable;
 }
 
-function _setButtons({ start, cancel, export: exp }) {
-    document.getElementById('btn-start').disabled = !start;
-    document.getElementById('btn-cancel').disabled = !cancel;
-    document.getElementById('btn-export').disabled = !exp;
+function _setStatus(text) {
+    document.getElementById('status-text').textContent = text;
 }
 
-function _setStatus(text) { document.getElementById('status-text').textContent = text; }
-function _showProgress(v) { document.getElementById('progress-wrap').classList.toggle('visible', v); }
-function _setProgress(fraction, label) {
+function _setProgress(fraction, msg) {
     document.getElementById('progress-fill').style.width =
         `${(Math.min(fraction, 1) * 100).toFixed(1)}%`;
-    document.getElementById('progress-label').textContent = label;
-}
-
-/**
- * Show a brief coloured message in #status-text then clear it.
- * validate.html has no full-screen progress overlay (#progress-overlay)
- * so progress.js cannot be used directly here.
- */
-function _flashStatus(msg, durationMs = 4000) {
-    const el = document.getElementById('status-text');
-    if (!el) return;
-    el.textContent = msg;
-    el.style.color = 'var(--blue)';
-    setTimeout(() => { el.textContent = ''; el.style.color = ''; }, durationMs);
+    _setStatus(msg);
 }

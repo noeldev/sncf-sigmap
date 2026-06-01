@@ -72,6 +72,8 @@ export function normalizeSignal(raw) {
  * "000-195"). The sign separates kilometers from additional meters.
  */
 
+const RE_MILEPOST = /^(\d+)([+-])(\d+)$/;
+
 /**
  * Parse a SNCF milepost string of the form "077+305" into integer meters (77305).
  *
@@ -84,7 +86,7 @@ export function normalizeSignal(raw) {
  */
 export function parseMilepostAsMeters(raw) {
     if (!raw) return null;
-    const m = raw.match(/^(\d+)([+-])(\d+)$/);
+    const m = raw.match(RE_MILEPOST);
     if (!m) return null;
     return parseInt(m[2] + m[1] + m[3]);
 }

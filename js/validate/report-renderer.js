@@ -3,6 +3,7 @@
  *
  * Pure presentation layer: no analysis logic, no HTML strings.
  * All structure comes from <template> elements in validate.html.
+ * All visible strings come from t() (validate.en-us.json).
  *
  * Responsibilities:
  *   - Stat cards                          (renderStats)
@@ -10,70 +11,84 @@
  *   - Unmapped types table                (renderUnmapped)
  *   - Spec diff sections                  (renderSpecDiff)
  *   - Lazy Google Maps hrefs
- *   - Category-colored chip left borders  (cat-mapping.js)
+ *   - Group-colored chip left borders      (group-mapping.js)
  *
  * Filter dropdown:
- *   Opens from a "Filters" button appended to the Nodes column header.
- *   Contains one checkbox per dupCat plus an "All" toggle at the top,
- *   matching the visual style of the application's type_if filter.
- *   State is local to this module; filter is encoded in the URL hash.
+ *   Cloned from tpl-filter-btn-wrap (validate.html).
+ *   One item per dupCat with colored dot, plus "All" row.
+ *   Items cloned from tpl-filter-cat-item / tpl-filter-all-item.
+ *   Filter state encoded in the URL hash.
  *
  * Visibility:
- *   Sections and stat containers start with the HTML `hidden` attribute.
- *   _show() removes `hidden` (browser-native, no CSS dependency) and also
- *   adds the `.visible` class so CSS rules can hook into the visible state
- *   (transitions, layout adjustments, etc.).
- *   clearResults() restores both: sets `hidden` and removes `.visible`.
- *
- * Public API:
- *   renderStats(stats)
- *   renderConflicts(conflicts)
- *   renderUnmapped(unmappedTypes)
- *   renderSpecDiff(diffResult)
- *   clearResults()
- *   hideProgress()
+ *   Sections start with HTML `hidden`. _show() removes it + adds .visible.
+ *   clearResults() restores both.
  */
 
-import { SIGNAL_MAPPING } from '../signal-types.js';
-import { getColorForCategory } from '../cat-mapping.js';
+import { getMappingEntry, getGroupForCat } from '../signal-types.js';
+import { getColorForGroup, getUnsupportedGroup } from '../group-mapping.js';
 import { getTypePriority } from '../signal-grouping.js';
 import { initCollapsiblePanelsInRoot } from '../collapsible-panel.js';
+import { t, translateElement } from '../translation.js';
+import { makeSignalCatKey } from '../osm-tags.js';
+import { contrastColor } from '../signal-mapping.js';
 
-// Derive the main app root URL from the current page location.
-// Works both at the root (localhost/) and on a subpath (/sncf-sigmap/).
+// ===== Module-level constants =====
+
 const APP_URL = window.location.origin
     + window.location.pathname.replace(/\/[^/]*$/, '');
 
 // ===== Init =====
 
-initCollapsiblePanelsInRoot(document.getElementById('main'));
-document.getElementById('btn-toc')?.addEventListener('click', () => {
-    document.querySelector('.page-header')?.scrollIntoView({ behavior: 'instant' });
-});
+function _init() {
+    initCollapsiblePanelsInRoot(document.getElementById('main'));
+
+    const btn = document.getElementById('btn-toc');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+
+    // Scroll to a specific conflict row when the page loads with a #row= hash.
+    window.addEventListener('load', () => {
+        if (!location.hash.startsWith('#row=')) return;
+        const rowId = location.hash.slice('#row='.length);
+        const el = document.getElementById('conflict-' + rowId);
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'instant', });
+    });
+}
+
+_init();
 
 // ===== Filter state =====
-// _excludedFilters: EXCLUDED categories (empty = show all).
-// Excel-like semantics: unchecking a category excludes it from the view.
-// Clicking All clears exclusions (all rows shown, menu closes).
 
-let _excludedFilters = new Set();   // cats to HIDE
+// _excludedFilters: Set<osmCat> — OSM cat keys whose conflict rows are hidden.
+let _excludedFilters = new Set();
+let _showMechanical = true;   // when false, mechanical rows are hidden
 let _conflictTbody = null;
-let _conflictCatCounts = new Map();  // catCounts retained for renumbering
+let _conflictCatCounts = new Map(); // Map<osmCat, number>
 
-// ===== Category color cache =====
+// Color for a chip: derived from the mapping's group key.
+function _catColorFromMapping(mapping) {
+    return getColorForGroup(mapping?.group ?? getUnsupportedGroup());
+}
 
-const _catColorCache = new Map();
+// ===== Template references (lazily initialised) =====
 
-function _catColor(cat) {
-    if (!cat) return getColorForCategory('unsupported');
-    if (!_catColorCache.has(cat)) {
-        let color = getColorForCategory('unsupported');
-        for (const def of Object.values(SIGNAL_MAPPING)) {
-            if (def.cat === cat) { color = getColorForCategory(def.group); break; }
-        }
-        _catColorCache.set(cat, color);
+let _tplFilterBtnWrap = null;
+let _tplFilterCatItem = null;
+let _tplFilterAllItem = null;
+
+function _getFilterTemplates() {
+    if (!_tplFilterBtnWrap) {
+        // Cache the <template> elements, not their .content DocumentFragments.
+        // Cloning a cached fragment moves its children out on the first call,
+        // leaving it empty for subsequent calls. Calling .content.cloneNode(true)
+        // each time ensures the fragment is always read fresh from the element.
+        _tplFilterBtnWrap = document.getElementById('tpl-filter-btn-wrap');
+        _tplFilterCatItem = document.getElementById('tpl-filter-cat-item');
+        _tplFilterAllItem = document.getElementById('tpl-filter-all-item');
     }
-    return _catColorCache.get(cat);
 }
 
 // ===== Public API =====
@@ -82,9 +97,6 @@ export function renderStats(stats) {
     _setText('stat-tiles', stats.tiles.toLocaleString());
     _setText('stat-signals', stats.signals.toLocaleString());
     _setText('stat-locations', stats.locations.toLocaleString());
-
-    // Show conflict locations count only (one location can produce multiple
-    // direction+placement rows, but the location count is what matters for OSM work).
     _setText('stat-conflicts', stats.conflictLocations.toLocaleString());
     _setText('stat-unmapped', stats.unmappedTypes.toLocaleString());
 
@@ -97,12 +109,7 @@ export function renderStats(stats) {
     }
 
     _show('stats-grid');
-    _el('btn-toc').classList.add('visible');
-}
-
-export function hideProgress() {
-    const l = _el('progress-label');
-    if (l) l.textContent = '';
+    _showNavLinks();
 }
 
 export function renderConflicts(conflicts) {
@@ -113,7 +120,7 @@ export function renderConflicts(conflicts) {
 
     if (conflicts.length === 0) {
         badge.className = 'badge badge-blue';
-        content.replaceChildren(_noResults('No co-location conflicts detected.'));
+        content.replaceChildren(_noResults(t('message.noConflicts')));
         return;
     }
 
@@ -133,14 +140,15 @@ export function renderConflicts(conflicts) {
         }
     }
 
-    const table = document.createElement('table');
-    table.className = 'data-table table-conflicts';
+    const table = _cloneEl('tpl-table');
+    table.className += ' table-conflicts';
     table.appendChild(_buildConflictThead(catCounts));
 
-    const tbody = document.createElement('tbody');
+    const tbody = _cloneEl('tpl-tbody');
     for (const { loc, conflict, rowNum } of rows) {
         const tr = _buildConflictRow(loc, conflict, rowNum);
         tr.dataset.dupCats = conflict.dupCats.join(',');
+        tr.dataset.isMech = conflict.isMech ? '1' : '0';
         tr.id = `conflict-${rowNum}`;
         tbody.appendChild(tr);
     }
@@ -161,16 +169,17 @@ export function renderUnmapped(unmappedTypes) {
 
     if (unmappedTypes.size === 0) {
         badge.className = 'badge badge-blue';
-        content.replaceChildren(_noResults('All signal types are mapped in signal-types.js.'));
+        content.replaceChildren(_noResults(t('message.allMapped')));
         return;
     }
 
     badge.className = 'badge badge-amber';
-    const table = document.createElement('table');
-    table.className = 'data-table';
-    table.appendChild(_clone('tpl-thead-unmapped'));
+    const table = _cloneEl('tpl-table');
 
-    const tbody = document.createElement('tbody');
+    const thead = _cloneAndTranslate('tpl-thead-unmapped');
+    table.appendChild(thead);
+
+    const tbody = _cloneEl('tpl-tbody');
     [...unmappedTypes.entries()]
         .sort((a, b) => b[1].count - a[1].count)
         .forEach(([type, info], i) => {
@@ -193,44 +202,54 @@ export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
     _show('section-spec');
 
     _renderSpecTable({
-        contentId: 'only-wiki-content', badgeId: 'badge-only-wiki',
+        contentId: 'only-wiki-content',
+        badgeId: 'badge-only-wiki',
         items: onlyInWiki,
-        emptyMsg: 'All wiki-defined OSM types are implemented in signal-types.js.',
-        theadId: 'tpl-thead-spec-wiki', rowId: 'tpl-spec-row-wiki',
-        emptyBadge: 'badge-blue', filledBadge: 'badge-amber',
+        emptyMsg: t('message.allImplemented'),
+        theadId: 'tpl-thead-spec-wiki',
+        rowId: 'tpl-spec-row-wiki',
+        emptyBadge: 'badge-blue',
+        filledBadge: 'badge-amber',
         fillRow(row, { cat, type }, i) {
             _fill(row, 'row-num', i + 1);
-            _fill(row, 'key', `railway:signal:${cat}`);
+            _fill(row, 'key', makeSignalCatKey(cat));
             _fill(row, 'type', type);
         },
     });
 
     _renderSpecTable({
-        contentId: 'only-code-content', badgeId: 'badge-only-code',
+        contentId: 'only-code-content',
+        badgeId: 'badge-only-code',
         items: [...onlyInCode].sort((a, b) => Number(b.catKnown) - Number(a.catKnown)),
-        emptyMsg: 'All signal-types.js OSM types match the wiki spec.',
-        theadId: 'tpl-thead-spec-code', rowId: 'tpl-spec-row-code',
-        emptyBadge: 'badge-blue', filledBadge: 'badge-amber',
+        emptyMsg: t('message.allMatch'),
+        theadId: 'tpl-thead-spec-code',
+        rowId: 'tpl-spec-row-code',
+        emptyBadge: 'badge-blue',
+        filledBadge: 'badge-amber',
         fillRow(row, { cat, type, catKnown }, i) {
             _fill(row, 'row-num', i + 1);
-            _fill(row, 'key', `railway:signal:${cat}`);
+            _fill(row, 'key', makeSignalCatKey(cat));
             _fill(row, 'type', type);
             const noteEl = row.querySelector('[data-field="note"]');
             noteEl.textContent = catKnown
-                ? 'type mismatch - cat known in wiki with different value'
-                : 'cat absent from wiki - extension or undocumented';
+                ? t('spec.typeMismatch')
+                : t('spec.catAbsent');
             noteEl.className = catKnown ? 'text-amber' : 'dim';
         },
     });
 
     _renderSpecTable({
-        contentId: 'matched-content', badgeId: 'badge-matched',
-        items: matched, emptyMsg: 'No matches found.',
-        theadId: 'tpl-thead-spec-matched', rowId: 'tpl-spec-row-matched',
-        emptyBadge: 'badge-blue', filledBadge: 'badge-blue',
+        contentId: 'matched-content',
+        badgeId: 'badge-matched',
+        items: matched,
+        emptyMsg: t('message.noMatches'),
+        theadId: 'tpl-thead-spec-matched',
+        rowId: 'tpl-spec-row-matched',
+        emptyBadge: 'badge-blue',
+        filledBadge: 'badge-blue',
         fillRow(row, { cat, type }, i) {
             _fill(row, 'row-num', i + 1);
-            _fill(row, 'key', `railway:signal:${cat}`);
+            _fill(row, 'key', makeSignalCatKey(cat));
             _fill(row, 'type', type);
         },
     });
@@ -251,19 +270,21 @@ export function clearResults() {
         'stat-wiki-pairs', 'stat-matched', 'stat-only-wiki', 'stat-only-code']
         .forEach(id => _setText(id, '-'));
 
-    _el('btn-toc').classList.remove('visible');
+    _showNavLinks(false);
+
     _excludedFilters.clear();
+    _showMechanical = true;
     _conflictTbody = null;
     _conflictCatCounts = new Map();
 }
 
 // ===== Private - conflict table =====
 
-function _buildConflictThead(catCounts) {
-    const frag = _clone('tpl-thead-conflicts');
+function _buildConflictThead(groupCounts) {
+    const frag = _cloneAndTranslate('tpl-thead-conflicts');
     const thNodes = frag.querySelector('th.col-nodes');
-    if (thNodes && catCounts.size > 0) {
-        thNodes.appendChild(_buildFilterDropdown(catCounts));
+    if (thNodes && groupCounts.size > 0) {
+        thNodes.appendChild(_buildFilterDropdown(groupCounts));
     }
     return frag;
 }
@@ -276,24 +297,37 @@ function _buildConflictRow(loc, conflict, rowNum) {
     _fill(row, 'placement', conflict.placement);
 
     const link = row.querySelector('a.gmaps-link');
-    link.textContent = loc.milepost || `${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}`;
+    link.textContent = loc.milepost || (loc.lat.toFixed(5) + ',' + loc.lng.toFixed(5));
     link.dataset.lat = loc.lat;
     link.dataset.lng = loc.lng;
 
     const nodesList = row.querySelector('.nodes-list');
     conflict.nodes.forEach((node, i) =>
-        nodesList.appendChild(_buildNodeRow(node, i + 1))
+        nodesList.appendChild(_buildNodeRow(node, i + 1, conflict.isMech))
     );
 
     return row;
 }
 
-function _buildNodeRow(node, index) {
+function _buildNodeRow(node, index, isMech) {
     const row = _cloneEl('tpl-node-row');
-    _fill(row, 'idx', `#${index}`);
+    _fill(row, 'idx', '#' + index);
+
+    const mechIconEl = row.querySelector('.node-mech-icon svg');
+    if (mechIconEl) mechIconEl.classList.toggle('is-hidden', !isMech);
+    if (isMech) {
+        const mechSpan = row.querySelector('.node-mech-icon');
+        if (mechSpan) mechSpan.title = t('tooltip.mechanical');
+    }
+
+    const hasDupType = node.feats.some(f => f.p.isDupType);
+    const labelEl = row.querySelector('.node-label');
+    if (labelEl) {
+        labelEl.classList.toggle('node-label--dup-type', hasDupType);
+        if (hasDupType) labelEl.title = t('tooltip.duplicate');
+    }
+
     const chips = row.querySelector('.node-chips');
-    // Sort feats by SIGNAL_MAPPING priority so main signals (Carre) appear before
-    // speed limit signals, matching the application's display order.
     const sorted = [...node.feats].sort(
         (a, b) => getTypePriority(a.p.signalType) - getTypePriority(b.p.signalType)
     );
@@ -302,15 +336,27 @@ function _buildNodeRow(node, index) {
 }
 
 function _buildChip(feat) {
-    const mapping = SIGNAL_MAPPING[feat.p.signalType];
+    const mapping = getMappingEntry(feat.p.signalType);
+    const color = _catColorFromMapping(mapping);
     const chip = _cloneEl(mapping ? 'tpl-chip' : 'tpl-chip-unmap');
-    chip.style.borderLeftColor = _catColor(mapping?.cat);
+    chip.style.borderLeftColor = color;
     _fill(chip, 'sncf-type', feat.p.signalType || '(empty)');
     if (mapping) _fill(chip, 'cat', mapping.cat);
-    if (feat.p.networkId) _fill(chip, 'chip-id', feat.p.networkId);
 
     if (feat.p.networkId) {
-        chip.href = `${APP_URL}/?networkId=${encodeURIComponent(feat.p.networkId)}`;
+        const idEl = chip.querySelector('[data-field="chip-id"]');
+        if (idEl) {
+            idEl.textContent = feat.p.networkId;
+            if (feat.p.isDupId) {
+                idEl.classList.add('chip-id--dup');
+                idEl.style.setProperty('--chip-id-dup-bg', color);
+                idEl.style.setProperty('--chip-id-dup-fg', contrastColor(color));
+            }
+        }
+    }
+
+    if (feat.p.networkId) {
+        chip.href = APP_URL + '/?networkId=' + encodeURIComponent(feat.p.networkId);
     } else {
         chip.removeAttribute('href');
         chip.style.pointerEvents = 'none';
@@ -318,59 +364,79 @@ function _buildChip(feat) {
     return chip;
 }
 
+
 // ===== Private - filter dropdown =====
 
+/**
+ * Aggregate OSM cat counts into a group structure for the filter dropdown.
+ * Groups are sorted by total conflict count descending.
+ * Cats within each group are sorted alphabetically.
+ *
+ * @param {Map<string, number>} catCounts
+ * @returns {Array<{groupKey, label, color, totalCount, cats: Array<{cat, count}>}>}
+ */
+function _buildGroupedCats(catCounts) {
+    // Aggregate cats into groups.
+    const groupMap = new Map();
+    for (const [cat, count] of catCounts) {
+        const groupKey = getGroupForCat(cat) ?? getUnsupportedGroup();
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey,
+                color: getColorForGroup(groupKey),
+                totalCount: 0,
+                cats: [],
+            });
+        }
+        const g = groupMap.get(groupKey);
+        g.totalCount += count;
+        g.cats.push({ cat, count });
+    }
+
+    // Sort cats within each group alphabetically, groups by count desc.
+    for (const g of groupMap.values()) {
+        g.cats.sort((a, b) => a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : 0);
+    }
+    return [...groupMap.values()].sort((a, b) => b.totalCount - a.totalCount);
+}
+
 function _buildFilterDropdown(catCounts) {
-    const wrap = document.createElement('span');
-    wrap.className = 'filter-btn-wrap';
+    _getFilterTemplates();
 
-    const btn = document.createElement('button');
-    btn.className = 'filter-dropdown-btn';
-    btn.type = 'button';
-    btn.setAttribute('aria-haspopup', 'listbox');
-    btn.setAttribute('aria-expanded', 'false');
+    const wrap = _tplFilterBtnWrap.content.cloneNode(true).querySelector('.filter-btn-wrap');
+    const btn = wrap.querySelector('.filter-dropdown-btn');
+    const menu = wrap.querySelector('.filter-dropdown');
 
-    // Button label + chevron icon.
-    btn.appendChild(document.createTextNode('Filter\u00a0'));
-    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('width', '10'); chevron.setAttribute('height', '10');
-    chevron.setAttribute('aria-hidden', 'true');
-    chevron.classList.add('filter-dropdown-chevron');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '#icon-chevron');
-    chevron.appendChild(use);
-    btn.appendChild(chevron);
+    translateElement(wrap);
 
-    const menu = document.createElement('div');
-    menu.className = 'filter-dropdown';
-    menu.hidden = true;
-    menu.setAttribute('role', 'listbox');
-    menu.setAttribute('aria-multiselectable', 'true');
+    const groups = _buildGroupedCats(catCounts);
 
-    // "All" row: clear all exclusions (show everything), close menu.
-    menu.appendChild(_makeCheckItem('All', true, () => {
-        _excludedFilters.clear();
-        _syncMenu(menu, catCounts);
+    // Shared onChange: syncs menu, button, filters, hash after any state mutation.
+    const _onChange = () => {
+        _syncMenu(menu, groups);
         _syncBtn(btn);
         _applyFilters();
         _updateHash();
+    };
+
+    // "All" row — selects/deselects everything.
+    menu.appendChild(_makeAllItem(() => {
+        _excludedFilters.clear();
+        _showMechanical = true;
+        _onChange();
         menu.hidden = true;
         btn.setAttribute('aria-expanded', 'false');
-    }, '', 'item-all'));
+    }));
 
-    // Per-category rows sorted by count desc.
-    // Clicking a checked cat EXCLUDES it (hides those rows).
-    // Clicking an excluded cat RE-INCLUDES it (shows those rows).
-    // Menu stays open for multi-selection; close via All or click outside.
-    for (const [cat, count] of [...catCounts.entries()].sort((a, b) => b[1] - a[1])) {
-        menu.appendChild(_makeCheckItem(`${cat}  (${count})`, false, () => {
-            if (_excludedFilters.has(cat)) _excludedFilters.delete(cat);
-            else _excludedFilters.add(cat);
-            _syncMenu(menu, catCounts);
-            _syncBtn(btn);
-            _applyFilters();
-            _updateHash();
-        }, cat));
+    // "Mechanical" row — toggles mechanical conflict rows.
+    menu.appendChild(_makeMechanicalItem(_onChange));
+
+    // Group rows + their cat children.
+    for (const group of groups) {
+        menu.appendChild(_makeGroupItem(group, _onChange));
+        for (const { cat, count } of group.cats) {
+            menu.appendChild(_makeCatItem(cat, count, group.color, _onChange));
+        }
     }
 
     btn.addEventListener('click', e => {
@@ -378,12 +444,9 @@ function _buildFilterDropdown(catCounts) {
         const open = menu.hidden;
         menu.hidden = !open;
         btn.setAttribute('aria-expanded', String(open));
-        if (open) _syncMenu(menu, catCounts);
+        if (open) _syncMenu(menu, groups);
     });
 
-    // Close on outside click using bubbling (not capture) so menu's own
-    // stopPropagation fires first and prevents immediate self-close.
-    // AbortController removes the listener when the menu is removed from DOM.
     const ac = new AbortController();
     document.addEventListener('click', () => {
         if (!menu.hidden) {
@@ -393,43 +456,158 @@ function _buildFilterDropdown(catCounts) {
     }, { signal: ac.signal });
     menu.addEventListener('click', e => e.stopPropagation());
 
-    // Clean up the document listener if the wrap element is ever removed.
     new MutationObserver((_, obs) => {
         if (!wrap.isConnected) { ac.abort(); obs.disconnect(); }
     }).observe(document.body, { childList: true, subtree: true });
 
-    wrap.appendChild(btn);
-    wrap.appendChild(menu);
     return wrap;
 }
 
-function _makeCheckItem(label, checked, onChange, cat = '', extraClass = '') {
-    const item = document.createElement('label');
-    item.className = 'filter-dropdown-item' + (extraClass ? ' ' + extraClass : '');
-    if (cat) item.style.borderLeftColor = _catColor(cat);
-
-    const chk = document.createElement('input');
-    chk.type = 'checkbox'; chk.checked = checked; chk.dataset.cat = cat;
-    chk.addEventListener('change', onChange);
-
-    item.appendChild(chk);
-    item.appendChild(document.createTextNode('\u00a0' + label));
+/** Build the "All" dropdown row. */
+function _makeAllItem(onChange) {
+    _getFilterTemplates();
+    const item = _tplFilterAllItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
+    translateElement(item);
+    const isSelected = _excludedFilters.size === 0 && _showMechanical;
+    item.classList.toggle('is-selected', isSelected);
+    const chk = item.querySelector('.filter-item-chk');
+    if (chk) { chk.checked = isSelected; chk.dataset.role = 'all'; }
+    item.addEventListener('click', e => { e.preventDefault(); onChange(); });
     return item;
 }
 
-// "All" checked when no exclusions active (all rows shown).
-// Individual cat checkbox checked when that cat is NOT excluded.
-function _syncMenu(menu, catCounts) {
-    const allChk = menu.querySelector('[data-cat=""]');
-    if (allChk) allChk.checked = _excludedFilters.size === 0;
-    for (const [cat] of catCounts) {
-        const chk = menu.querySelector(`[data-cat="${CSS.escape(cat)}"]`);
-        if (chk) chk.checked = !_excludedFilters.has(cat);
+/** Build the "Mechanical" dropdown row. */
+function _makeMechanicalItem(onChange) {
+    _getFilterTemplates();
+    const item = _tplFilterCatItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
+    item.classList.add('item-mechanical');
+    item.classList.toggle('is-selected', _showMechanical);
+    item.style.setProperty('--item-color', 'var(--text-dim)');
+    const chk = item.querySelector('.filter-item-chk');
+    if (chk) { chk.checked = _showMechanical; chk.dataset.role = 'mechanical'; }
+    const label = item.querySelector('.filter-item-label');
+    if (label) {
+        label.textContent = t('filter.mechanical');
+        // Clone gear icon from template — no SVG construction in JS.
+        const tpl = document.getElementById('tpl-filter-mech-icon');
+        const gearEl = tpl?.content.cloneNode(true).firstElementChild ?? null;
+        if (gearEl) label.after(gearEl);
+    }
+    item.addEventListener('click', e => {
+        e.preventDefault();
+        _showMechanical = !_showMechanical;
+        onChange();
+    });
+    return item;
+}
+
+/**
+ * Build a group header row. Clicking it toggles all cats in the group.
+ * The row is indented 0; cat rows are indented via CSS class .item-cat.
+ */
+function _makeGroupItem(group, onChange) {
+    _getFilterTemplates();
+    const item = _tplFilterCatItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
+    item.classList.add('item-group');
+    item.dataset.groupKey = group.groupKey;
+
+    const allExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+    item.classList.toggle('is-selected', !allExcluded);
+    item.style.setProperty('--item-color', group.color);
+
+    const chk = item.querySelector('.filter-item-chk');
+    if (chk) { chk.checked = !allExcluded; chk.dataset.role = 'group'; chk.dataset.groupKey = group.groupKey; }
+
+    const label = item.querySelector('.filter-item-label');
+    if (label) {
+        label.textContent = t('group.' + group.groupKey)
+            + ' (' + group.totalCount + ')';
+    }
+
+    item.addEventListener('click', e => {
+        e.preventDefault();
+        // Re-compute allExcluded at click time, not at creation time.
+        const nowAllExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+        if (nowAllExcluded) {
+            group.cats.forEach(({ cat }) => _excludedFilters.delete(cat));
+        } else {
+            group.cats.forEach(({ cat }) => _excludedFilters.add(cat));
+        }
+        onChange();
+    });
+    return item;
+}
+
+/** Build an individual OSM cat row, indented under its group. */
+function _makeCatItem(cat, count, color, onChange) {
+    _getFilterTemplates();
+    const item = _tplFilterCatItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
+    item.classList.add('item-cat');
+    item.classList.toggle('is-selected', !_excludedFilters.has(cat));
+    item.style.setProperty('--item-color', color);
+
+    const chk = item.querySelector('.filter-item-chk');
+    if (chk) { chk.checked = !_excludedFilters.has(cat); chk.dataset.cat = cat; }
+
+    const label = item.querySelector('.filter-item-label');
+    if (label) label.textContent = cat + ' (' + count + ')';
+
+    item.addEventListener('click', e => {
+        e.preventDefault();
+        if (_excludedFilters.has(cat)) _excludedFilters.delete(cat);
+        else _excludedFilters.add(cat);
+        onChange();
+    });
+    return item;
+}
+
+/**
+ * Sync all dropdown item states from current _excludedFilters / _showMechanical.
+ */
+function _syncMenu(menu, groups) {
+    // All row
+    const allItem = menu.querySelector('.item-all');
+    const allSelected = _excludedFilters.size === 0 && _showMechanical;
+    if (allItem) {
+        allItem.classList.toggle('is-selected', allSelected);
+        const chk = allItem.querySelector('.filter-item-chk');
+        if (chk) chk.checked = allSelected;
+    }
+
+    // Mechanical row
+    const mechItem = menu.querySelector('.item-mechanical');
+    if (mechItem) {
+        mechItem.classList.toggle('is-selected', _showMechanical);
+        const chk = mechItem.querySelector('.filter-item-chk');
+        if (chk) chk.checked = _showMechanical;
+    }
+
+    // Group rows
+    for (const group of groups) {
+        const groupItem = menu.querySelector(`.item-group[data-group-key="${CSS.escape(group.groupKey)}"]`);
+        if (groupItem) {
+            const allExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+            groupItem.classList.toggle('is-selected', !allExcluded);
+            const chk = groupItem.querySelector('.filter-item-chk');
+            if (chk) chk.checked = !allExcluded;
+        }
+    }
+
+    // Cat rows
+    for (const group of groups) {
+        for (const { cat } of group.cats) {
+            const chk = menu.querySelector(`.filter-item-chk[data-cat="${CSS.escape(cat)}"]`);
+            if (!chk) continue;
+            const selected = !_excludedFilters.has(cat);
+            chk.checked = selected;
+            const item = chk.closest('.filter-dropdown-item');
+            if (item) item.classList.toggle('is-selected', selected);
+        }
     }
 }
 
 function _syncBtn(btn) {
-    btn.classList.toggle('is-active', _excludedFilters.size > 0);
+    btn.classList.toggle('is-active', _excludedFilters.size > 0 || !_showMechanical);
 }
 
 function _applyFilters() {
@@ -437,12 +615,18 @@ function _applyFilters() {
     let visibleIdx = 0;
     for (const tr of _conflictTbody.rows) {
         const rowCats = (tr.dataset.dupCats ?? '').split(',').filter(Boolean);
-        // Hide row when ALL its dupCats are in the excluded set.
-        const hidden = _excludedFilters.size > 0
+        const rowIsMech = tr.dataset.isMech === '1';
+
+        // Hide mechanical rows when the mechanical filter is off.
+        const hiddenByMech = !_showMechanical && rowIsMech;
+
+        // Hide when ALL conflict cats are individually excluded.
+        const hiddenByCat = _excludedFilters.size > 0
             && rowCats.length > 0
             && rowCats.every(cat => _excludedFilters.has(cat));
+
+        const hidden = hiddenByMech || hiddenByCat;
         tr.classList.toggle('filtered-out', hidden);
-        // Renumber visible rows sequentially.
         if (!hidden) {
             const numEl = tr.querySelector('[data-field="row-num"]');
             if (numEl) numEl.textContent = ++visibleIdx;
@@ -451,74 +635,36 @@ function _applyFilters() {
 }
 
 function _updateHash() {
-    const cats = [..._excludedFilters].join(',');
-    history.replaceState(null, '', cats ? `#filter=excl:${encodeURIComponent(cats)}` : '#');
+    // Format: #exclude=main,stop&mech=0 — clean, readable, URLSearchParams-compatible.
+    const parts = [];
+    if (_excludedFilters.size > 0) parts.push('exclude=' + [..._excludedFilters].join(','));
+    if (!_showMechanical) parts.push('mech=0');
+    history.replaceState(null, '', parts.length
+        ? '#' + parts.join('&')
+        : location.pathname + location.search);
 }
 
 function _restoreFilterFromHash() {
-    const match = location.hash.match(/^#filter=excl:(.+)$/);
-    if (!match) return;
-    _excludedFilters = new Set(decodeURIComponent(match[1]).split(',').filter(Boolean));
+    if (!location.hash.startsWith('#')) return;
+    const params = new URLSearchParams(location.hash.slice(1));
+    const excl = params.get('exclude');
+    if (excl) _excludedFilters = new Set(excl.split(',').filter(Boolean));
+    if (params.get('mech') === '0') _showMechanical = false;
     _applyFilters();
 }
 
-// ===== Private - spec diff =====
+// ===== Private — utilities =====
 
-function _renderSpecTable({ contentId, badgeId, items, emptyMsg,
-    theadId, rowId, emptyBadge, filledBadge, fillRow }) {
-    const badge = _el(badgeId), content = _el(contentId);
-    badge.textContent = items.length;
-
-    if (items.length === 0) {
-        badge.className = `badge ${emptyBadge}`;
-        content.replaceChildren(_noResults(emptyMsg));
-        return;
-    }
-
-    badge.className = `badge ${filledBadge}`;
-    const table = document.createElement('table');
-    table.className = 'data-table spec-table';
-    table.appendChild(_clone(theadId));
-
-    const tbody = document.createElement('tbody');
-    items.forEach((item, i) => { const row = _cloneEl(rowId); fillRow(row, item, i); tbody.appendChild(row); });
-    table.appendChild(tbody);
-    content.replaceChildren(table);
-}
-
-// ===== Private - lazy Google Maps links =====
-
-function _registerGoogleMapsDelegate(container) {
-    container.addEventListener('pointerenter', e => {
-        const link = e.target.closest('a.gmaps-link[data-lat][data-lng]');
-        if (!link || link.dataset.hrefReady) return;
-        const { lat, lng } = link.dataset;
-        link.href = `https://www.google.com/maps?q=${lat},${lng}&z=18`;
-        link.dataset.hrefReady = '1';
-    }, true);
-}
-
-// ===== Private - template helpers =====
-
-const _cloneEl = id => document.getElementById(id).content.cloneNode(true).firstElementChild;
-const _clone = id => document.getElementById(id).content.cloneNode(true);
-
-function _fill(root, field, value) {
-    const sel = `[data-field="${field}"]`;
-    const el = root.matches?.(sel) ? root : root.querySelector(sel);
-    if (el) el.textContent = value;
-}
-
-function _noResults(msg) { const e = _cloneEl('tpl-no-results'); e.textContent = `OK - ${msg}`; return e; }
+/** @param {string} id @returns {Element|null} */
 function _el(id) { return document.getElementById(id); }
-function _setText(id, v) { const e = _el(id); if (e) e.textContent = v; }
 
-/**
- * Show a section or container by removing the `hidden` attribute and adding
- * the `.visible` CSS class. Using the native `hidden` attribute ensures the
- * element is invisible on page load regardless of CSS, and becomes visible
- * without relying on a specific CSS rule for `.visible`.
- */
+/** Set textContent of element with given id. */
+function _setText(id, text) {
+    const el = _el(id);
+    if (el) el.textContent = text;
+}
+
+/** Show a result section (unhide + add .visible). */
 function _show(id) {
     const el = _el(id);
     if (!el) return;
@@ -526,9 +672,73 @@ function _show(id) {
     el.classList.add('visible');
 }
 
-window.addEventListener('load', () => {
-    const match = location.hash.match(/row=(\d+)/);
-    if (!match) return;
-    const el = document.getElementById(`conflict-${match[1]}`);
-    if (el) { el.scrollIntoView({ behavior: 'instant', block: 'center' }); }
-});
+/** Reveal nav links once results exist. */
+function _showNavLinks(show = true) {
+    // Toggle only the result section links and their separators.
+    // The app link (Signalisation Permanente) is always visible.
+    document.querySelectorAll('.header-nav-result, .header-nav-sep-results')
+        .forEach(el => { el.hidden = !show; });
+    // Show/hide btn-toc along with nav links.
+    _el('btn-toc')?.classList.toggle('visible', show);
+}
+
+/** Clone a <template> by id and return its root element. */
+function _cloneEl(templateId) {
+    return document.getElementById(templateId).content.cloneNode(true).firstElementChild;
+}
+
+/** Clone a <template>, translate it, and return its DocumentFragment. */
+function _cloneAndTranslate(templateId) {
+    const frag = document.getElementById(templateId).content.cloneNode(true);
+    translateElement(frag);
+    return frag;
+}
+
+/** Set [data-field] element's textContent inside a cloned template. */
+function _fill(root, field, value) {
+    const el = root.querySelector(`[data-field="${field}"]`);
+    if (el) el.textContent = value;
+}
+
+function _renderSpecTable({ contentId, badgeId, items, emptyMsg, theadId, rowId,
+    emptyBadge, filledBadge, fillRow }) {
+    const content = _el(contentId);
+    const badge = _el(badgeId);
+    if (!content || !badge) return;
+
+    if (!items.length) {
+        // Use the template — no HTML construction in JS.
+        const noRes = _cloneEl('tpl-no-results');
+        _fill(noRes, 'message', emptyMsg);
+        content.replaceChildren(noRes);
+        badge.textContent = '0';
+        badge.className = `badge ${emptyBadge}`;
+        // Close the parent <details> when empty — nothing useful to show.
+        const details = content.closest('details');
+        if (details) details.open = false;
+        return;
+    }
+
+    badge.textContent = items.length;
+    badge.className = `badge ${filledBadge}`;
+
+    const table = _cloneEl('tpl-table');
+    table.className += ' spec-table';
+    table.appendChild(_cloneAndTranslate(theadId));
+
+    const tbody = _cloneEl('tpl-tbody');
+    items.forEach((item, i) => {
+        const row = _cloneEl(rowId);
+        fillRow(row, item, i);
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    content.replaceChildren(table);
+}
+
+function _registerGoogleMapsDelegate(root) {
+    root.querySelectorAll('a[data-lat][data-lng]').forEach(a => {
+        a.href = `https://www.google.com/maps?q=${a.dataset.lat},${a.dataset.lng}`;
+    });
+}

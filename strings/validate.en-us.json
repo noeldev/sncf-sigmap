@@ -1,0 +1,98 @@
+{
+  "page": {
+    "title": "Permanent Signalling - Signal Validation"
+  },
+  "header": {
+    "title": "Permanent Signalling",
+    "subtitle": "(Signal Validation)",
+    "beta": "Beta",
+    "export": "Export GeoJSON"
+  },
+  "tooltip": {
+    "duplicate": "Suspected duplicate signals",
+    "mechanical": "Mechanical signal installation"
+  },
+  "nav": {
+    "conflicts": "Co-location conflicts",
+    "unmapped": "Unmapped types",
+    "spec": "Wiki spec diff",
+    "btnTop": "Top"
+  },
+  "stat": {
+    "tiles": "Tiles",
+    "signals": "Signals",
+    "locations": "Locations",
+    "conflicts": "Conflicts",
+    "unmapped": "Unmapped types",
+    "wikiPairs": "Wiki pairs",
+    "matched": "Matched",
+    "onlyWiki": "Only in wiki",
+    "onlyCode": "Only in code"
+  },
+  "section": {
+    "conflicts": "Co-location conflicts",
+    "unmapped": "Unmapped signal types",
+    "spec": "Wiki spec cross-check"
+  },
+  "column": {
+    "rowNum": "#",
+    "track": "Track code",
+    "location": "Location",
+    "direction": "Direction",
+    "position": "Position",
+    "nodes": "Nodes",
+    "type": "SNCF signal type",
+    "occurrences": "Occurrences",
+    "sampleIds": "Sample network IDs",
+    "osmKey": "OSM key",
+    "typeValue": "Type value",
+    "classification": "Classification"
+  },
+  "filter": {
+    "label": "Filter",
+    "all": "All",
+    "mechanical": "Mechanical"
+  },
+  "spec": {
+    "onlyInWiki": "Only in wiki — not in signal-types.js",
+    "onlyInCode": "Only in signal-types.js — not in wiki",
+    "matched": "Matched entries",
+    "typeMismatch": "type mismatch — cat known in wiki with different value",
+    "catAbsent": "cat absent from wiki — extension or undocumented"
+  },
+  "message": {
+    "noConflicts": "OK — No co-location conflicts detected.",
+    "allMapped": "OK — All signal types are mapped in signal-types.js.",
+    "allMatch": "OK — All signal-types.js OSM types match the wiki spec.",
+    "allImplemented": "OK — All wiki-defined OSM types are implemented in signal-types.js.",
+    "noMatches": "No matches found."
+  },
+  "progress": {
+    "starting": "Starting…",
+    "fetching": "Fetching wiki spec and tile manifest…",
+    "tile": "Tile {0} / {1} — {2} signals",
+    "analysing": "Analysing co-location groups…"
+  },
+  "error": {
+    "warnWikiFailed": "Warning: wiki fetch failed — spec diff skipped.",
+    "manifest": "Error: failed to load manifest.json"
+  },
+  "export": {
+    "done": "Exported {0} OSM nodes ({1} raw signals)"
+  },
+  "group": {
+    "main": "Main signals",
+    "distant": "Distant signals",
+    "speedLimit": "Speed limits",
+    "route": "Route indicators",
+    "stop": "Stop signs",
+    "shunting": "Shunting",
+    "crossing": "Level crossings",
+    "electricity": "Traction electricity",
+    "trainProtection": "Cab signalling / ETCS",
+    "wrongRoad": "Wrong-road (IPCS)",
+    "station": "Station and facilities",
+    "miscellaneous": "Miscellaneous",
+    "unsupported": "Unsupported types"
+  }
+}

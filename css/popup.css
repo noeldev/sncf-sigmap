@@ -229,6 +229,21 @@
     color: var(--signal-contrast, #fff);
 }
 
+/* Mechanical installation indicator — shown after the signal type badge.
+ * Muted (opacity .45, thin stroke) so it informs without dominating the badge.
+ * margin-left provides visual separation from the badge.
+ * Tooltip is rendered by the browser via the title attribute (set via
+ * data-i18n-title in tpl-mech-icon), matching the .pu-osm-locate pattern. */
+.pu-mech-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    vertical-align: -0.15em;
+    color: var(--text2);
+    flex-shrink: 0;
+    opacity: .6;
+}
+
 
 /* ===== Line name row — wrapping override =====
  *

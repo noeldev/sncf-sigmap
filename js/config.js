@@ -54,3 +54,10 @@ export const APP_ID = 'sncf-sigmap';
 // Custom MIME type for structured clipboard payloads.
 // The 'web ' prefix is required by the Async Clipboard API for custom types.
 export const CLIPBOARD_MIME_TYPE = 'application/sncf-sigmap';
+
+// Latitude offset applied per OSM node index when co-located signals produce
+// more than one node (e.g. direction=forward + direction=backward).
+// Approximately 50 cm: 0.5 m / 111 320 m per degree at any latitude.
+// Applied on the latitude axis; used by both JOSM export (signal-popup.js)
+// and GeoJSON export (validate-main.js).
+export const NODE_OFFSET_DEG = 0.0000045;

@@ -101,9 +101,9 @@ let _lang = _resolveInitialLang();
  * @param {string} locale  BCP 47 locale code, e.g. 'en-US'.
  * @returns {Promise<void>}
  */
-export async function loadStrings(locale) {
+export async function loadStrings(locale, prefix = 'strings') {
     const _load = async loc => {
-        const res = await fetch(`./strings/strings.${loc.toLowerCase()}.json`);
+        const res = await fetch(`./strings/${prefix}.${loc.toLowerCase()}.json`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return _precompileAllMarkup(_flatten(await res.json()));
     };

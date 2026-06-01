@@ -26,7 +26,8 @@
  */
 
 import { getIdKey, fetchNodesByRef } from './overpass.js';
-import { getSignalId, isSupported, getOsmNodes } from './signal-mapping.js';
+import { getSignalId } from './osm-tags.js';
+import { isSupported, getOsmNodes } from './signal-mapping.js';
 import { getOsmNode, primeFromPopup } from './osm-index.js';
 
 const MAX_RETRIES = 5;

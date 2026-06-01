@@ -18,53 +18,17 @@
     flex-shrink: 0;
 }
 
-.logo-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-.logo-text {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-.logo-sncf {
-    height: 40px;
-    width: auto;
+/* SNCF Réseau logo — .app-header-brand / .app-header-logo base styles in shared.css.
+ * Override max-width for the narrower sidebar context. */
+.app-header-logo {
     max-width: 74px;
-    object-fit: contain;
-    flex-shrink: 0;
 }
 
-.logo-title {
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.25;
-    color: var(--text);
-}
+/* .logo-row, .logo-text, .logo-title, .logo-title-row, .beta-badge: see shared.css */
 
-.logo-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.beta-badge {
-    display: inline-block;
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: rgba(255, 255, 255, 0.8);
-    background: #7c2270;
-    border-radius: 3px;
-    padding: 1px 5px;
-    vertical-align: middle;
-    line-height: 1.6;
-    user-select: none;
-    text-transform: uppercase;
+/* Sidebar-specific: space between the logo-row and the record count below. */
+#sidebar-header .logo-row {
+    margin-bottom: 8px;
 }
 
 .record-count {
@@ -389,9 +353,9 @@
     border-radius: var(--radius);
 }
 
-.lang-select-btn.is-open .lang-chevron svg {
-    transform: rotate(-90deg);
-}
+    .lang-select-btn.is-open .lang-chevron svg {
+        transform: rotate(-90deg);
+    }
 
 .lang-flag-img {
     font-size: 16px;
@@ -445,7 +409,66 @@
     }
 
 
-/* ===== Settings behavior toggles ===== */
+/* ===== Toggle switch (28x16 px) =====
+ *
+ * Used by sidebar Settings (index.html) only — validate.html no longer
+ * has any checkboxes. The dedup checkbox was removed.
+ */
+
+.toggle-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.toggle-track {
+    display: inline-flex;
+    align-items: center;
+    width: 28px;
+    height: 16px;
+    padding: 0 3px;
+    background: var(--panel3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    flex-shrink: 0;
+    transition: background .2s, border-color .2s;
+    cursor: pointer;
+}
+
+.toggle-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text3);
+    transition: transform .2s, background .2s;
+}
+
+.toggle-input:checked + .toggle-track {
+    background: var(--accent);
+    border-color: var(--accent2);
+}
+
+    .toggle-input:checked + .toggle-track .toggle-thumb {
+        transform: translateX(12px);
+        background: #fff;
+    }
+
+.toggle-input:focus-visible + .toggle-track {
+    outline: 2px solid var(--accent2);
+    outline-offset: 2px;
+}
+
+
+/* ===== Settings behavior toggle rows =====
+ *
+ * Flex label wrapper for Settings tab checkbox rows.
+ */
 
 .settings-toggle-row {
     display: flex;
@@ -461,13 +484,6 @@
 .settings-toggle-label {
     flex: 1;
     line-height: 1.3;
-}
-
-/* Show a focus ring on the track when the visually-hidden checkbox receives
- * keyboard focus — the track is the adjacent sibling of the input. */
-.toggle-input:focus-visible + .toggle-track {
-    outline: 2px solid var(--accent2);
-    outline-offset: 2px;
 }
 
 

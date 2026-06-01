@@ -1,54 +1,54 @@
 /**
  * signal-grouping.js - Pure OSM node grouping logic.
  *
- * Single source of truth for how co-located signals are distributed across
- * OSM nodes. No dependency on translation.js or any DOM module.
+ * No dependency on translation.js, DOM, or any module with side-effects.
  *
- * Grouping rules - a signal can join an existing node group when ALL hold:
- *   1. direction  - matches the group's direction.
- *   2. placement  - matches the group's placement (left/right/bridge/...).
- *   3. category   - the signal's OSM cat is not already in the group.
- *   Unsupported signals (no SIGNAL_MAPPING entry) skip rules 2 and 3.
+ * Pipeline (called by groupFeats):
+ *   1. _detectMechanical(feats)            - check for mechanical combo once per location
+ *   2. Build idMap: Map<feat, number>       - parse networkId strings to integers once,
+ *                                            stored in a local Map to preserve object immutability
+ *   3. _sortFeats(feats, isMech, idMap)    - establish processing order: tiers + numeric networkId
+ *   4. _distributeToNodes(sorted, isMech, idMap) - place each signal into a node
  *
- * linkedTo - network key affinity:
- *   A SIGNAL_MAPPING entry can declare linkedTo as a GAIA key string
- *   (e.g. "TIV D FIXE") or an array of such strings. These are primary keys
- *   of SIGNAL_MAPPING and equal to p.signalType in normalised signals.
+ * networkId integers are stored in a Map keyed by feat reference, not on the feat
+ * object itself. This avoids object mutation and the delete anti-pattern (which
+ * destroys the object's hidden class in V8, forcing dictionary mode).
  *
  * Sort order:
  *   Tier 0 - Anchor signals (their GAIA key is a linkedTo target in this batch).
- *            Must land first so linked signals can find their group.
- *   Tier 1 - Signals with linkedTo. Sorted by proximity to their nearest anchor
- *            signal's networkId so the closest signal claims the preferred slot
- *            before a distant outlier does (e.g. TIV D FIXE 160519 beats 10326116
- *            for the CARRE 160521 slot because |160519-160521|=2 vs ~10M).
- *   Tier 2 - Signals without linkedTo whose OSM cat is claimed by a tier-1 signal.
- *            Deferred so linked signals (e.g. Z) get priority for the slot.
- *   Tier 3 - Everything else: networkId cluster ascending, type priority ascending.
+ *             Processed first so linked signals can find their node.
+ *   Tier 1 - Signals with an active linkedTo, sorted by ascending networkId distance
+ *             to their nearest anchor. Closest signal claims the preferred slot first.
+ *   Tier 2 - Signals without linkedTo whose OSM cat is already claimed by a Tier-1
+ *             signal. Deferred so the linked signal gets priority.
+ *   Tier 3 - Everything else, sorted by ascending numeric networkId.
  *
- *   When multiple candidate groups qualify (same anchor key, canFit), the group
- *   whose anchor networkId is numerically closest to the signal's own networkId
- *   is preferred. SNCF-paired signals have quasi-consecutive identifiers.
- *
- * NodeGroup shape:
- *   { direction, placement, feats[], categories: Set<string>,
- *     networkKeys: Map<gaiaKey, string> }
- *   networkKeys maps each GAIA key in the group to the networkId of the signal
- *   that introduced it, used for proximity scoring.
+ * canFit rules (a signal can join an existing node when ALL hold):
+ *   1. direction matches the node's direction.
+ *   2. placement matches the node's placement.
+ *   3. The signal's OSM cat is not already in the node.
+ *   Unknown signals (not in SIGNAL_MAPPING) skip rules 2 and 3.
  *
  * Public API:
- *   groupFeats(feats) -> NodeGroup[]
+ *   groupFeats(feats) -> { nodeGroups: NodeGroup[], isMech: boolean }
  *   canFit(feat, group) -> boolean
  *   getTypePriority(type) -> number
  *   getHighestPriorityType(types) -> string|null
+ *
+ * NodeGroup shape:
+ *   { direction, placement, feats[], categories: Set<string>,
+ *     networkKeys: Map<gaiaKey, number> }
+ *   networkKeys stores parsed integers so proximity arithmetic requires no parsing.
  */
 
-import { SIGNAL_MAPPING } from './signal-types.js';
+import { getMappingEntry, getMappingKeys, isMechanicalCombo } from './signal-types.js';
 
 // ===== Priority table =====
+// Built once from SIGNAL_MAPPING insertion order (luminous signals only).
+// Always-mechanical types (R30, RR30) get Infinity — placed after luminous signals.
 
 export const TYPE_PRIORITY = Object.freeze(
-    Object.fromEntries(Object.keys(SIGNAL_MAPPING).map((key, i) => [key, i]))
+    Object.fromEntries(getMappingKeys().map((key, i) => [key, i]))
 );
 
 const UNSUPPORTED_PRIORITY = Infinity;
@@ -68,148 +68,330 @@ export function getHighestPriorityType(types) {
 
 // ===== Public API =====
 
+/**
+ * Determine whether a signal can join an existing node group.
+ * cat is always top-level in SIGNAL_MAPPING — invariant across luminous/mechanical
+ * forms — so no isMech context is needed here.
+ */
 export function canFit(feat, group) {
-    const mapping = SIGNAL_MAPPING[feat.p.signalType];
+    const entry = getMappingEntry(feat.p.signalType);
     if (group.direction !== feat.p.direction) return false;
     if (group.placement !== feat.p.placement) return false;
-    if (!mapping) return true;
-    return !group.categories.has(mapping.cat);
+    if (!entry) return true;  // unknown signal: skip cat check
+    return !group.categories.has(entry.cat);
 }
 
 /**
- * Distribute feats into NodeGroups.
+ * Group co-located features into OSM node groups.
  *
- * @param {Array<{ p: object }>} feats
- * @returns {NodeGroup[]}
+ * @param {Array<{p: object}>} feats  All signals at one physical location.
+ * @returns {{ nodeGroups: NodeGroup[], isMech: boolean }}
+ *   isMech is returned so callers (signal-mapping.js, validate-main.js) can pass
+ *   it to buildNodeTags without re-computing mechanical detection.
  */
 export function groupFeats(feats) {
-    const sorted = _sort(feats);
+    const isMech = _detectMechanical(feats);
+
+    // Parse networkId strings once per feat. Stored in a Map keyed by object
+    // reference — no mutation of feat objects, no hidden class invalidation.
+    const idMap = new Map(feats.map(f => [f, _parseId(f.p.networkId)]));
+
+    const sorted = _sortFeats(feats, isMech, idMap);
+    const nodeGroups = _distributeToNodes(sorted, isMech, idMap);
+    return { nodeGroups, isMech };
+}
+
+// ===== Private — pipeline steps =====
+
+/**
+ * Step 1: detect whether this location is a mechanical installation.
+ * Delegates to isMechanicalCombo() in signal-types.js.
+ */
+function _detectMechanical(feats) {
+    return isMechanicalCombo(new Set(feats.map(f => f.p.signalType)));
+}
+
+/**
+ * Step 3: sort feats into processing order.
+ *
+ * isMech selects the active linkedTo for signals with both sections
+ * (e.g. A mechanical links to CARRE; A luminous has no linkedTo).
+ * idMap provides pre-parsed integers for all arithmetic comparisons.
+ *
+ * @param {Array<{p: object}>}    feats
+ * @param {boolean}               isMech
+ * @param {Map<object, number>}   idMap
+ * @returns {Array<{p: object}>}
+ */
+function _sortFeats(feats, isMech, idMap) {
+    // Anchor keys: types referenced as linkedTo targets in this batch (Tier 0).
+    const anchorKeys = new Set();
+    for (const feat of feats) {
+        for (const k of _activeLinks(feat.p.signalType, isMech)) anchorKeys.add(k);
+    }
+
+    // OSM cats claimed by Tier-1 signals — used to defer unlinked competitors (Tier 2).
+    const linkedCats = new Set();
+    for (const feat of feats) {
+        const links = _activeLinks(feat.p.signalType, isMech);
+        if (links.length > 0) {
+            const entry = getMappingEntry(feat.p.signalType);
+            if (entry) linkedCats.add(entry.cat);
+        }
+    }
+
+    // Parsed networkIds of every anchor signal, indexed by GAIA key.
+    const anchorIds = new Map();
+    for (const feat of feats) {
+        if (!anchorKeys.has(feat.p.signalType)) continue;
+        if (!anchorIds.has(feat.p.signalType)) anchorIds.set(feat.p.signalType, []);
+        anchorIds.get(feat.p.signalType).push(idMap.get(feat));
+    }
+
+    return [...feats].sort((a, b) => {
+        const ta = _tier(a, anchorKeys, linkedCats, isMech);
+        const tb = _tier(b, anchorKeys, linkedCats, isMech);
+        if (ta !== tb) return ta - tb;
+
+        // Within Tier 1: closest-to-anchor first so the most relevant signal
+        // claims the preferred slot before distant outliers do.
+        if (ta === 1) {
+            const da = _minDistToAnchor(a, anchorIds, isMech, idMap);
+            const db = _minDistToAnchor(b, anchorIds, isMech, idMap);
+            if (da !== db) return da - db;
+        }
+
+        // All other tiers: ascending networkId for deterministic order.
+        return idMap.get(a) - idMap.get(b);
+    });
+}
+
+/**
+ * Step 4: place sorted feats into NodeGroups using canFit / best-proximity-fit.
+ *
+ * Two-phase placement per signal:
+ *   Phase 1 — Explicit link: _findLinkedGroup() for signals with an active linkedTo.
+ *   Phase 2 — Proximity: _bestFitGroup() for all other signals.
+ *             When multiple groups can accept the signal, the one whose networkIds
+ *             are collectively closest to the signal's own networkId is chosen.
+ *             This prevents a signal from landing in the first available group when
+ *             a numerically closer group exists (first-fit artefact).
+ *
+ * isMech is passed to _findLinkedGroup so it selects the correct linkedTo
+ * based on the mechanical/luminous context (critical fix from code review).
+ *
+ * @param {Array<{p: object}>}   sorted
+ * @param {boolean}              isMech
+ * @param {Map<object, number>}  idMap
+ * @returns {NodeGroup[]}
+ */
+function _distributeToNodes(sorted, isMech, idMap) {
     const groups = [];
 
     for (const feat of sorted) {
-        const mapping = SIGNAL_MAPPING[feat.p.signalType];
-        const links = _links(mapping);
-        let idx = -1;
-
-        if (links.length > 0) {
-            // Collect all candidate groups holding a linked anchor key.
-            const candidates = [];
-            for (let i = 0; i < groups.length; i++) {
-                const g = groups[i];
-                if (!canFit(feat, g)) continue;
-                for (const link of links) {
-                    if (g.networkKeys.has(link)) {
-                        candidates.push({ i, anchorId: g.networkKeys.get(link) });
-                        break;
-                    }
-                }
-            }
-            if (candidates.length === 1) {
-                idx = candidates[0].i;
-            } else if (candidates.length > 1) {
-                // Prefer the candidate whose anchor networkId is closest to ours.
-                const myId = _numId(feat.p.networkId);
-                idx = candidates.reduce((best, c) =>
-                    Math.abs(_numId(c.anchorId) - myId) <
-                        Math.abs(_numId(best.anchorId) - myId) ? c : best
-                ).i;
-            }
-        }
-
-        if (idx === -1) idx = groups.findIndex(g => canFit(feat, g));
+        const entry = getMappingEntry(feat.p.signalType);
+        let idx = _findLinkedGroup(feat, groups, isMech, idMap);
+        if (idx === -1) idx = _bestFitGroup(feat, groups, idMap);
 
         if (idx === -1) {
             groups.push({
                 direction: feat.p.direction,
                 placement: feat.p.placement,
                 feats: [feat],
-                categories: mapping ? new Set([mapping.cat]) : new Set(),
-                networkKeys: new Map([[feat.p.signalType, feat.p.networkId]]),
+                categories: entry ? new Set([entry.cat]) : new Set(),
+                networkKeys: new Map([[feat.p.signalType, idMap.get(feat)]]),
             });
         } else {
             groups[idx].feats.push(feat);
-            groups[idx].networkKeys.set(feat.p.signalType, feat.p.networkId);
-            if (mapping) groups[idx].categories.add(mapping.cat);
+            groups[idx].networkKeys.set(feat.p.signalType, idMap.get(feat));
+            if (entry) groups[idx].categories.add(entry.cat);
         }
     }
 
     return groups;
 }
 
-// ===== Private =====
+/**
+ * Find the best-fit group for a signal that has no active linkedTo target.
+ *
+ * Selection criteria, applied in order:
+ *   1. Group priority — prefer the group whose highest-priority signal has the
+ *      lowest TYPE_PRIORITY index (i.e. appears earliest in SIGNAL_MAPPING).
+ *      A group containing CARRE always wins over one containing only TIV D FIXE.
+ *   2. NetworkId proximity — tiebreaker when two groups share the same best
+ *      signal priority. Closer networkId wins.
+ *
+ * This prevents signals from being pulled into a secondary group by a smaller
+ * networkId delta when the primary group has a more important anchor signal:
+ *   e.g. TECS 10038280 joins the group with CARRE 63936 even if its id is
+ *   numerically closer to a secondary group containing only TSCS signals.
+ *
+ * @param {object}             feat
+ * @param {NodeGroup[]}        groups
+ * @param {Map<object,number>} idMap
+ * @returns {number}  Group index, or -1 when no group can accept the signal.
+ */
+function _bestFitGroup(feat, groups, idMap) {
+    const candidates = [];
+    for (let i = 0; i < groups.length; i++) {
+        if (canFit(feat, groups[i])) candidates.push(i);
+    }
 
-function _links(mapping) {
-    if (!mapping?.linkedTo) return [];
-    return Array.isArray(mapping.linkedTo) ? mapping.linkedTo : [mapping.linkedTo];
+    if (candidates.length === 0) return -1;
+    if (candidates.length === 1) return candidates[0];
+
+    const myId = idMap.get(feat);
+    let bestIdx = candidates[0];
+    let bestPriority = _groupBestPriority(groups[candidates[0]]);
+    let bestDelta = _groupMinDelta(groups[candidates[0]], myId);
+
+    for (let ci = 1; ci < candidates.length; ci++) {
+        const i = candidates[ci];
+        const priority = _groupBestPriority(groups[i]);
+        const delta = _groupMinDelta(groups[i], myId);
+
+        if (priority < bestPriority
+            || (priority === bestPriority && delta < bestDelta)) {
+            bestIdx = i;
+            bestPriority = priority;
+            bestDelta = delta;
+        }
+    }
+
+    return bestIdx;
 }
 
-function _numId(id) {
-    const n = parseInt(id ?? '', 10);
-    return Number.isFinite(n) ? n : 0;
+/** Return the lowest TYPE_PRIORITY value (= highest importance) among all feats in a group. */
+function _groupBestPriority(group) {
+    let best = UNSUPPORTED_PRIORITY;
+    for (const f of group.feats) {
+        const p = getTypePriority(f.p.signalType);
+        if (p < best) best = p;
+    }
+    return best;
+}
+
+/** Return the minimum absolute networkId distance between targetId and any id in the group. */
+function _groupMinDelta(group, targetId) {
+    let min = Infinity;
+    for (const gId of group.networkKeys.values()) {
+        const d = Math.abs(gId - targetId);
+        if (d < min) min = d;
+    }
+    return min;
+}
+
+
+// ===== Private — sort helpers =====
+
+/**
+ * Return the active linkedTo targets for a signal type, respecting isMech.
+ *
+ * Signals with default/mechanical sections pick the active section's linkedTo:
+ *   A mechanical (isMech=true)  → mechanical.linkedTo = 'CARRE'
+ *   A luminous   (isMech=false) → default has no linkedTo → []
+ *
+ * Legacy flat-structure signals (luminous-only) use top-level linkedTo.
+ *
+ * @param {string}  signalType
+ * @param {boolean} isMech
+ * @returns {string[]}
+ */
+function _activeLinks(signalType, isMech) {
+    const entry = getMappingEntry(signalType);
+    if (!entry) return [];
+    if (entry.default || entry.mechanical) {
+        const section = isMech ? entry.mechanical : entry.default;
+        const raw = section?.linkedTo ?? null;
+        return raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+    }
+    const raw = entry.linkedTo ?? null;
+    return raw ? (Array.isArray(raw) ? raw : [raw]) : [];
 }
 
 /**
- * Sort feats for deterministic grouping (see tier documentation in module header).
- *
- * @param {Array<{ p: object }>} feats
- * @returns {Array<{ p: object }>}
+ * Assign a processing tier to a feat.
+ * @returns {0|1|2|3}
  */
-function _sort(feats) {
-    // Set of GAIA keys referenced as anchors in this batch.
-    const anchorKeys = new Set();
-    for (const feat of feats) {
-        for (const k of _links(SIGNAL_MAPPING[feat.p.signalType])) anchorKeys.add(k);
-    }
+function _tier(feat, anchorKeys, linkedCats, isMech) {
+    const { signalType } = feat.p;
+    if (anchorKeys.has(signalType)) return 0;
+    if (_activeLinks(signalType, isMech).length > 0) return 1;
+    const entry = getMappingEntry(signalType);
+    if (entry && linkedCats.has(entry.cat)) return 2;
+    return 3;
+}
 
-    // OSM cats claimed by signals with linkedTo (used to defer unlinked competitors).
-    const linkedCats = new Set();
-    for (const feat of feats) {
-        const m = SIGNAL_MAPPING[feat.p.signalType];
-        if (m && _links(m).length > 0) linkedCats.add(m.cat);
+/**
+ * Minimum distance from a Tier-1 feat's parsed networkId to any of its anchor
+ * signals' parsed networkIds. Determines sort order within Tier 1.
+ *
+ * @param {object}             feat
+ * @param {Map<string,number[]>} anchorIds
+ * @param {boolean}            isMech
+ * @param {Map<object,number>} idMap
+ * @returns {number}
+ */
+function _minDistToAnchor(feat, anchorIds, isMech, idMap) {
+    const id = idMap.get(feat);
+    let min = Infinity;
+    for (const link of _activeLinks(feat.p.signalType, isMech)) {
+        for (const anchorId of (anchorIds.get(link) ?? [])) {
+            const d = Math.abs(anchorId - id);
+            if (d < min) min = d;
+        }
     }
+    return min;
+}
 
-    // For each anchor GAIA key, collect networkIds of all anchor signals in this batch.
-    const anchorIds = new Map();
-    for (const feat of feats) {
-        if (!anchorKeys.has(feat.p.signalType)) continue;
-        if (!anchorIds.has(feat.p.signalType)) anchorIds.set(feat.p.signalType, []);
-        anchorIds.get(feat.p.signalType).push(_numId(feat.p.networkId));
-    }
+// ===== Private — distribution helpers =====
 
-    // Minimum networkId distance from a feat to any of its anchor signals.
-    const minDistToAnchor = feat => {
-        const myId = _numId(feat.p.networkId);
-        let min = Infinity;
-        for (const link of _links(SIGNAL_MAPPING[feat.p.signalType])) {
-            for (const anchorId of (anchorIds.get(link) ?? [])) {
-                const d = Math.abs(anchorId - myId);
-                if (d < min) min = d;
+/**
+ * Find the best existing group for a signal with active linkedTo links.
+ *
+ * isMech is forwarded to _activeLinks so the correct linkedTo is used:
+ * a luminous A returns [] (no link), a mechanical A returns ['CARRE'].
+ * Without isMech, entry.mechanical?.linkedTo would always be evaluated first
+ * by the nullish coalescing operator, incorrectly linking luminous A to CARRE.
+ *
+ * When multiple groups hold a matching anchor key, the one whose anchor
+ * networkId is closest to the signal's own networkId is preferred.
+ *
+ * @param {object}             feat
+ * @param {NodeGroup[]}        groups
+ * @param {boolean}            isMech
+ * @param {Map<object,number>} idMap
+ * @returns {number}  Group index, or -1 when no linked group found.
+ */
+function _findLinkedGroup(feat, groups, isMech, idMap) {
+    const links = _activeLinks(feat.p.signalType, isMech);
+    if (links.length === 0) return -1;
+
+    const candidates = [];
+    for (let i = 0; i < groups.length; i++) {
+        if (!canFit(feat, groups[i])) continue;
+        for (const link of links) {
+            if (groups[i].networkKeys.has(link)) {
+                candidates.push({ i, anchorId: groups[i].networkKeys.get(link) });
+                break;
             }
         }
-        return min;
-    };
+    }
 
-    const tier = feat => {
-        const m = SIGNAL_MAPPING[feat.p.signalType];
-        if (anchorKeys.has(feat.p.signalType)) return 0;
-        if (_links(m).length > 0) return 1;
-        if (m && linkedCats.has(m.cat)) return 2;
-        return 3;
-    };
+    if (candidates.length === 0) return -1;
+    if (candidates.length === 1) return candidates[0].i;
 
-    return [...feats].sort((a, b) => {
-        const ta = tier(a), tb = tier(b);
-        if (ta !== tb) return ta - tb;
+    // Multiple candidates: prefer the one whose anchor networkId is closest.
+    const id = idMap.get(feat);
+    return candidates.reduce((best, c) =>
+        Math.abs(c.anchorId - id) < Math.abs(best.anchorId - id) ? c : best
+    ).i;
+}
 
-        // Tier 1: closest-to-anchor first, so outliers don't steal preferred slots.
-        if (ta === 1) {
-            const da = minDistToAnchor(a), db = minDistToAnchor(b);
-            if (da !== db) return da - db;
-        }
+// ===== Private — utilities =====
 
-        const clA = (a.p.networkId ?? '').slice(0, 4);
-        const clB = (b.p.networkId ?? '').slice(0, 4);
-        if (clA !== clB) return clA < clB ? -1 : 1;
-        return getTypePriority(a.p.signalType) - getTypePriority(b.p.signalType);
-    });
+/** Parse a networkId string to a finite integer, or 0 on failure. */
+function _parseId(networkId) {
+    const n = parseInt(networkId ?? '', 10);
+    return Number.isFinite(n) ? n : 0;
 }

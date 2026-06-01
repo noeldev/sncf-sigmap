@@ -39,9 +39,11 @@
  *   resolveStartTab(flipped)
  */
 
+import { NODE_OFFSET_DEG } from './config.js';
 import { FIELD } from './field-keys.js';
 import { map } from './map.js';
-import { getTypeColor, sortSignalsByNetworkId } from './signal-mapping.js';
+import { getTypeColor, sortSignalsByNetworkId, contrastColor } from './signal-mapping.js';
+import { isMechanicalCombo } from './signal-types.js';
 import { t, translateElement, onLangChange, openHelpPage } from './translation.js';
 import { OsmStatusChecker } from './osm-checker.js';
 import { josmAddNode } from './josm.js';
@@ -67,18 +69,6 @@ let _unsubscribePins = null;
 
 const _tplPopup = () => document.getElementById('tpl-signal-popup');
 const _tplTagRow = () => document.getElementById('tpl-osm-tag-row');
-
-
-// ===== Contrast helper =====
-
-function _contrastColor(hex) {
-    if (!hex) return '#fff';
-    const h = hex.replace('#', '');
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    return ((r * 299 + g * 587 + b * 114) / 1000) >= 128 ? '#000' : '#fff';
-}
 
 
 // ===== Tab identifiers =====
@@ -356,16 +346,36 @@ function _updateSignalsPanel() {
 function _updateSignalColor(p) {
     const color = getTypeColor(p.signalType);
     _popupEl.style.setProperty('--signal-color', color);
-    _popupEl.style.setProperty('--signal-contrast', _contrastColor(color));
+    _popupEl.style.setProperty('--signal-contrast', contrastColor(color));
 }
 
-/** Update the signal type badge. */
+/** Update the signal type badge, adding a gear icon for mechanical installations. */
 function _updateSignalType(p) {
     const row = _getFieldRow(FIELD.SIGNAL_TYPE);
     if (!row) return;
     const badgeEl = row.querySelector('.pu-badge');
-    if (badgeEl) {
-        badgeEl.textContent = p.signalType ?? '';
+    if (!badgeEl) return;
+    badgeEl.textContent = p.signalType ?? '';
+
+    // Show a gear icon when the entire location is a mechanical installation.
+    const typeSet = new Set(_feats.map(f => f.p.signalType));
+    let gearEl = row.querySelector('.pu-mech-icon');
+    if (isMechanicalCombo(typeSet)) {
+        if (!gearEl) {
+            // Clone from the template so the icon is defined in HTML, not in JS.
+            const tpl = document.getElementById('tpl-mech-icon');
+            if (tpl) {
+                gearEl = tpl.content.cloneNode(true).querySelector('.pu-mech-icon');
+                if (gearEl) {
+                    // Set title on the wrapper span — SVG elements don't show native
+                    // browser tooltips via the title attribute, but span elements do.
+                    gearEl.title = t('popup.mechanical');
+                    badgeEl.after(gearEl);
+                }
+            }
+        }
+    } else {
+        gearEl?.remove();
     }
 }
 
@@ -979,9 +989,10 @@ async function _sendToJOSM(btn) {
     // Disable the button while the request is pending.
     btn.disabled = true;
 
-    // Small lat offset per node so separately created nodes don't overlap in JOSM.
+    // Offset each node slightly on the latitude axis so co-located nodes
+    // do not overlap in JOSM. Shared constant with validate GeoJSON export.
     const node = _osmChecker.getNode(_tagsNodeIdx);
-    const lat = _latlng[0] + (node?.index ?? _tagsNodeIdx) * 0.00001;
+    const lat = _latlng[0] + (node?.index ?? _tagsNodeIdx) * NODE_OFFSET_DEG;
     const sortedTags = new Map(_sortedTagEntries(state.target));
 
     try {
