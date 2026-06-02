@@ -33,8 +33,8 @@ import { buildNodeTags } from './osm-tags.js';
  * @returns {string}
  */
 export function getTypeColor(signalType) {
-    // getGroupForType checks both SIGNAL_MAPPING and MECHANICAL_MAPPING so that
-    // always-mechanical types (R30, RR30) display the correct legend color.
+    // getGroupForType covers all signal types including always-mechanical ones
+    // (R30, RR30) so they display the correct legend color.
     const group = getGroupForType(signalType) ?? getUnsupportedGroup();
     return getColorForGroup(group);
 }

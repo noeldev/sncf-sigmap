@@ -452,7 +452,7 @@ const SIGNAL_MAPPING = {
         }
     },
 
-    // Cab signalling (TVM / ETCS)
+    // Cab signalling
     "CAB E": {
         group: "trainProtection",
         cat: "train_protection",
@@ -491,10 +491,11 @@ const SIGNAL_MAPPING = {
     "REP TGV": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:ETCS",
+        type: "ETCS:marker",
+        subcat: "main",
+        subtype: "ETCS:stop_marker",
         properties: {
-            form: "sign",
-            function: "stop_marker"
+            form: "sign"
         }
     },
 

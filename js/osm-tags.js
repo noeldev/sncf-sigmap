@@ -32,15 +32,17 @@ export function makeSignalCatKey(cat) {
 
 /**
  * Return the full OSM :ref tag key for a signal type, or null when unmapped.
- * Moved here from signal-mapping.js so all railway:signal:* key construction
- * lives in one module.
+ * When the entry has a subcat, the ref sits under <cat>:<subcat>:ref.
  *
- * @param {string} signalType  GAIA key, e.g. 'CARRE'
- * @returns {string|null}      e.g. 'railway:signal:main:ref', or null
+ * @param {string} signalType  GAIA key, e.g. 'CARRE', 'REP TGV'
+ * @returns {string|null}      e.g. 'railway:signal:main:ref'
+ *                             or   'railway:signal:train_protection:main:ref'
  */
 export function getSignalId(signalType) {
     const entry = getMappingEntry(signalType);
-    return entry ? `${makeSignalCatKey(entry.cat)}:ref` : null;
+    if (!entry) return null;
+    const base = makeSignalCatKey(entry.cat);
+    return entry.subcat ? `${base}:${entry.subcat}:ref` : `${base}:ref`;
 }
 
 /**
@@ -53,9 +55,9 @@ export function getSignalId(signalType) {
  *   railway:signal:position   - left | right | bridge
  *
  * For each mapped signal in the group (resolved via resolveSignalDef):
- *   - Luminous signals use the SIGNAL_MAPPING definition (form:light, shape, states…).
- *   - Mechanical combos (CARRE+A+RR30, A+D) use MECHANICAL_MAPPING (form:sign only).
- *   - R30 and RR30 always resolve to MECHANICAL_MAPPING regardless of co-location.
+ *   - Luminous signals use the standard luminous definition (form:light, shape, states…).
+ *   - Mechanical combos (CARRE+A+RR30, A+D) use the mechanical definition (form:sign only).
+ *   - R30 and RR30 always resolve to their mechanical definition regardless of co-location.
  *   railway:signal:<cat>=<type>
  *   railway:signal:<cat>:<property>=<value>   (from mapping.properties)
  *   railway:signal:<cat>:ref=<networkId>
@@ -89,12 +91,19 @@ export function buildNodeTags(nodeFeats, { isMech = false } = {}) {
         const def = defs.get(signalType);
 
         if (def) {
-            const prefix = makeSignalCatKey(def.cat);
-            tags.set(prefix, def.type);
+            const catPrefix = makeSignalCatKey(def.cat);
+            // propPrefix is where properties and :ref live.
+            // Without subcat: railway:signal:<cat>
+            // With subcat:    railway:signal:<cat>:<subcat>
+            const propPrefix = def.subcat ? `${catPrefix}:${def.subcat}` : catPrefix;
+
+            tags.set(catPrefix, def.type);
+            if (def.subcat) tags.set(propPrefix, def.subtype);   // e.g. train_protection:main=ETCS:stop_marker
+
             for (const [k, v] of Object.entries(def.properties ?? {})) {
-                tags.set(`${prefix}:${k}`, v);
+                tags.set(`${propPrefix}:${k}`, v);
             }
-            if (networkId) tags.set(`${prefix}:ref`, networkId);
+            if (networkId) tags.set(`${propPrefix}:ref`, networkId);
         } else {
             if (!unsupported.has(signalType)) unsupported.set(signalType, []);
             if (networkId) unsupported.get(signalType).push(networkId);

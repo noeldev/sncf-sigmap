@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 Noël Danjou
+// Copyright (C) 2026 NoÃ«l Danjou
 
 /**
  * wiki-parser.js - Fetch and parse the OpenRailwayMap/Tagging_in_France wiki page.

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 Noël Danjou
+// Copyright (C) 2026 NoÃ«l Danjou
 
 /**
  * spec-compare.js - Cross-check signal OSM definitions against the wiki spec.
  *
  * Compares {cat, type} pairs derived from OSM values:
  *   - Code side: all possible (cat, type) outputs from getAllOsmPairs(),
- *     which covers both SIGNAL_MAPPING (luminous) and MECHANICAL_MAPPING
- *     (always-mechanical: R30, RR30; combo-mechanical: CARRE, A, D).
+ *     which covers all signal types defined in signal-types.js (luminous
+ *     and mechanical entries included via getAllOsmPairs()).
  *   - Wiki side: {cat, type} pairs extracted from the rendered HTML by
  *     wiki-parser.js.
  *
@@ -39,8 +39,8 @@ import { getAllOsmPairs } from '../signal-types.js';
  * Groups GAIA signal codes by their {cat, type} OSM pair so that multiple
  * codes producing the same OSM pair are listed together as context.
  *
- * Includes both luminous (SIGNAL_MAPPING) and mechanical (MECHANICAL_MAPPING)
- * entries via getAllOsmPairs(). Duplicate pairs are collapsed automatically.
+ * Covers all OSM-generating entries via getAllOsmPairs().
+ * Duplicate pairs are collapsed automatically.
  *
  * @returns {CodeSpec}
  */

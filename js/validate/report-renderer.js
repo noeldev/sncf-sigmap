@@ -38,12 +38,13 @@ import {
     initConflictFilter, resetConflictFilter,
     toggleCat, toggleMechanical,
     isCatExcluded, isMechanicalShown, isFilterActive,
-    applyConflictFilter,
 } from './conflict-filter.js';
 
 // ===== Module-level constants =====
 
-const APP_URL = window.location.origin
+// Base URL of the app — strips the filename so it works on any path (localhost or production).
+// Exported for use by validate-main.js in GeoJSON metadata.
+export const APP_URL = window.location.origin
     + window.location.pathname.replace(/\/[^/]*$/, '');
 
 // ===== Init =====
