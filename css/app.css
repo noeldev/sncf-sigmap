@@ -1,10 +1,11 @@
-/* app.css - styles for index.html */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Noël Danjou */
 
+/* app.css - styles for index.html */
 @import url('tokens.css');
 @import url('shared.css');
 
 /* ===== CSS Custom Properties ===== */
-
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;

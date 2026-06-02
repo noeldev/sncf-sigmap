@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * wiki-parser.js - Fetch and parse the OpenRailwayMap/Tagging_in_France wiki page.
  *
@@ -48,10 +51,58 @@ const PROPERTY_SUFFIXES = new Set([
 
 const RE_TAG = /railway:signal:([^\s=;]+)=(FR:[^\s;]+)/g;
 
+// ===== sessionStorage cache =====
+// The wiki page changes rarely; cache the parsed result for 1 hour to avoid
+// a network round-trip on every page reload.
+
+const CACHE_KEY = 'sncf-sigmap:wiki-spec';
+const CACHE_TTL = 3_600_000; // 1 hour in ms
+
+function _loadCache() {
+    try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (Date.now() - ts > CACHE_TTL) {
+            sessionStorage.removeItem(CACHE_KEY);
+            return null;
+        }
+        return {
+            pairs: data.pairs,
+            byCat: new Map(data.byCat.map(([k, v]) => [k, new Set(v)])),
+            byType: new Map(data.byType.map(([k, v]) => [k, new Set(v)])),
+        };
+    } catch {
+        return null;
+    }
+}
+
+function _saveCache(spec) {
+    try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            ts: Date.now(),
+            data: {
+                pairs: spec.pairs,
+                byCat: [...spec.byCat.entries()].map(([k, v]) => [k, [...v]]),
+                byType: [...spec.byType.entries()].map(([k, v]) => [k, [...v]]),
+            },
+        }));
+    } catch {
+        // sessionStorage may be unavailable (private browsing, quota exceeded).
+    }
+}
+
+// ===== Public API =====
+
 export async function fetchWikiSpec() {
+    const cached = _loadCache();
+    if (cached) return cached;
+
     const html = await _fetchRenderedHtml();
     if (html === null) return null;
-    return _parse(html);
+    const spec = _parse(html);
+    _saveCache(spec);
+    return spec;
 }
 
 async function _fetchRenderedHtml() {

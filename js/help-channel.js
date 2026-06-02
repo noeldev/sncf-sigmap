@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * help-channel.js — BroadcastChannel abstraction for cross-tab communication
  * between the main app and standalone help pages.

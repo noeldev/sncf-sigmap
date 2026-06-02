@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * validate-main.js - Validation orchestrator.
  *
@@ -15,7 +18,6 @@
  * GeoJSON export:
  *   Exports ALL signals as a FeatureCollection for OSM integration.
  *   Co-located nodes are offset by ~50 cm so JOSM can distinguish them.
- *   Compatible with JOSM, QGIS, MapRoulette, and any GIS tool.
  */
 
 import { isMapped } from '../signal-types.js';
@@ -27,6 +29,7 @@ import { NODE_OFFSET_DEG } from '../config.js';
 import { fetchWikiSpec } from './wiki-parser.js';
 import { buildCodeSpec, compareSpecs } from './spec-compare.js';
 import { groupFeats } from '../signal-grouping.js';
+import { markOutliers } from './outlier-detector.js';
 import {
     buildLocationGroups,
     flagDuplicates,
@@ -201,12 +204,25 @@ function _accumulateUnmapped(tile, unmappedTypes) {
     }
 }
 
+// ===== Conflict detection =====
+
 function _detectConflicts(locationGroups) {
     const conflicts = [];
     let conflictRows = 0;
 
     for (const loc of locationGroups.values()) {
-        const { nodeGroups, isMech } = groupFeats(loc.feats);
+        // Two-pass grouping:
+        //   1. Identify outlier feats via isolation-score criterion (outlier-detector.js).
+        //   2. Sort feats: originals first, outliers last.
+        //   3. groupFeats() on sorted order — each outlier's type is already claimed
+        //      by an original in the primary node, so the outlier goes to a secondary node.
+        markOutliers(loc.feats);
+        const sortedFeats = [...loc.feats].sort(
+            (a, b) => (a.p._outlier ? 1 : 0) - (b.p._outlier ? 1 : 0)
+        );
+        for (const f of loc.feats) delete f.p._outlier;
+
+        const { nodeGroups, isMech } = groupFeats(sortedFeats);
         const detected = findConflicts(nodeGroups);
         if (!detected.length) continue;
         conflictRows += detected.length;
@@ -240,6 +256,15 @@ function _detectConflicts(locationGroups) {
 
 // ===== GeoJSON export =====
 
+const RE_CLEANUP = /[-:]/g;
+
+function _getExportFilename() {
+    const now = new Date();
+    const iso = now.toISOString(); // Ex: "2026-06-02T14:30:15.123Z"
+    const timestamp = iso.slice(0, 19).replace('T', '_').replace(RE_CLEANUP, '');
+    return `signals-sncf-osm_${timestamp}Z.geojson`;
+}
+
 /**
  * Export all signals as a standard GeoJSON FeatureCollection.
  *
@@ -251,6 +276,7 @@ function _detectConflicts(locationGroups) {
  * Properties are pure OSM key=value tags. Compatible with JOSM, QGIS,
  * geojson.io, and MapRoulette.
  */
+
 function _exportGeoJSON() {
     if (!_lastResults) return;
     const { tileScan } = _lastResults;
@@ -276,14 +302,9 @@ function _exportGeoJSON() {
         { type: 'application/geo+json' }
     );
 
-    const now = new Date();
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '');
-    const filename = `signals-sncf-osm_${datePart}_${timePart}.geojson`;
-
     const a = Object.assign(document.createElement('a'), {
         href: URL.createObjectURL(blob),
-        download: filename,
+        download: _getExportFilename(),
     });
     a.click();
     URL.revokeObjectURL(a.href);

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * report-renderer.js - DOM rendering for all validation report sections.
  *
@@ -31,6 +34,12 @@ import { initCollapsiblePanelsInRoot } from '../collapsible-panel.js';
 import { t, translateElement } from '../translation.js';
 import { makeSignalCatKey } from '../osm-tags.js';
 import { contrastColor } from '../signal-mapping.js';
+import {
+    initConflictFilter, resetConflictFilter,
+    toggleCat, toggleMechanical,
+    isCatExcluded, isMechanicalShown, isFilterActive,
+    applyConflictFilter,
+} from './conflict-filter.js';
 
 // ===== Module-level constants =====
 
@@ -40,33 +49,26 @@ const APP_URL = window.location.origin
 // ===== Init =====
 
 function _init() {
-    initCollapsiblePanelsInRoot(document.getElementById('main'));
+    const panels = document.getElementById('main');
+    initCollapsiblePanelsInRoot(panels);
 
+    _bindEvents();
+}
+
+function _bindEvents() {
     const btn = document.getElementById('btn-toc');
     if (!btn) return;
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         window.scrollTo({ top: 0, behavior: 'instant' });
     });
-
-    // Scroll to a specific conflict row when the page loads with a #row= hash.
-    window.addEventListener('load', () => {
-        if (!location.hash.startsWith('#row=')) return;
-        const rowId = location.hash.slice('#row='.length);
-        const el = document.getElementById('conflict-' + rowId);
-        if (el) el.scrollIntoView({ block: 'center', behavior: 'instant', });
-    });
 }
 
 _init();
 
 // ===== Filter state =====
-
-// _excludedFilters: Set<osmCat> — OSM cat keys whose conflict rows are hidden.
-let _excludedFilters = new Set();
-let _showMechanical = true;   // when false, mechanical rows are hidden
-let _conflictTbody = null;
-let _conflictCatCounts = new Map(); // Map<osmCat, number>
+// Managed by conflict-filter.js — see that module for state and hash logic.
+let _conflictCatCounts = new Map(); // Map<osmCat, number> — for dropdown rebuild
 
 // Color for a chip: derived from the mapping's group key.
 function _catColorFromMapping(mapping) {
@@ -154,11 +156,10 @@ export function renderConflicts(conflicts) {
     }
     table.appendChild(tbody);
     content.replaceChildren(table);
-    _conflictTbody = tbody;
     _conflictCatCounts = catCounts;
 
     _registerGoogleMapsDelegate(content);
-    _restoreFilterFromHash();
+    initConflictFilter(tbody);
 }
 
 export function renderUnmapped(unmappedTypes) {
@@ -201,47 +202,78 @@ export function renderUnmapped(unmappedTypes) {
 export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
     _show('section-spec');
 
-    _renderSpecTable({
-        contentId: 'only-wiki-content',
-        badgeId: 'badge-only-wiki',
-        items: onlyInWiki,
-        emptyMsg: t('message.allImplemented'),
-        theadId: 'tpl-thead-spec-wiki',
-        rowId: 'tpl-spec-row-wiki',
-        emptyBadge: 'badge-blue',
-        filledBadge: 'badge-amber',
-        fillRow(row, { cat, type }, i) {
-            _fill(row, 'row-num', i + 1);
-            _fill(row, 'key', makeSignalCatKey(cat));
-            _fill(row, 'type', type);
-        },
-    });
+    // Build the unified "Unmatched entries" list.
+    //
+    // Each (osmKey, typeValue) pair is its own row — no merging for genuinely
+    // different values. Exception: case-insensitive matches on the same OSM key
+    // (e.g. FR:Chevron in wiki vs FR:chevron in code) are merged into one row
+    // showing both values, since they represent the same mapping entry.
+    //
+    // Merging key: osmKey + '|' + typeValue.toLowerCase()
+    const rows = [];
+    const wikiNormMap = new Map(); // normalised key -> row index
+
+    for (const { cat, type } of onlyInWiki) {
+        const key = makeSignalCatKey(cat);
+        const idx = rows.length;
+        rows.push({ key, wikiType: type, codeType: null });
+        wikiNormMap.set(key + '|' + type.toLowerCase(), idx);
+    }
+
+    for (const { cat, type } of onlyInCode) {
+        const key = makeSignalCatKey(cat);
+        const normKey = key + '|' + type.toLowerCase();
+        const existingIdx = wikiNormMap.get(normKey);
+        if (existingIdx !== undefined) {
+            // Case-insensitive match: merge into the wiki row.
+            rows[existingIdx].codeType = type;
+        } else {
+            rows.push({ key, wikiType: null, codeType: type });
+        }
+    }
+
+    // Sort: alphabetically by OSM key, then by type value within the same key.
+    rows.sort((a, b) =>
+        a.key.localeCompare(b.key) ||
+        (a.wikiType ?? '').localeCompare(b.wikiType ?? '') ||
+        (a.codeType ?? '').localeCompare(b.codeType ?? '')
+    );
+
+    // Amber highlight: a type value that appears in BOTH columns (at any row)
+    // signals a likely cross-key association worth investigating.
+    const wikiTypeSet = new Set(rows.filter(r => r.wikiType).map(r => r.wikiType));
+    const codeTypeSet = new Set(rows.filter(r => r.codeType).map(r => r.codeType));
 
     _renderSpecTable({
-        contentId: 'only-code-content',
-        badgeId: 'badge-only-code',
-        items: [...onlyInCode].sort((a, b) => Number(b.catKnown) - Number(a.catKnown)),
+        contentId: 'unmatched-content',
+        badgeId: 'badge-unmatched',
+        items: rows,
         emptyMsg: t('message.allMatch'),
-        theadId: 'tpl-thead-spec-code',
-        rowId: 'tpl-spec-row-code',
+        theadId: 'tpl-thead-spec-unmatched',
+        rowId: 'tpl-spec-row-unmatched',
         emptyBadge: 'badge-blue',
         filledBadge: 'badge-amber',
-        fillRow(row, { cat, type, catKnown }, i) {
+        fillRow(row, { key, wikiType, codeType }, i) {
             _fill(row, 'row-num', i + 1);
-            _fill(row, 'key', makeSignalCatKey(cat));
-            _fill(row, 'type', type);
-            const noteEl = row.querySelector('[data-field="note"]');
-            noteEl.textContent = catKnown
-                ? t('spec.typeMismatch')
-                : t('spec.catAbsent');
-            noteEl.className = catKnown ? 'text-amber' : 'dim';
+            _fill(row, 'key', key);
+            // Amber when: case-insensitive merge (both present on this row)
+            //          OR the value also appears somewhere in the opposite column.
+            const wikiEl = row.querySelector('[data-field="type-wiki"]');
+            const wikiHighlight = !!wikiType && (!!codeType || codeTypeSet.has(wikiType));
+            _setSpecCell(wikiEl, wikiType, wikiHighlight, !wikiType);
+
+            const codeEl = row.querySelector('[data-field="type-code"]');
+            const codeHighlight = !!codeType && (!!wikiType || wikiTypeSet.has(codeType));
+            _setSpecCell(codeEl, codeType, codeHighlight, !codeType);
         },
     });
 
     _renderSpecTable({
         contentId: 'matched-content',
         badgeId: 'badge-matched',
-        items: matched,
+        items: [...matched].sort((a, b) =>
+            makeSignalCatKey(a.cat).localeCompare(makeSignalCatKey(b.cat))
+        ),
         emptyMsg: t('message.noMatches'),
         theadId: 'tpl-thead-spec-matched',
         rowId: 'tpl-spec-row-matched',
@@ -254,6 +286,7 @@ export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
         },
     });
 }
+
 
 export function clearResults() {
     const sectionIds = ['stats-grid', 'stats-spec-row',
@@ -272,9 +305,7 @@ export function clearResults() {
 
     _showNavLinks(false);
 
-    _excludedFilters.clear();
-    _showMechanical = true;
-    _conflictTbody = null;
+    resetConflictFilter();
     _conflictCatCounts = new Map();
 }
 
@@ -415,14 +446,11 @@ function _buildFilterDropdown(catCounts) {
     const _onChange = () => {
         _syncMenu(menu, groups);
         _syncBtn(btn);
-        _applyFilters();
-        _updateHash();
     };
 
     // "All" row — selects/deselects everything.
     menu.appendChild(_makeAllItem(() => {
-        _excludedFilters.clear();
-        _showMechanical = true;
+        isMechanicalShown() = true;
         _onChange();
         menu.hidden = true;
         btn.setAttribute('aria-expanded', 'false');
@@ -468,7 +496,7 @@ function _makeAllItem(onChange) {
     _getFilterTemplates();
     const item = _tplFilterAllItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
     translateElement(item);
-    const isSelected = _excludedFilters.size === 0 && _showMechanical;
+    const isSelected = !isFilterActive();
     item.classList.toggle('is-selected', isSelected);
     const chk = item.querySelector('.filter-item-chk');
     if (chk) { chk.checked = isSelected; chk.dataset.role = 'all'; }
@@ -481,10 +509,10 @@ function _makeMechanicalItem(onChange) {
     _getFilterTemplates();
     const item = _tplFilterCatItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
     item.classList.add('item-mechanical');
-    item.classList.toggle('is-selected', _showMechanical);
+    item.classList.toggle('is-selected', isMechanicalShown());
     item.style.setProperty('--item-color', 'var(--text-dim)');
     const chk = item.querySelector('.filter-item-chk');
-    if (chk) { chk.checked = _showMechanical; chk.dataset.role = 'mechanical'; }
+    if (chk) { chk.checked = isMechanicalShown(); chk.dataset.role = 'mechanical'; }
     const label = item.querySelector('.filter-item-label');
     if (label) {
         label.textContent = t('filter.mechanical');
@@ -495,7 +523,7 @@ function _makeMechanicalItem(onChange) {
     }
     item.addEventListener('click', e => {
         e.preventDefault();
-        _showMechanical = !_showMechanical;
+        toggleMechanical(!isMechanicalShown());
         onChange();
     });
     return item;
@@ -511,7 +539,7 @@ function _makeGroupItem(group, onChange) {
     item.classList.add('item-group');
     item.dataset.groupKey = group.groupKey;
 
-    const allExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+    const allExcluded = group.cats.every(({ cat }) => isCatExcluded(cat));
     item.classList.toggle('is-selected', !allExcluded);
     item.style.setProperty('--item-color', group.color);
 
@@ -527,11 +555,11 @@ function _makeGroupItem(group, onChange) {
     item.addEventListener('click', e => {
         e.preventDefault();
         // Re-compute allExcluded at click time, not at creation time.
-        const nowAllExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+        const nowAllExcluded = group.cats.every(({ cat }) => isCatExcluded(cat));
         if (nowAllExcluded) {
-            group.cats.forEach(({ cat }) => _excludedFilters.delete(cat));
+            group.cats.forEach(({ cat }) => { if (isCatExcluded(cat)) toggleCat(cat); });
         } else {
-            group.cats.forEach(({ cat }) => _excludedFilters.add(cat));
+            group.cats.forEach(({ cat }) => { if (!isCatExcluded(cat)) toggleCat(cat); });
         }
         onChange();
     });
@@ -543,31 +571,30 @@ function _makeCatItem(cat, count, color, onChange) {
     _getFilterTemplates();
     const item = _tplFilterCatItem.content.cloneNode(true).querySelector('.filter-dropdown-item');
     item.classList.add('item-cat');
-    item.classList.toggle('is-selected', !_excludedFilters.has(cat));
+    item.classList.toggle('is-selected', !isCatExcluded(cat));
     item.style.setProperty('--item-color', color);
 
     const chk = item.querySelector('.filter-item-chk');
-    if (chk) { chk.checked = !_excludedFilters.has(cat); chk.dataset.cat = cat; }
+    if (chk) { chk.checked = !isCatExcluded(cat); chk.dataset.cat = cat; }
 
     const label = item.querySelector('.filter-item-label');
     if (label) label.textContent = cat + ' (' + count + ')';
 
     item.addEventListener('click', e => {
         e.preventDefault();
-        if (_excludedFilters.has(cat)) _excludedFilters.delete(cat);
-        else _excludedFilters.add(cat);
+        toggleCat(cat);
         onChange();
     });
     return item;
 }
 
 /**
- * Sync all dropdown item states from current _excludedFilters / _showMechanical.
+ * Sync all dropdown item states from current filter state (conflict-filter.js).
  */
 function _syncMenu(menu, groups) {
     // All row
     const allItem = menu.querySelector('.item-all');
-    const allSelected = _excludedFilters.size === 0 && _showMechanical;
+    const allSelected = !isFilterActive();
     if (allItem) {
         allItem.classList.toggle('is-selected', allSelected);
         const chk = allItem.querySelector('.filter-item-chk');
@@ -577,16 +604,16 @@ function _syncMenu(menu, groups) {
     // Mechanical row
     const mechItem = menu.querySelector('.item-mechanical');
     if (mechItem) {
-        mechItem.classList.toggle('is-selected', _showMechanical);
+        mechItem.classList.toggle('is-selected', isMechanicalShown());
         const chk = mechItem.querySelector('.filter-item-chk');
-        if (chk) chk.checked = _showMechanical;
+        if (chk) chk.checked = isMechanicalShown();
     }
 
     // Group rows
     for (const group of groups) {
         const groupItem = menu.querySelector(`.item-group[data-group-key="${CSS.escape(group.groupKey)}"]`);
         if (groupItem) {
-            const allExcluded = group.cats.every(({ cat }) => _excludedFilters.has(cat));
+            const allExcluded = group.cats.every(({ cat }) => isCatExcluded(cat));
             groupItem.classList.toggle('is-selected', !allExcluded);
             const chk = groupItem.querySelector('.filter-item-chk');
             if (chk) chk.checked = !allExcluded;
@@ -598,7 +625,7 @@ function _syncMenu(menu, groups) {
         for (const { cat } of group.cats) {
             const chk = menu.querySelector(`.filter-item-chk[data-cat="${CSS.escape(cat)}"]`);
             if (!chk) continue;
-            const selected = !_excludedFilters.has(cat);
+            const selected = !isCatExcluded(cat);
             chk.checked = selected;
             const item = chk.closest('.filter-dropdown-item');
             if (item) item.classList.toggle('is-selected', selected);
@@ -607,55 +634,9 @@ function _syncMenu(menu, groups) {
 }
 
 function _syncBtn(btn) {
-    btn.classList.toggle('is-active', _excludedFilters.size > 0 || !_showMechanical);
+    btn.classList.toggle('is-active', isFilterActive());
 }
 
-function _applyFilters() {
-    if (!_conflictTbody) return;
-    let visibleIdx = 0;
-    for (const tr of _conflictTbody.rows) {
-        const rowCats = (tr.dataset.dupCats ?? '').split(',').filter(Boolean);
-        const rowIsMech = tr.dataset.isMech === '1';
-
-        // Hide mechanical rows when the mechanical filter is off.
-        const hiddenByMech = !_showMechanical && rowIsMech;
-
-        // Hide when ALL conflict cats are individually excluded.
-        const hiddenByCat = _excludedFilters.size > 0
-            && rowCats.length > 0
-            && rowCats.every(cat => _excludedFilters.has(cat));
-
-        const hidden = hiddenByMech || hiddenByCat;
-        tr.classList.toggle('filtered-out', hidden);
-        if (!hidden) {
-            const numEl = tr.querySelector('[data-field="row-num"]');
-            if (numEl) numEl.textContent = ++visibleIdx;
-        }
-    }
-}
-
-function _updateHash() {
-    // Format: #exclude=main,stop&mech=0 — clean, readable, URLSearchParams-compatible.
-    const parts = [];
-    if (_excludedFilters.size > 0) parts.push('exclude=' + [..._excludedFilters].join(','));
-    if (!_showMechanical) parts.push('mech=0');
-    history.replaceState(null, '', parts.length
-        ? '#' + parts.join('&')
-        : location.pathname + location.search);
-}
-
-function _restoreFilterFromHash() {
-    if (!location.hash.startsWith('#')) return;
-    const params = new URLSearchParams(location.hash.slice(1));
-    const excl = params.get('exclude');
-    if (excl) _excludedFilters = new Set(excl.split(',').filter(Boolean));
-    if (params.get('mech') === '0') _showMechanical = false;
-    _applyFilters();
-}
-
-// ===== Private — utilities =====
-
-/** @param {string} id @returns {Element|null} */
 function _el(id) { return document.getElementById(id); }
 
 /** Set textContent of element with given id. */
@@ -698,6 +679,22 @@ function _cloneAndTranslate(templateId) {
 function _fill(root, field, value) {
     const el = root.querySelector(`[data-field="${field}"]`);
     if (el) el.textContent = value;
+}
+
+/**
+ * Set text and highlight classes on a spec table cell.
+ * value=null renders an em-dash placeholder with the dim class.
+ *
+ * @param {Element|null} cell
+ * @param {string|null}  value
+ * @param {boolean}      isHighlight  Apply text-amber.
+ * @param {boolean}      isDim        Apply dim (typically when value is null).
+ */
+function _setSpecCell(cell, value, isHighlight, isDim) {
+    if (!cell) return;
+    cell.textContent = value ?? '—';
+    cell.classList.toggle('text-amber', isHighlight);
+    cell.classList.toggle('dim', isDim);
 }
 
 function _renderSpecTable({ contentId, badgeId, items, emptyMsg, theadId, rowId,

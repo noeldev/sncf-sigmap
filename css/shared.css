@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Noël Danjou */
+
 /* shared.css — CSS components shared between index.html and validate.html.
  *
  * Rule: only styles used by BOTH pages belong here.
@@ -69,6 +72,7 @@
     font-weight: 700;
     line-height: 1.25;
     color: var(--text);
+    text-decoration: none;
 }
 
 .logo-title-row {

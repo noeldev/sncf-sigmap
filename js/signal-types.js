@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * signal-types.js - Signal type definitions table.
  *
@@ -300,7 +303,7 @@ const SIGNAL_MAPPING = {
         group: "route",
         cat: "route_distant",
         type: "FR:TLD",
-        allowMultiple: true,    // multiple TLD at same location is legitimate
+        allowMultiple: true,
         properties: {
             form: "light",
             shape: "dual"
@@ -310,7 +313,7 @@ const SIGNAL_MAPPING = {
         group: "route",
         cat: "route_info",
         type: "FR:track_name",
-        allowMultiple: true,    // multiple TLD at same location is legitimate
+        allowMultiple: true,
         properties: {
             form: "sign"
         }
@@ -546,6 +549,7 @@ const SIGNAL_MAPPING = {
         group: "stop",
         cat: "stop",
         type: "FR:TT",
+        allowMultiple: true,
         properties: {
             form: "sign"
         }
@@ -645,7 +649,7 @@ const SIGNAL_MAPPING = {
         group: "station",
         cat: "station",
         type: "FR:RLI",
-        allowMultiple: true,    // multiple TLD at same location is legitimate
+        allowMultiple: true,
         properties: {
             form: "light"
         }

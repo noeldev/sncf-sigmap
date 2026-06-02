@@ -1,9 +1,12 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Noël Danjou */
+
 /* validate.css - styles for validate.html */
 
 @import url('tokens.css');
 @import url('shared.css');
 
-/* ===== Validate-specific variables (only what's missing from tokens) ===== */
+/* ===== Validate-specific variables ===== */
 :root {
     /* Validation-only semantic colors (based on tokens) */
     --error: #cc2020;
@@ -41,10 +44,6 @@ body {
     align-items: center;
     gap: 10px;
     padding: 14px;
-}
-
-.header-app-link {
-    text-decoration: none;
 }
 
 .logo-subtitle {
@@ -406,17 +405,24 @@ details[open] > summary .panel-arrow {
     min-width: 110px;
 }
 
+/* col-ids: word-break modifier on top of col-type width */
 .col-ids {
     white-space: normal;
     word-break: break-word;
 }
 
-.spec-table {
+/* Fixed-column layout: spec diff and unmapped tables share the same column widths
+ * so that col 3 (wiki type / occurrences) and col 4 (code type / sample IDs)
+ * are visually aligned across both sections. */
+.spec-table,
+#unmapped-content .data-table {
     table-layout: fixed;
 }
 
     .spec-table th.col-type,
-    .spec-table td.col-type {
+    .spec-table td.col-type,
+    #unmapped-content .data-table th.col-type,
+    #unmapped-content .data-table td.col-type {
         overflow: hidden;
         text-overflow: ellipsis;
     }

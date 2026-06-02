@@ -23,7 +23,7 @@
                 </a>
                 <div class="logo-text">
                     <div class="logo-title-row">
-                        <a href="index.html" class="logo-title header-app-link"
+                        <a href="index.html" class="logo-title"
                            data-i18n="header.title">Signalisation Permanente</a>
                         <span class="logo-subtitle" data-i18n="header.subtitle">(Signal Validation)</span>
                         <span class="beta-badge" data-i18n="header.beta">Beta</span>
@@ -153,36 +153,24 @@
             </div>
             <div class="cp-body" id="body-spec">
 
+                <!-- Unmatched entries: only-in-wiki + only-in-code + type mismatches
+                     merged into one alphabetical table with wiki and code columns. -->
                 <div class="sub-section">
-                    <details id="details-only-wiki" open>
+                    <details id="details-unmatched" open>
                         <summary>
                             <div class="sub-header">
                                 <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
                                     <use href="#icon-chevron"></use>
                                 </svg>
-                                <h3 data-i18n="spec.onlyInWiki">Only in wiki — not in signal-types.js</h3>
-                                <span class="badge" id="badge-only-wiki">0</span>
+                                <h3 data-i18n="spec.unmatched">Unmatched entries</h3>
+                                <span class="badge" id="badge-unmatched">0</span>
                             </div>
                         </summary>
-                        <div id="only-wiki-content"></div>
+                        <div id="unmatched-content"></div>
                     </details>
                 </div>
 
-                <div class="sub-section">
-                    <details id="details-only-code" open>
-                        <summary>
-                            <div class="sub-header">
-                                <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
-                                    <use href="#icon-chevron"></use>
-                                </svg>
-                                <h3 data-i18n="spec.onlyInCode">Only in signal-types.js — not in wiki</h3>
-                                <span class="badge" id="badge-only-code">0</span>
-                            </div>
-                        </summary>
-                        <div id="only-code-content"></div>
-                    </details>
-                </div>
-
+                <!-- Matched entries: wiki and code agree. -->
                 <div class="sub-section">
                     <details>
                         <summary>
@@ -191,7 +179,7 @@
                                     <use href="#icon-chevron"></use>
                                 </svg>
                                 <h3 data-i18n="spec.matched">Matched entries</h3>
-                                <span class="badge badge-green" id="badge-matched">0</span>
+                                <span class="badge badge-blue" id="badge-matched">0</span>
                             </div>
                         </summary>
                         <div id="matched-content"></div>
@@ -340,7 +328,7 @@
                 <th class="col-row-num" data-i18n="column.rowNum">#</th>
                 <th class="col-key" data-i18n="column.type">SNCF signal type</th>
                 <th class="col-type" data-i18n="column.occurrences">Occurrences</th>
-                <th data-i18n="column.sampleIds">Sample network IDs</th>
+                <th class="col-type" data-i18n="column.sampleIds">Sample network IDs</th>
             </tr>
         </thead>
     </template>
@@ -350,7 +338,7 @@
             <td class="col-row-num dim" data-field="row-num"></td>
             <td class="col-key text-amber mono-sm" data-field="type"></td>
             <td class="col-type" data-field="count"></td>
-            <td class="col-ids dim">
+            <td class="col-type col-ids dim">
                 <span data-field="ids"></span><span class="dim" data-field="overflow"></span>
             </td>
         </tr>
@@ -361,28 +349,29 @@
         The 4th column is intentionally empty in wiki/matched tables to keep column counts
         equal so CSS table-layout aligns the first three columns across all sub-tables.
     -->
-    <template id="tpl-thead-spec-wiki">
+    <!-- Unmatched entries table: 3 columns (OSM key | wiki type | code type).
+         A dash in a type column means absent from that source. -->
+    <template id="tpl-thead-spec-unmatched">
         <thead>
             <tr>
                 <th class="col-row-num" data-i18n="column.rowNum">#</th>
                 <th class="col-key" data-i18n="column.osmKey">OSM key</th>
-                <th class="col-type" data-i18n="column.typeValue">Type value</th>
-                <th></th>
+                <th class="col-type" data-i18n="column.typeValueWiki">Type (wiki)</th>
+                <th class="col-type" data-i18n="column.typeValueCode">Type (code)</th>
             </tr>
         </thead>
     </template>
 
-    <template id="tpl-thead-spec-code">
-        <thead>
-            <tr>
-                <th class="col-row-num" data-i18n="column.rowNum">#</th>
-                <th class="col-key" data-i18n="column.osmKey">OSM key</th>
-                <th class="col-type" data-i18n="column.typeValue">Type value</th>
-                <th data-i18n="column.classification">Classification</th>
-            </tr>
-        </thead>
+    <template id="tpl-spec-row-unmatched">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="col-key mono-sm" data-field="key"></td>
+            <td class="col-type mono-sm" data-field="type-wiki"></td>
+            <td class="col-type mono-sm" data-field="type-code"></td>
+        </tr>
     </template>
 
+    <!-- Matched entries: single value column (wiki and code agree). -->
     <template id="tpl-thead-spec-matched">
         <thead>
             <tr>
@@ -392,24 +381,6 @@
                 <th></th>
             </tr>
         </thead>
-    </template>
-
-    <template id="tpl-spec-row-wiki">
-        <tr>
-            <td class="col-row-num dim" data-field="row-num"></td>
-            <td class="col-key mono-sm" data-field="key"></td>
-            <td class="col-type text-amber mono-sm" data-field="type"></td>
-            <td></td>
-        </tr>
-    </template>
-
-    <template id="tpl-spec-row-code">
-        <tr>
-            <td class="col-row-num dim" data-field="row-num"></td>
-            <td class="col-key mono-sm" data-field="key"></td>
-            <td class="col-type mono-sm" data-field="type"></td>
-            <td data-field="note"></td>
-        </tr>
     </template>
 
     <template id="tpl-spec-row-matched">

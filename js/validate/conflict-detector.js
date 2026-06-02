@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * conflict-detector.js - Co-location OSM node conflict detection.
  *
@@ -118,10 +121,36 @@ export function flagDuplicates(locationGroups) {
  * whose signalType appears in more than one node at the same location,
  * unless allowMultiple is set for that type in signal-types.js.
  *
+ * Node order within each group is determined by the two-pass grouping in
+ * validate-main.js (originals first → primary node, outliers last → secondary).
+ * No re-sorting is applied here.
+ *
  * @param {NodeGroup[]} nodes
  * @returns {Conflict[]}
  */
 export function findConflicts(nodes) {
+    const conflicts = [];
+    for (const group of _groupByKey(nodes)) {
+        if (group.nodes.length < 2) continue;
+        const dupTypes = _computeDupTypes(group.nodes); // also resets isDupType
+        _flagSuspectNode(group.nodes, dupTypes);
+        conflicts.push({
+            direction: group.direction,
+            placement: group.placement,
+            nodes: group.nodes,
+            dupCats: _computeDupCats(group.nodes),
+        });
+    }
+    return conflicts;
+}
+
+// ===== findConflicts helpers =====
+
+/**
+ * Group nodes by their direction|placement key.
+ * Returns an iterable of { direction, placement, nodes[] }.
+ */
+function _groupByKey(nodes) {
     const byKey = new Map();
     for (const node of nodes) {
         const k = `${node.direction}|${node.placement}`;
@@ -130,62 +159,73 @@ export function findConflicts(nodes) {
         }
         byKey.get(k).nodes.push(node);
     }
+    return byKey.values();
+}
 
-    const conflicts = [];
-    for (const { direction, placement, nodes: grpNodes } of byKey.values()) {
-        if (grpNodes.length < 2) continue;
-
-        // --- dupCats: OSM categories that appear in more than one node ---
-        const catCounts = new Map();
-        for (const node of grpNodes) {
-            for (const cat of node.categories) {
-                catCounts.set(cat, (catCounts.get(cat) ?? 0) + 1);
-            }
+/**
+ * Return the set of signal types that appear in more than one node
+ * (excluding allowMultiple types). Resets isDupType on all feats as a side-effect
+ * so subsequent calls to _flagSuspectNode start from a clean slate.
+ */
+function _computeDupTypes(grpNodes) {
+    const typeFeats = new Map();
+    for (const node of grpNodes) {
+        for (const feat of node.feats) {
+            const t = feat.p.signalType;
+            if (!typeFeats.has(t)) typeFeats.set(t, []);
+            typeFeats.get(t).push(feat);
+            feat.p.isDupType = false; // reset before re-flagging
         }
-        const dupCats = [...catCounts.entries()]
-            .filter(([, n]) => n > 1)
-            .map(([cat]) => cat);
+    }
+    return new Set(
+        [...typeFeats.entries()]
+            .filter(([type, feats]) =>
+                feats.length > 1 && !getMappingEntry(type)?.allowMultiple
+            )
+            .map(([type]) => type)
+    );
+}
 
-        // --- isDupType: signalType appearing in 2+ nodes without allowMultiple ---
-        // Only the intruders are flagged — i.e. all feats sharing a type except
-        // the one with the lowest networkId, which is considered the original.
-        // Feats with no networkId fall back to keeping the first-seen as original.
-
-        // Collect all feats per signalType across all nodes in this group.
-        const typeFeats = new Map();
-        for (const node of grpNodes) {
-            for (const feat of node.feats) {
-                const t = feat.p.signalType;
-                if (!typeFeats.has(t)) typeFeats.set(t, []);
-                typeFeats.get(t).push(feat);
-                feat.p.isDupType = false; // default
-            }
+/**
+ * Return the list of OSM categories that appear in more than one node.
+ */
+function _computeDupCats(grpNodes) {
+    const catCounts = new Map();
+    for (const node of grpNodes) {
+        for (const cat of node.categories) {
+            catCounts.set(cat, (catCounts.get(cat) ?? 0) + 1);
         }
+    }
+    return [...catCounts.entries()]
+        .filter(([, n]) => n > 1)
+        .map(([cat]) => cat);
+}
 
-        for (const [type, feats] of typeFeats) {
-            if (feats.length <= 1) continue;
-            const entry = getMappingEntry(type);
-            if (entry?.allowMultiple) continue;
+/**
+ * Identify the suspect node (fewest feats; tiebreak: highest max networkId)
+ * and set isDupType = true on its duplicate-type feats.
+ */
+function _flagSuspectNode(grpNodes, dupTypes) {
+    const _maxId = node => {
+        const ids = node.feats
+            .map(f => parseInt(f.p.networkId ?? '', 10))
+            .filter(Number.isFinite);
+        return ids.length ? Math.max(...ids) : 0;
+    };
 
-            // Sort by networkId numerically; feats without an id sort last
-            // (treated as intruders since they lack a canonical identifier).
-            const sorted = [...feats].sort((a, b) => {
-                const na = parseInt(a.p.networkId ?? '', 10);
-                const nb = parseInt(b.p.networkId ?? '', 10);
-                const va = Number.isFinite(na) ? na : Infinity;
-                const vb = Number.isFinite(nb) ? nb : Infinity;
-                return va - vb;
-            });
-            // The first feat (lowest networkId) is the original — skip it.
-            for (let i = 1; i < sorted.length; i++) {
-                sorted[i].p.isDupType = true;
-            }
-        }
-
-        conflicts.push({ direction, placement, nodes: grpNodes, dupCats });
+    let suspect = grpNodes[0];
+    for (let i = 1; i < grpNodes.length; i++) {
+        const n = grpNodes[i];
+        const fewerFeats = n.feats.length < suspect.feats.length;
+        // >= instead of >: when sizes and maxIds are equal (isDupId case), the later
+        // node (higher index) becomes suspect — the second occurrence is the outlier.
+        const tieHigherId = n.feats.length === suspect.feats.length && _maxId(n) >= _maxId(suspect);
+        if (fewerFeats || tieHigherId) suspect = n;
     }
 
-    return conflicts;
+    for (const feat of suspect.feats) {
+        if (dupTypes.has(feat.p.signalType)) feat.p.isDupType = true;
+    }
 }
 
 // ===== Private helpers =====
