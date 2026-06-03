@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="page.title">Signal Validation - sncf-sigmap</title>
+    <link rel="icon" type="image/svg+xml" href="assets/svg/favicon.svg">
+    <link rel="icon" type="image/png" href="assets/png/favicon.png" sizes="512x512">
+    <link rel="stylesheet" href="css/validate.css">
+</head>
+<body>
+
+    <!-- Sticky header. Logo+title block mirrors index.html #sidebar-header structure
+         so both pages share the same logo-row / logo-text / logo-title CSS from shared.css. -->
+    <header class="page-header" id="page-header">
+        <div class="header-main">
+            <!-- Logo + title block (shared structure) -->
+            <div class="logo-row">
+                <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener"
+                   class="app-header-brand" title="SNCF Réseau">
+                    <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau"
+                         class="app-header-logo">
+                </a>
+                <div class="logo-text">
+                    <div class="logo-title-row">
+                        <a href="index.html" class="logo-title"
+                           data-i18n="header.title">Signalisation Permanente</a>
+                        <span class="logo-subtitle" data-i18n="header.subtitle">(Signal Validation)</span>
+                        <span class="beta-badge" data-i18n="header.beta">Beta</span>
+                    </div>
+                    <!-- App link always visible; section links revealed after results load. -->
+                    <nav class="header-nav" id="header-nav" aria-label="Sections">
+                        <a href="#section-conflicts" id="nav-conflicts"
+                           class="header-nav-result" data-i18n="nav.conflicts" hidden>Co-location conflicts</a>
+                        <span class="nav-sep header-nav-sep-results" hidden>|</span>
+                        <a href="#section-unmapped" id="nav-unmapped"
+                           class="header-nav-result" data-i18n="nav.unmapped" hidden>Unmapped types</a>
+                        <span class="nav-sep header-nav-sep-results" hidden>|</span>
+                        <a href="#section-spec" id="nav-spec"
+                           class="header-nav-result" data-i18n="nav.spec" hidden>Wiki spec diff</a>
+                    </nav>
+                </div>
+            </div>
+            <!-- Right zone: status + export (validate-specific) -->
+            <div class="header-right">
+                <button id="btn-export" class="btn-export" data-i18n="header.export" disabled>Export GeoJSON</button>
+            </div>
+        </div>
+        <!-- Progress bar — always visible as a color accent in the header.
+             #status-text below it shows progress messages and persists after loading. -->
+        <div class="progress-wrap">
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+        <div id="status-text" class="status-text"></div>
+    </header>
+
+    <main id="main">
+
+        <!-- Stats: 5 columns, up to 2 rows -->
+        <!-- hidden: shown programmatically after a run (report-renderer.js / renderStats) -->
+        <div class="stats-grid" id="stats-grid" hidden>
+            <div class="stat-card">
+                <div class="stat-label" data-i18n="stat.tiles">Tiles</div>
+                <div class="stat-value" id="stat-tiles">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" data-i18n="stat.signals">Signals</div>
+                <div class="stat-value" id="stat-signals">-</div>
+            </div>
+            <div class="stat-card c-ok">
+                <div class="stat-label" data-i18n="stat.locations">Locations</div>
+                <div class="stat-value" id="stat-locations">-</div>
+            </div>
+            <div class="stat-card c-conflict">
+                <div class="stat-label" data-i18n="stat.conflicts">Conflicts</div>
+                <div class="stat-value" id="stat-conflicts">-</div>
+            </div>
+            <div class="stat-card c-warn">
+                <div class="stat-label" data-i18n="stat.unmapped">Unmapped types</div>
+                <div class="stat-value" id="stat-unmapped">-</div>
+            </div>
+            <!-- Row 2: visible only after wiki spec resolves -->
+            <div id="stats-spec-row" hidden>
+                <div class="stat-card">
+                    <div class="stat-label" data-i18n="stat.wikiPairs">Wiki pairs</div>
+                    <div class="stat-value" id="stat-wiki-pairs">-</div>
+                </div>
+                <div class="stat-card c-ok">
+                    <div class="stat-label" data-i18n="stat.matched">Matched</div>
+                    <div class="stat-value" id="stat-matched">-</div>
+                </div>
+                <div class="stat-card c-conflict">
+                    <div class="stat-label" data-i18n="stat.onlyWiki">Only in wiki</div>
+                    <div class="stat-value" id="stat-only-wiki">-</div>
+                </div>
+                <div class="stat-card c-warn">
+                    <div class="stat-label" data-i18n="stat.onlyCode">Only in code</div>
+                    <div class="stat-value" id="stat-only-code">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">&nbsp;</div>
+                    <div class="stat-value">&nbsp;</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section A: Co-location conflicts -->
+        <!-- hidden: shown programmatically after a run (report-renderer.js / renderConflicts) -->
+        <section class="result-section cp-panel cp-panel--open" id="section-conflicts" hidden>
+            <div class="panel-summary" role="button" tabindex="0"
+                 aria-expanded="true" aria-controls="body-conflicts">
+                <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                    <use href="#icon-chevron"></use>
+                </svg>
+                <h2 data-i18n="section.conflicts">Co-location conflicts</h2>
+                <span class="badge badge-red" id="badge-conflicts">0</span>
+            </div>
+            <div class="cp-body" id="body-conflicts">
+                <div id="conflicts-content"></div>
+            </div>
+        </section>
+
+        <!-- Section B: Unmapped signal types -->
+        <!-- hidden: shown programmatically after a run (report-renderer.js / renderUnmapped) -->
+        <section class="result-section cp-panel cp-panel--open" id="section-unmapped" hidden>
+            <div class="panel-summary" role="button" tabindex="0"
+                 aria-expanded="true" aria-controls="body-unmapped">
+                <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                    <use href="#icon-chevron"></use>
+                </svg>
+                <h2 data-i18n="section.unmapped">Unmapped signal types</h2>
+                <span class="badge badge-amber" id="badge-unmapped">0</span>
+            </div>
+            <div class="cp-body" id="body-unmapped">
+                <div id="unmapped-content"></div>
+            </div>
+        </section>
+
+        <!-- Section C: Wiki spec diff -->
+        <!-- hidden: shown programmatically after a run (report-renderer.js / renderSpecDiff) -->
+        <section class="result-section cp-panel cp-panel--open" id="section-spec" hidden>
+            <div class="panel-summary" role="button" tabindex="0"
+                 aria-expanded="true" aria-controls="body-spec">
+                <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                    <use href="#icon-chevron"></use>
+                </svg>
+                <h2 data-i18n="section.spec">Wiki spec cross-check</h2>
+                <a class="wiki-link"
+                   href="https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France"
+                   target="_blank" rel="noopener">OpenRailwayMap/Tagging_in_France</a>
+            </div>
+            <div class="cp-body" id="body-spec">
+
+                <!-- Unmatched entries: only-in-wiki + only-in-code + type mismatches
+                     merged into one alphabetical table with wiki and code columns. -->
+                <div class="sub-section">
+                    <details id="details-unmatched" open>
+                        <summary>
+                            <div class="sub-header">
+                                <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
+                                    <use href="#icon-chevron"></use>
+                                </svg>
+                                <h3 data-i18n="spec.unmatched">Unmatched entries</h3>
+                                <span class="badge" id="badge-unmatched">0</span>
+                            </div>
+                        </summary>
+                        <div id="unmatched-content"></div>
+                    </details>
+                </div>
+
+                <!-- Matched entries: wiki and code agree. -->
+                <div class="sub-section">
+                    <details>
+                        <summary>
+                            <div class="sub-header">
+                                <svg class="panel-arrow" width="10" height="10" aria-hidden="true">
+                                    <use href="#icon-chevron"></use>
+                                </svg>
+                                <h3 data-i18n="spec.matched">Matched entries</h3>
+                                <span class="badge badge-blue" id="badge-matched">0</span>
+                            </div>
+                        </summary>
+                        <div id="matched-content"></div>
+                    </details>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Back-to-top: <a> so it works without JS and adds a browser history entry.
+         href="#page-header" scrolls to the sticky header; smooth-scroll is controlled
+         by CSS scroll-behavior on the page, not by JS. -->
+    <button id="btn-toc">
+        <svg width="10" height="10" aria-hidden="true">
+            <use href="#icon-chevron"></use>
+        </svg>
+        <span data-i18n="nav.btnTop">Top</span>
+    </button>
+
+
+    <!-- TEMPLATES -->
+
+    <template id="tpl-no-results">
+        <p class="no-results" data-field="message"></p>
+    </template>
+
+    <!-- Generic table and tbody — used by JS instead of createElement. -->
+    <template id="tpl-table">
+        <table class="data-table"></table>
+    </template>
+
+    <template id="tpl-tbody">
+        <tbody></tbody>
+    </template>
+
+    <!-- Filter button wrapper + empty dropdown menu.
+         Cloned by report-renderer.js _buildFilterDropdown().
+         The button label is translated via data-i18n after cloning. -->
+    <template id="tpl-filter-btn-wrap">
+        <div class="filter-btn-wrap">
+            <button class="filter-dropdown-btn" type="button"
+                    aria-haspopup="listbox" aria-expanded="false">
+                <span data-i18n="filter.label">Filter</span>
+                <svg width="10" height="10" aria-hidden="true" class="filter-dropdown-chevron">
+                    <use href="#icon-chevron"></use>
+                </svg>
+            </button>
+            <div class="filter-dropdown" role="listbox" aria-multiselectable="true" hidden></div>
+        </div>
+    </template>
+
+    <!-- Filter dropdown: group row. JS sets: data-group, --item-color CSS var, .filter-item-label text.
+         Left border (.is-selected) replaces the old colored dot as the visual indicator. -->
+    <template id="tpl-filter-cat-item">
+        <label class="filter-dropdown-item">
+            <input type="checkbox" class="filter-item-chk">
+            <span class="filter-item-label"></span>
+        </label>
+    </template>
+
+    <!-- Filter dropdown: "All" row — no colored dot. -->
+    <template id="tpl-filter-all-item">
+        <label class="filter-dropdown-item item-all">
+            <input type="checkbox" class="filter-item-chk">
+            <span class="filter-item-label" data-i18n="filter.all">All</span>
+        </label>
+    </template>
+
+    <!-- Gear icon appended after the Mechanical filter label.
+         Defined in HTML so JS never constructs SVG elements directly. -->
+    <template id="tpl-filter-mech-icon">
+        <svg class="icon filter-mech-icon" width="11" height="11" aria-hidden="true">
+            <use href="#icon-gear"></use>
+        </svg>
+    </template>
+
+    <!-- Conflict table -->
+    <template id="tpl-thead-conflicts">
+        <thead>
+            <tr>
+                <th class="col-row-num" data-i18n="column.rowNum">#</th>
+                <th data-i18n="column.track">Track code</th>
+                <th data-i18n="column.location">Location</th>
+                <th data-i18n="column.direction">Direction</th>
+                <th data-i18n="column.position">Position</th>
+                <th class="col-nodes" data-i18n="column.nodes">Nodes</th>
+            </tr>
+        </thead>
+    </template>
+
+    <template id="tpl-conflict-row">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="mono-sm text-hi" data-field="track-code"></td>
+            <td>
+                <!-- Google Maps link: href built lazily on first pointerenter -->
+                <a class="link gmaps-link" data-lat="" data-lng=""
+                   target="_blank" rel="noopener"></a>
+            </td>
+            <td class="dim" data-field="direction"></td>
+            <td class="dim" data-field="placement"></td>
+            <td class="col-nodes">
+                <div class="nodes-list"></div>
+            </td>
+        </tr>
+    </template>
+
+    <!-- node-mech-icon is shown (via JS) when the location is a mechanical installation.
+         The gear SVG is defined inline so no JS creates SVG elements. The span is always
+         present with min-width reserved; the icon is shown/hidden by JS. -->
+    <template id="tpl-node-row">
+        <div class="node-row">
+            <span class="node-label" data-field="idx"></span>
+            <span class="node-mech-icon">
+                <svg class="icon" width="11" height="11" aria-hidden="true">
+                    <use href="#icon-gear"></use>
+                </svg>
+            </span>
+            <span class="node-chips"></span>
+        </div>
+    </template>
+
+    <!-- Chip for a mapped signal -->
+    <template id="tpl-chip">
+        <a class="chip" target="_blank" rel="noopener">
+            <span class="chip-type" data-field="sncf-type"></span>
+            <span class="chip-cat" data-field="cat"></span>
+            <span class="chip-id" data-field="chip-id"></span>
+        </a>
+    </template>
+
+    <!-- Chip for an unmapped signal -->
+    <template id="tpl-chip-unmap">
+        <a class="chip chip-unmap" target="_blank" rel="noopener">
+            <span class="chip-type" data-field="sncf-type"></span>
+            <span class="chip-id" data-field="chip-id"></span>
+        </a>
+    </template>
+
+    <!-- Unmapped types table -->
+    <template id="tpl-thead-unmapped">
+        <thead>
+            <tr>
+                <th class="col-row-num" data-i18n="column.rowNum">#</th>
+                <th class="col-key" data-i18n="column.type">SNCF signal type</th>
+                <th class="col-type" data-i18n="column.occurrences">Occurrences</th>
+                <th class="col-type" data-i18n="column.sampleIds">Sample network IDs</th>
+            </tr>
+        </thead>
+    </template>
+
+    <template id="tpl-unmapped-row">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="col-key text-amber mono-sm" data-field="type"></td>
+            <td class="col-type" data-field="count"></td>
+            <td class="col-type col-ids dim">
+                <span data-field="ids"></span><span class="dim" data-field="overflow"></span>
+            </td>
+        </tr>
+    </template>
+
+    <!--
+        Spec diff tables: all three share col-key + col-type widths for horizontal alignment.
+        The 4th column is intentionally empty in wiki/matched tables to keep column counts
+        equal so CSS table-layout aligns the first three columns across all sub-tables.
+    -->
+    <!-- Unmatched entries table: 3 columns (OSM key | wiki type | code type).
+         A dash in a type column means absent from that source. -->
+    <template id="tpl-thead-spec-unmatched">
+        <thead>
+            <tr>
+                <th class="col-row-num" data-i18n="column.rowNum">#</th>
+                <th class="col-key" data-i18n="column.osmKey">OSM key</th>
+                <th class="col-type" data-i18n="column.typeValueWiki">Type (wiki)</th>
+                <th class="col-type" data-i18n="column.typeValueCode">Type (code)</th>
+            </tr>
+        </thead>
+    </template>
+
+    <template id="tpl-spec-row-unmatched">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="col-key mono-sm" data-field="key"></td>
+            <td class="col-type mono-sm" data-field="type-wiki"></td>
+            <td class="col-type mono-sm" data-field="type-code"></td>
+        </tr>
+    </template>
+
+    <!-- Matched entries: single value column (wiki and code agree). -->
+    <template id="tpl-thead-spec-matched">
+        <thead>
+            <tr>
+                <th class="col-row-num" data-i18n="column.rowNum">#</th>
+                <th class="col-key" data-i18n="column.osmKey">OSM key</th>
+                <th class="col-type" data-i18n="column.typeValue">Type value</th>
+                <th></th>
+            </tr>
+        </thead>
+    </template>
+
+    <template id="tpl-spec-row-matched">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="col-key mono-sm" data-field="key"></td>
+            <td class="col-type text-blue mono-sm" data-field="type"></td>
+            <td></td>
+        </tr>
+    </template>
+
+
+    <!-- SVG sprite -->
+    <svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+        <symbol id="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+        </symbol>
+        <symbol id="icon-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </symbol>
+    </svg>
+
+
+    <!-- ENTRY POINT -->
+    <script type="module" src="js/validate/validate-main.js"></script>
+
+</body>
+</html>

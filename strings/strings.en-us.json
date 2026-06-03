@@ -116,7 +116,8 @@
     "tabSignals": "Signals",
     "tabTags": "OSM Tags",
     "captionSignal": "Signal",
-    "captionNode": "Node"
+    "captionNode": "Node",
+    "mechanical": "Mechanical Signal"
   },
   "osm": {
     "locateOnOsm": "Locate on OpenStreetMap",
@@ -125,8 +126,7 @@
     "error": "OSM check failed",
     "retry": "Retry OSM check",
     "warnSingle": "This signal appears to already be in OpenStreetMap. Export anyway?",
-    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?",
-    "fixme": "Unavailable specifications: {0}"
+    "warnMulti": "One or more signals in this group appear to already be in OpenStreetMap. Export anyway?"
   },
   "josm": {
     "notReachable": "JOSM not reachable: {0}",
@@ -143,7 +143,7 @@
       "website": "JOSM website"
     }
   },
-  "cat": {
+  "group": {
     "main": "Main signals",
     "distant": "Distant signals",
     "speedLimit": "Speed limits",
@@ -195,6 +195,7 @@
   },
   "context": {
     "zoomCenter": "Zoom to",
+    "locateOnMaps": "Locate on Maps",
     "pin": "Pin",
     "unpin": "Unpin",
     "properties": "Properties",

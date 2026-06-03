@@ -1,54 +1,74 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
- * signal-types.js — Signal type definitions table.
+ * signal-types.js - Signal type definitions table.
  *
- * The SIGNAL_MAPPING constant is the single source of truth for all
- * signal type metadata: display category, OpenRailwayMap tag category/type,
- * and static tag properties.
+ * SIGNAL_MAPPING is MODULE-PRIVATE. External code uses the public API below exclusively.
  *
- * Consumed exclusively by signal-mapping.js.
+ * Entry fields (top level):
+ *   group      - application display group key
+ *   cat        - OSM tag category suffix  (railway:signal:<cat>=...)
+ *   type       - OSM tag value            (the FR:* string)
+ *
+ * Context sections (one or both):
+ *   default    - luminous form: { linkedTo?, properties }
+ *   mechanical - mechanical form: { linkedTo?, properties }
+ *
+ *   Signals with only mechanical: are always-mechanical (R30, RR30).
+ *   Signals with both sections use mechanical when isMechanicalCombo() returns true.
+ *   is detected in the co-location set, default otherwise.
+ *   Signals with neither section keep linkedTo/properties at top level (legacy,
+ *   backward-compatible for the ~700 luminous-only entries).
+ *                GAIA keys are the primary keys of SIGNAL_MAPPING and equal to
+ *                p.signalType in normalised signals.
+ *
+ * Public API:
+ *   getMappingEntry(type)          - luminous definition, or null
+ *   isMapped(type)                 - true when luminous OR always-mechanical
+ *   getMappingEntries()            - all [type, def] pairs from SIGNAL_MAPPING
+ *   getMappingKeys()               - all GAIA keys from SIGNAL_MAPPING
+ *   getAllOsmPairs()                - all {cat,type,group,signalKey} from both tables
+ *   resolveGroupDefs(feats)        - Map<signalType, effective def> for tag building
  */
 
-export const SIGNAL_MAPPING = {
+// ===== Module-Private Data =====
+
+const SIGNAL_MAPPING = {
 
     // Main signals
     "CARRE": {
         group: "main",
         cat: "main",
-        type: "FR:CARRE",
-        properties: {
-            form: "light",
-            shape: "FR:C",
-            states: "FR:C;FR:VL"
+        type: "FR:C",
+        default: {
+            properties: {
+                form: "light",
+                shape: "FR:C",
+                states: "FR:C;FR:A;FR:VL"
+            }
+        },
+        mechanical: {
+            properties: {
+                form: "sign"
+            }
         }
     },
     "CV": {
         group: "shunting",
         cat: "main",
         type: "FR:CV",
-        properties: {
-            form: "light",
-            shape: "FR:C",
-            states: "FR:CV;FR:M"
-        }
-    },
-    "R30": {
-        group: "main",
-        cat: "main",
-        type: "FR:CARRE",
-        properties: {
-            form: "light",
-            shape: "FR:F",
-            states: "FR:C;FR:VL;FR:R"
-        }
-    },
-    "RR30": {
-        group: "main",
-        cat: "main",
-        type: "FR:CARRE",
-        properties: {
-            form: "light",
-            shape: "FR:H",
-            states: "FR:C;FR:VL;FR:RR"
+        default: {
+            properties: {
+                form: "light",
+                shape: "FR:C",
+                states: "FR:CV;FR:M"
+            }
+        },
+        mechanical: {
+            properties: {
+                form: "sign"
+            }
         }
     },
     "S": {
@@ -59,7 +79,7 @@ export const SIGNAL_MAPPING = {
             form: "light",
             plate: "FR:F",
             shape: "FR:C",
-            states: "FR:S;FR:VL"
+            states: "FR:S;FR:A;FR:VL"
         }
     },
     "GA": {
@@ -72,30 +92,43 @@ export const SIGNAL_MAPPING = {
     },
 
     // Distant signals
-    "CARRE A": {
+    "D": {
         group: "distant",
         cat: "distant",
-        type: "FR:CARRE_A",
-        properties: {
-            form: "sign"
+        type: "FR:D",
+        default: {
+            properties: {
+                form: "light",
+                states: "FR:D;FR:A;FR:VL"
+            }
+        },
+        mechanical: {
+            properties: { form: "sign" }
         }
     },
     "A": {
         group: "distant",
         cat: "distant",
         type: "FR:A",
-        properties: {
-            form: "light",
-            states: "FR:A;FR:VL"
+        default: {
+            properties: {
+                form: "light",
+                states: "FR:A;FR:VL"
+            }
+        },
+        mechanical: {
+            linkedTo: "CARRE",
+            properties: {
+                form: "sign"
+            }
         }
     },
-    "D": {
+    "CARRE A": {
         group: "distant",
         cat: "distant",
-        type: "FR:D",
+        type: "FR:CARRE_A",
         properties: {
-            form: "light",
-            states: "FR:D;FR:A;FR:VL"
+            form: "sign"
         }
     },
 
@@ -105,6 +138,7 @@ export const SIGNAL_MAPPING = {
         cat: "speed_limit_distant",
         type: "FR:TIV-D_MOB",
         properties: {
+            type: "switchable",
             form: "light",
             condition: "diverting",
             speed: "0"
@@ -123,9 +157,9 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:TIV-D",
+        linkedTo: "CARRE",
         properties: {
             form: "sign",
-            shape: "square",
             speed: "0"
         }
     },
@@ -133,6 +167,7 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:fast",
         type: "FR:TIV-D_B",
+        linkedTo: ["TIV D FIXE", "TIVD C FIX"],
         properties: {
             form: "sign",
             speed: "120"
@@ -142,6 +177,7 @@ export const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant:self",
         type: "FR:TIV-D_C",
+        linkedTo: ["TIV D FIXE", "TIVD B FIX"],
         properties: {
             form: "sign",
             speed: "120"
@@ -155,10 +191,17 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+
+    // FR:Z marks the start of the speed-limited zone announced by the fixed TIV-D.
+    // linkedTo groups Z with the TIV D FIXE rather than an unrelated speed_limit
+    // signal (e.g. TIV_PENEXE). When two Z signals compete, the one with the
+    // networkId closest to the TIV-D wins (networkId proximity selection).
+    // FR:R marks the end of the zone; it is not co-located with the TIV-D.
     "Z": {
         group: "speedLimit",
         cat: "speed_limit",
         type: "FR:Z",
+        linkedTo: "TIV D FIXE",
         properties: {
             form: "sign",
             function: "entry"
@@ -173,10 +216,11 @@ export const SIGNAL_MAPPING = {
             function: "exit"
         }
     },
+
     "CHEVRON": {
         group: "miscellaneous",
         cat: "minor",
-        type: "FR:Chevron",
+        type: "FR:chevron",
         properties: {
             type: "down",
             form: "sign"
@@ -190,6 +234,17 @@ export const SIGNAL_MAPPING = {
             form: "sign",
             shape: "pentagon",
             speed: "30"
+        }
+    },
+    // The L plate is always mounted below a pentagonal TIV_PENDIS to indicate
+    // the speed restriction applies only to certain locomotive series.
+    "L": {
+        group: "speedLimit",
+        cat: "speed_limit_distant:condition",
+        type: "FR:L",
+        linkedTo: "TIV PENDIS",
+        properties: {
+            form: "sign"
         }
     },
     "TIV PENEXE": {
@@ -213,10 +268,13 @@ export const SIGNAL_MAPPING = {
             function: "exit"
         }
     },
+    // The Km sign marks the transition point of a speed limit zone.
+    // Always co-located with a fixed TIV-D (ordinary, B-type, or C-type).
     "REPER VIT": {
         group: "speedLimit",
         cat: "speed_limit:marker",
-        type: "FR:KM",
+        type: "FR:Km",
+        linkedTo: ["TIV D FIXE", "TIVD B FIX", "TIVD C FIX", "Z", "R"],
         properties: {
             form: "sign"
         }
@@ -227,6 +285,7 @@ export const SIGNAL_MAPPING = {
         group: "route",
         cat: "route",
         type: "FR:ID",
+        linkedTo: ["CARRE", "CV"],
         properties: {
             form: "light",
             states: "FR:ID1;FR:ID2"
@@ -244,6 +303,7 @@ export const SIGNAL_MAPPING = {
         group: "route",
         cat: "route_distant",
         type: "FR:TLD",
+        allowMultiple: true,
         properties: {
             form: "light",
             shape: "dual"
@@ -251,8 +311,9 @@ export const SIGNAL_MAPPING = {
     },
     "DESTI": {
         group: "route",
-        cat: "route",
-        type: "FR:Voie",
+        cat: "route_info",
+        type: "FR:track_name",
+        allowMultiple: true,
         properties: {
             form: "sign"
         }
@@ -278,7 +339,8 @@ export const SIGNAL_MAPPING = {
     "FEUXVERTS": {
         group: "crossing",
         cat: "crossing",
-        type: "FR:FC",
+        type: "FR:SFC",
+        linkedTo: "PN",
         properties: {
             form: "light",
             arrangement: "vertical",
@@ -390,7 +452,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Cab signalling (TVM)
+    // Cab signalling
     "CAB E": {
         group: "trainProtection",
         cat: "train_protection",
@@ -429,17 +491,18 @@ export const SIGNAL_MAPPING = {
     "REP TGV": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:ETCS",
+        type: "ETCS:marker",
+        subcat: "main",
+        subtype: "ETCS:stop_marker",
         properties: {
-            form: "sign",
-            function: "stop_marker"
+            form: "sign"
         }
     },
 
     // Wrong-road (IPCS)
     "TECS": {
         group: "wrongRoad",
-        cat: "wrong_road",
+        cat: "wrong_road:entry",
         type: "FR:TECS",
         properties: {
             form: "light",
@@ -448,7 +511,7 @@ export const SIGNAL_MAPPING = {
     },
     "TSCS": {
         group: "wrongRoad",
-        cat: "wrong_road",
+        cat: "wrong_road:exit",
         type: "FR:TSCS",
         properties: {
             form: "light",
@@ -456,7 +519,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Distant Stop signs
+    // Distant stop signs
     "ARRET A": {
         group: "stop",
         cat: "stop_distant",
@@ -487,6 +550,7 @@ export const SIGNAL_MAPPING = {
         group: "stop",
         cat: "stop",
         type: "FR:TT",
+        allowMultiple: true,
         properties: {
             form: "sign"
         }
@@ -517,7 +581,7 @@ export const SIGNAL_MAPPING = {
         }
     },
 
-    // Station and facilities
+    // Stations and facilities
     "GARE": {
         group: "station",
         cat: "station_distant",
@@ -545,7 +609,7 @@ export const SIGNAL_MAPPING = {
     "LIMITETS": {
         group: "station",
         cat: "station",
-        type: "FR:Limite_ETS",
+        type: "FR:Limites",
         properties: {
             form: "sign"
         }
@@ -556,15 +620,17 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:SLD",
+        linkedTo: ["CARRE", "CV"],
         properties: {
             type: "await",
             form: "light"
         }
-    },   
+    },
     "MIBLAN VER": {
         group: "station",
         cat: "departure",
         type: "FR:MIB-MIV",
+        linkedTo: ["CARRE", "CV"],
         properties: {
             type: "allow",
             form: "plate"
@@ -574,6 +640,7 @@ export const SIGNAL_MAPPING = {
         group: "station",
         cat: "departure",
         type: "FR:DD",
+        linkedTo: ["CARRE", "CV"],
         properties: {
             type: "request",
             form: "plate"
@@ -581,8 +648,9 @@ export const SIGNAL_MAPPING = {
     },
     "REP ITIN": {
         group: "station",
-        cat: "departure",
+        cat: "station",
         type: "FR:RLI",
+        allowMultiple: true,
         properties: {
             form: "light"
         }
@@ -610,14 +678,15 @@ export const SIGNAL_MAPPING = {
     "JAL MAN": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:Jalon",
+        type: "FR:shunting_marker",
         properties: {
-            form: "sign"
+            form: "sign",
+            type: "shunting_marker"
         }
     },
     "DEPOT": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:depot",
         type: "FR:D",
         properties: {
             form: "sign"
@@ -625,7 +694,7 @@ export const SIGNAL_MAPPING = {
     },
     "G": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:stabling",
         type: "FR:G",
         properties: {
             form: "sign"
@@ -633,7 +702,7 @@ export const SIGNAL_MAPPING = {
     },
     "IMP": {
         group: "shunting",
-        cat: "shunting",
+        cat: "shunting_route:dead_end",
         type: "FR:Imp",
         properties: {
             form: "sign"
@@ -666,15 +735,18 @@ export const SIGNAL_MAPPING = {
     "HEURT...": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:Heurtoir",
+        type: "FR:buffer_stop",
         properties: {
             type: "buffer_stop",
             form: "sign"
         }
     },
+    // SLM (Signal Lumineux de Manoeuvre): installed on main tracks to facilitate
+    // shunting operations. Despite being on main infrastructure it is a shunting
+    // signal, so cat=shunting to avoid conflicts with Carre (cat=main).
     "SLM": {
         group: "shunting",
-        cat: "main",
+        cat: "shunting",
         type: "FR:SLM",
         properties: {
             form: "light"
@@ -684,7 +756,7 @@ export const SIGNAL_MAPPING = {
     // Miscellaneous
     "GABARIT": {
         group: "miscellaneous",
-        cat: "main",
+        cat: "minor",
         type: "FR:Gabarit",
         properties: {
             form: "sign"
@@ -698,4 +770,181 @@ export const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+
+    // Always-mechanical signs — these are only ever installed as physical panels,
+    // never as luminous signals. mechanical: true means resolveGroupDefs() uses
+    // properties directly without checking for mechanical combos.
+    "R30": {
+        group: "main",
+        cat: "main",
+        type: "FR:R30",
+        mechanical: {
+            properties: {
+                form: "sign"
+            }
+        }
+    },
+    "RR30": {
+        group: "main",
+        cat: "main",
+        type: "FR:RR30",
+        mechanical: {
+            properties: {
+                form: "sign"
+            }
+        }
+    }
 };
+
+/**
+ * Mechanical combo detection rules.
+ * When ALL types in a Set are co-located, signals with a mechanical section
+ * are resolved using their mechanical property set.
+ * Luminous signals cannot produce these patterns in practice.
+ */
+// ===== Private helpers =====
+
+/**
+ * Resolve the active section for a mapping entry.
+ * Returns the right properties/linkedTo without mutating the entry.
+ *
+ * @param {object}  entry   Raw SIGNAL_MAPPING entry.
+ * @param {boolean} isMech  True when the location is a mechanical combo.
+ * @returns {object}        Entry with the active section spread to top level.
+ */
+function _resolveSection(entry, isMech) {
+    // Signals with only a mechanical section are always-mechanical (R30, RR30).
+    // Signals with both sections pick based on isMech.
+    // Signals with neither section (luminous-only, ~75 entries) return as-is.
+    const section = isMech ? entry.mechanical : entry.default;
+    return section ? { ...entry, ...section } : entry;
+}
+
+// ===== Public API =====
+
+/**
+ * Return true when the co-located signal types form a mechanical installation.
+ *
+ * Two detection rules, derived directly from the signal table:
+ *
+ * Rule 1 — Always-mechanical presence:
+ *   A signal with only a mechanical section (no default) is never luminous
+ *   (e.g. R30, RR30). Its presence implies a mechanical installation for all
+ *   co-located signals that have a mechanical section.
+ *   Adding a new always-mechanical type only requires giving it a mechanical
+ *   section without a default section in SIGNAL_MAPPING — no table update needed.
+ *
+ * Rule 2 — Impossible luminous combination:
+ *   A + D (Avertissement + Disque) cannot be co-located on luminous infrastructure.
+ *   Their co-location unambiguously implies mechanical signals.
+ *
+ * MECHANICAL_COMBOS is not needed — the rules are derived from the data.
+ *
+ * @param {Set<string>} typeSet  All signal types at a physical location.
+ * @returns {boolean}
+ */
+export function isMechanicalCombo(typeSet) {
+    // Rule 1: any always-mechanical type triggers mechanical context.
+    const hasMechOnly = [...typeSet].some(t => {
+        const e = SIGNAL_MAPPING[t];
+        return e?.mechanical && !e.default;
+    });
+    if (hasMechOnly) return true;
+
+    // Rule 2: A+D is impossible in luminous signaling.
+    return typeSet.has('A') && typeSet.has('D');
+}
+
+/**
+ * Return the mapping entry for a signal type, or null when unmapped.
+ * @param {string} signalType  GAIA key, e.g. 'CARRE', 'RR30'
+ * @returns {object|null}
+ */
+export function getMappingEntry(signalType) {
+    return SIGNAL_MAPPING[signalType] ?? null;
+}
+
+/**
+ * Return true when the signal type has any mapping entry.
+ * @param {string} signalType
+ * @returns {boolean}
+ */
+export function isMapped(signalType) {
+    return signalType in SIGNAL_MAPPING;
+}
+
+/**
+ * Return all GAIA keys from SIGNAL_MAPPING.
+ * @returns {string[]}
+ */
+export function getMappingKeys() {
+    return Object.keys(SIGNAL_MAPPING);
+}
+
+/**
+ * Return all [signalType, definition] pairs from SIGNAL_MAPPING.
+ * @returns {[string, object][]}
+ */
+export function getMappingEntries() {
+    return Object.entries(SIGNAL_MAPPING);
+}
+
+/**
+ * Return all unique OSM (cat, type) pairs from SIGNAL_MAPPING.
+ * Combo-mechanical types share cat/type with their luminous variant, so only
+ * one entry per unique pair is included.
+ * @returns {Array<{cat: string, type: string, group: string, signalKey: string}>}
+ */
+export function getAllOsmPairs() {
+    const seen = new Set();
+    const pairs = [];
+    for (const [signalKey, def] of Object.entries(SIGNAL_MAPPING)) {
+        const key = `${def.cat}|${def.type}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push({ cat: def.cat, type: def.type, group: def.group, signalKey });
+    }
+    return pairs;
+}
+
+/**
+ * Resolve the effective tag definition for every signal type in a node.
+ *
+ * @param {Array<{p:{signalType:string}}>} nodeFeats  Signals in this OSM node.
+ * @param {boolean} isMech  Pre-computed mechanical flag for this location.
+ *   Computed once by isMechanicalCombo() in the grouping layer and passed here
+ *   to avoid re-computing the mechanical combo check on every node.
+ * @returns {Map<string, object|null>}
+ */
+export function resolveGroupDefs(nodeFeats, isMech) {
+    const result = new Map();
+    for (const { p: { signalType } } of nodeFeats) {
+        if (result.has(signalType)) continue;
+        const entry = SIGNAL_MAPPING[signalType] ?? null;
+        result.set(signalType, entry ? _resolveSection(entry, isMech) : null);
+    }
+    return result;
+}
+
+/**
+ * Return the display group key for a signal type.
+ * group is always at the top level — invariant across luminous/mechanical forms.
+ * @param {string} signalType
+ * @returns {string|null}
+ */
+export function getGroupForType(signalType) {
+    return SIGNAL_MAPPING[signalType]?.group ?? null;
+}
+
+/**
+ * Return the display group key for an OSM cat string.
+ * SIGNAL_MAPPING is the single table — all OSM cats are covered here.
+ * @param {string} osmCat  e.g. 'main', 'speed_limit_distant'
+ * @returns {string|null}
+ */
+export function getGroupForCat(osmCat) {
+    for (const def of Object.values(SIGNAL_MAPPING)) {
+        if (def.cat === osmCat) return def.group;
+    }
+    return null;
+}

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * collapsible-panel.js — Shared collapsible panel controller.
  *
@@ -158,5 +161,42 @@ function _bindEvents() {
         e.preventDefault();
         const panel = e.target.closest('.cp-panel');
         if (panel) _toggle(panel);
+    });
+}
+
+/**
+ * Wire all .cp-panel elements inside a given root element without localStorage
+ * persistence. Designed for standalone pages (e.g. validate.html) that share
+ * the cp-panel CSS pattern but do not need session state.
+ *
+ * Uses the same _setOpen() core as initCollapsiblePanels(), so arrow rotation
+ * and ARIA attributes are kept in sync identically.
+ *
+ * @param {HTMLElement} rootEl - delegated event listener target
+ */
+export function initCollapsiblePanelsInRoot(rootEl) {
+    if (!rootEl) return;
+
+    // Apply initial open/closed state from HTML (cp-panel--open class).
+    rootEl.querySelectorAll('.cp-panel').forEach(panel => {
+        _setOpen(panel, panel.classList.contains('cp-panel--open'), false);
+    });
+
+    rootEl.addEventListener('click', e => {
+        // Let inner links handle their own clicks normally.
+        if (e.target.closest('a, .summary-action-btn')) return;
+        const summary = e.target.closest('.panel-summary[aria-controls]');
+        if (!summary) return;
+        const panel = summary.closest('.cp-panel');
+        if (!panel) return;
+        _setOpen(panel, !panel.classList.contains('cp-panel--open'), false);
+    });
+
+    rootEl.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('a, .summary-action-btn')) return;
+        e.preventDefault();
+        const panel = e.target.closest('.cp-panel');
+        if (panel) _setOpen(panel, !panel.classList.contains('cp-panel--open'), false);
     });
 }

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * osm-checker.js — OSM existence state machine with caching and automatic retry.
  *
@@ -26,7 +29,8 @@
  */
 
 import { getIdKey, fetchNodesByRef } from './overpass.js';
-import { getSignalId, isSupported, getOsmNodes } from './signal-mapping.js';
+import { getSignalId } from './osm-tags.js';
+import { isSupported, getOsmNodes } from './signal-mapping.js';
 import { getOsmNode, primeFromPopup } from './osm-index.js';
 
 const MAX_RETRIES = 5;

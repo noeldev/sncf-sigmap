@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * ui/filter-panel.js — Single filter panel (DOM + UI controllers).
  *

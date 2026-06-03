@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Noël Danjou */
+
+/* shared.css — CSS components shared between index.html and validate.html.
+ *
+ * Rule: only styles used by BOTH pages belong here.
+ * Page-specific styles stay in sidebar.css (index.html) or validate.css.
+ *
+ * Currently shared:
+ *   .app-header-brand / .app-header-logo — SNCF Réseau logo link.
+ *     Used in index.html sidebar header and validate.html page header.
+ *     Both pages link to sncf-reseau.com with the same logo image.
+ */
+
+
+/* ===== SNCF Réseau logo brand link =====
+ *
+ * Sizing: 40px tall, max-width 80px — matches sidebar logo height.
+ * Each page may add a context-specific class for layout overrides
+ * (e.g. sidebar.css overrides max-width to 74px for the narrower sidebar).
+ */
+
+.app-header-brand {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.app-header-logo {
+    height: 40px;
+    width: auto;
+    max-width: 80px;
+    object-fit: contain;
+    display: block;
+    opacity: .85;
+    transition: opacity .15s;
+}
+
+.app-header-brand:hover .app-header-logo {
+    opacity: 1;
+}
+
+/* ===== Logo + title block =====
+ *
+ * Shared HTML structure used in both pages:
+ *
+ *   index.html  — inside #sidebar-header
+ *   validate.html — inside .header-main
+ *
+ * .logo-row        flex row: logo | title block
+ * .logo-text       flex column: title rows stacked
+ * .logo-title      primary title text (15px / 700)
+ * .logo-title-row  flex row: title + badge
+ * .beta-badge      purple BETA label
+ */
+
+.logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.logo-title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.logo-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.beta-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.8);
+    background: #7c2270;
+    border-radius: 3px;
+    padding: 1px 5px;
+    vertical-align: middle;
+    line-height: 1.6;
+    user-select: none;
+    text-transform: uppercase;
+}

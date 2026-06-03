@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
  * filters.js — Filter state and orchestration.
  *
@@ -27,7 +30,7 @@
 import { MIN_SEARCH_THRESHOLD } from './config.js';
 import { FIELD } from './field-keys.js';
 import { FILTER_FIELDS_META, getFilterFieldKeys } from './filter-config.js';
-import { getCategoryEntries } from './cat-mapping.js';
+import { getGroupEntries } from './group-mapping.js';
 import { getSupportedTypes, getTypesByGroup } from './signal-mapping.js';
 import { t, onLangChange } from './translation.js';
 import { FilterPanel } from './filter-panel.js';
@@ -720,7 +723,7 @@ function _restoreFilters() {
 function _detectActiveGroup() {
     const current = _activeFilters[FIELD.SIGNAL_TYPE];
     if (!current?.size) return null;
-    for (const [key] of getCategoryEntries()) {
+    for (const [key] of getGroupEntries()) {
         const types = getTypesByGroup(key);
         if (types.length > 0 && current.size === types.length && types.every(v => current.has(v)))
             return key;

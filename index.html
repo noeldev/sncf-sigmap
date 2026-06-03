@@ -15,7 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
             integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
             crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/app.css">
     <link rel="stylesheet" href="css/panel.css">
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/filters.css">
@@ -62,8 +62,10 @@
 
             <div id="sidebar-header">
                 <div class="logo-row">
-                    <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener" class="logo-sncf-link">
-                        <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau" class="logo-sncf">
+                    <a href="https://www.sncf-reseau.com/" target="_blank" rel="noopener"
+                       class="app-header-brand" title="SNCF Réseau">
+                        <img src="assets/png/sncf-reseau-logo.png" alt="SNCF Réseau"
+                             class="app-header-logo">
                     </a>
                     <div class="logo-text">
                         <div class="logo-title" data-i18n="header.subtitle1">Signalisation</div>
@@ -378,6 +380,17 @@
 
     <!-- HTML Templates -->
     <!-- Unified signal popup — two tab panels + bottom tab bar -->
+    <!-- Mechanical signal indicator — shown after the signal type badge.
+     The outer span carries the title for native browser tooltip (SVG elements
+     don't show native tooltips via title attribute). -->
+    <template id="tpl-mech-icon">
+        <span class="pu-mech-icon">
+            <svg class="icon" width="11" height="11" aria-hidden="true">
+                <use href="#icon-gear"></use>
+            </svg>
+        </span>
+    </template>
+
     <template id="tpl-signal-popup">
         <div class="pu-wrap">
 
@@ -858,6 +871,11 @@
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </symbol>
+        <!-- Magnifier - context menu Zoom to -->
+        <symbol id="icon-magnifier" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </symbol>
         <!-- Pin / bookmark — signal pin button in popup + context menu Pin/Unpin -->
         <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="17" x2="12" y2="22" />
@@ -944,6 +962,11 @@
             <line x1="7" y1="8" x2="17" y2="8" />
             <line x1="7" y1="12" x2="17" y2="12" />
             <line x1="7" y1="16" x2="13" y2="16" />
+        </symbol>
+        <!-- Gear — mechanical signal indicator (popup signal type badge) -->
+        <symbol id="icon-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </symbol>
     </svg>
     <script type="module" src="js/app.js"></script>

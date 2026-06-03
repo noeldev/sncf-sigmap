@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
 /**
- * legend.js — Legend panel DOM builder and category filter shortcuts.
+ * legend.js — Legend panel DOM builder and group filter shortcuts.
  *
- * Builds one <button> per signal category from cat-mapping and signal-mapping.
- * Wires each enabled button to filterByGroup in filters.js.
- * Exposes updateLegendIndicator() so the sidebar can sync the active-category
+ * Builds one <button> per signal group from group-mapping.js.
+ * Wires each button to filterByGroup in filters.js.
+ * Exposes updateLegendIndicator() so the sidebar can sync the active-group
  * highlight after every filter change.
  *
  * Public API:
@@ -11,13 +14,13 @@
  *   updateLegendIndicator() — sync .is-active class with the current group preset.
  */
 
-import { getCategoryEntries } from './cat-mapping.js';
+import { getGroupEntries } from './group-mapping.js';
 import { filterByGroup, getActiveGroup } from './filters.js';
 import { t, onLangChange } from './translation.js';
 
 /**
- * Build the legend DOM and wire category buttons.
- * Registers a language-change listener to rebuild button titles.
+ * Build the legend DOM and wire group filter buttons.
+ * Registers a language-change listener to rebuild button titles on locale switch.
  */
 export function initLegend() {
     _buildLegend();
@@ -28,7 +31,6 @@ export function initLegend() {
         if (btn) filterByGroup(btn.dataset.type);
     });
 
-    // Rebuild on language change and re-sync the active-group indicator.
     onLangChange(() => {
         _buildLegend();
         updateLegendIndicator();
@@ -54,7 +56,6 @@ export function updateLegendIndicator() {
         }
     });
 
-    // Show a color dot in the panel summary when a category is active.
     const dot = document.querySelector('#legend-panel .legend-summary-dot');
     if (!dot) return;
     if (activeColor) {
@@ -68,13 +69,8 @@ export function updateLegendIndicator() {
     }
 }
 
-
 // ===== Private helpers =====
 
-/**
- * Populate #legend-body with one <button> per category.
- * Clears existing content first so it is safe to call on language change.
- */
 function _buildLegend() {
     const container = document.getElementById('legend-body');
     const tpl = document.getElementById('tpl-legend-row');
@@ -82,13 +78,12 @@ function _buildLegend() {
 
     container.replaceChildren();
 
-    for (const [key, color] of getCategoryEntries()) {
+    for (const [key, color] of getGroupEntries()) {
         const btn = tpl.content.cloneNode(true).querySelector('.legend-item');
         btn.dataset.type = key;
         btn.querySelector('.legend-dot').style.backgroundColor = color;
-        btn.querySelector('.legend-label').textContent = t(`cat.${key}`);
+        btn.querySelector('.legend-label').textContent = t(`group.${key}`);
         btn.title = t('legend.clickToFilter');
-
         container.appendChild(btn);
     }
 }
