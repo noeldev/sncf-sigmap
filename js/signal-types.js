@@ -136,51 +136,54 @@ const SIGNAL_MAPPING = {
     "TIV D MOB": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-D_MOB",
+        type: "FR:speed_indicator",
+        subcat: "switchable",
+        subtype: "FR:TIV-D",
         properties: {
-            type: "switchable",
-            form: "light",
-            condition: "diverting",
-            speed: "0"
+            form: "light"
         }
     },
     "TIV R MOB": {
         group: "speedLimit",
-        cat: "speed_limit_reminder",
-        type: "FR:TIV-R",
+        cat: "speed_limit",
+        type: "FR:speed_indicator",
+        subcat: "switchable",
+        subtype: "FR:TIV-R",
         properties: {
-            form: "light",
-            speed: "0"
+            form: "light"
         }
     },
     "TIV D FIXE": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV-D",
+        type: "FR:speed_indicator",
+        subcat: "fixed",
+        subtype: "FR:TIV-D",
         linkedTo: "CARRE",
         properties: {
-            form: "sign",
-            speed: "0"
+            form: "sign"
         }
     },
     "TIVD B FIX": {
         group: "speedLimit",
-        cat: "speed_limit_distant:fast",
-        type: "FR:TIV-D_B",
+        cat: "speed_limit_distant",
+        type: "FR:speed_indicator",
+        subcat: "fast",
+        subtype: "FR:TIV-D",
         linkedTo: ["TIV D FIXE", "TIVD C FIX"],
         properties: {
-            form: "sign",
-            speed: "120"
+            form: "sign"
         }
     },
     "TIVD C FIX": {
         group: "speedLimit",
-        cat: "speed_limit_distant:self",
-        type: "FR:TIV-D_C",
+        cat: "speed_limit_distant",
+        type: "FR:speed_indicator",
+        subcat: "railcar",
+        subtype: "FR:TIV-D",
         linkedTo: ["TIV D FIXE", "TIVD B FIX"],
         properties: {
-            form: "sign",
-            speed: "120"
+            form: "sign"
         }
     },
     "P": {
@@ -200,20 +203,35 @@ const SIGNAL_MAPPING = {
     "Z": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:Z",
+        type: "FR:marker",
+        subcat: "entry",
+        subtype: "FR:Z",
         linkedTo: "TIV D FIXE",
         properties: {
             form: "sign",
-            function: "entry"
         }
     },
     "R": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:R",
+        type: "FR:marker",
+        subcat: "exit",
+        subtype: "FR:R",
         properties: {
-            form: "sign",
-            function: "exit"
+            form: "sign"
+        }
+    },
+    // The Km sign marks the transition point of a speed limit zone.
+    // Always co-located with a fixed TIV-D (ordinary, B-type, or C-type).
+    "REPER VIT": {
+        group: "speedLimit",
+        cat: "speed_limit",
+        type: "FR:marker",
+        subcat: "transition",
+        subtype: "FR:Km",
+        linkedTo: ["TIV D FIXE", "TIVD B FIX", "TIVD C FIX", "Z", "R"],
+        properties: {
+            form: "sign"
         }
     },
 
@@ -222,61 +240,54 @@ const SIGNAL_MAPPING = {
         cat: "minor",
         type: "FR:chevron",
         properties: {
-            type: "down",
             form: "sign"
         }
     },
+
     "TIV PENDIS": {
         group: "speedLimit",
         cat: "speed_limit_distant",
-        type: "FR:TIV_PENDIS",
+        type: "FR:speed_indicator",
+        subcat: "freight",
+        subtype: "FR:TIV-D",
         properties: {
-            form: "sign",
-            shape: "pentagon",
-            speed: "30"
+            form: "sign"
         }
     },
     // The L plate is always mounted below a pentagonal TIV_PENDIS to indicate
     // the speed restriction applies only to certain locomotive series.
     "L": {
         group: "speedLimit",
-        cat: "speed_limit_distant:condition",
-        type: "FR:L",
+        cat: "speed_limit_distant",
+        type: "FR:speed_indicator",
+        subcat: "freight:condition",
+        subtype: "FR:L",
         linkedTo: "TIV PENDIS",
         properties: {
-            form: "sign"
+            form: "sign",
+            for: "locomotive"
         }
     },
     "TIV PENEXE": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:TIV_PENEXE",
+        type: "FR:speed_indicator",
+        subcat: "freight",
+        subtype: "FR:TIV-E",
         properties: {
             form: "sign",
-            shape: "pentagon",
-            function: "entry",
-            speed: "30"
+            function: "entry"
         }
     },
     "TIV PENREP": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:TIV_PENREP",
+        type: "FR:speed_indicator",
+        subcat: "freight",
+        subtype: "FR:white_board",
         properties: {
             form: "sign",
-            shape: "pentagon",
             function: "exit"
-        }
-    },
-    // The Km sign marks the transition point of a speed limit zone.
-    // Always co-located with a fixed TIV-D (ordinary, B-type, or C-type).
-    "REPER VIT": {
-        group: "speedLimit",
-        cat: "speed_limit:marker",
-        type: "FR:Km",
-        linkedTo: ["TIV D FIXE", "TIVD B FIX", "TIVD C FIX", "Z", "R"],
-        properties: {
-            form: "sign"
         }
     },
 
@@ -287,8 +298,7 @@ const SIGNAL_MAPPING = {
         type: "FR:ID",
         linkedTo: ["CARRE", "CV"],
         properties: {
-            form: "light",
-            states: "FR:ID1;FR:ID2"
+            form: "light"
         }
     },
     "IDD": {
@@ -306,7 +316,7 @@ const SIGNAL_MAPPING = {
         allowMultiple: true,
         properties: {
             form: "light",
-            shape: "dual"
+            shape: "double"
         }
     },
     "DESTI": {
@@ -342,8 +352,7 @@ const SIGNAL_MAPPING = {
         type: "FR:SFC",
         linkedTo: "PN",
         properties: {
-            form: "light",
-            arrangement: "vertical",
+            form: "light"
         }
     },
 
@@ -351,7 +360,7 @@ const SIGNAL_MAPPING = {
     "SECT": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:SECT",
+        type: "FR:power_off_advance",
         properties: {
             type: "power_off_advance",
             form: "sign"
@@ -360,21 +369,19 @@ const SIGNAL_MAPPING = {
     "CC EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC_EXE",
+        type: "FR:power_off",
         properties: {
             type: "power_off",
-            form: "sign",
-            function: "entry"
+            form: "sign"
         }
     },
     "CC FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:CC_FIN",
+        type: "FR:power_on",
         properties: {
             type: "power_on",
-            form: "sign",
-            function: "exit"
+            form: "sign"
         }
     },
     "REV": {
@@ -384,13 +391,12 @@ const SIGNAL_MAPPING = {
         properties: {
             type: "power_on",
             form: "sign",
-            function: "exit"
         }
     },
     "BP DIS": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_DIS",
+        type: "FR:pantograph_down_advance",
         properties: {
             type: "pantograph_down_advance",
             form: "sign"
@@ -399,27 +405,25 @@ const SIGNAL_MAPPING = {
     "BP EXE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_EXE",
+        type: "FR:pantograph_down",
         properties: {
             type: "pantograph_down",
-            form: "sign",
-            function: "entry"
+            form: "sign"
         }
     },
     "BP FIN": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:BP_FIN",
+        type: "FR:pantograph_up",
         properties: {
             type: "pantograph_up",
-            form: "sign",
-            function: "exit"
+            form: "sign"
         }
     },
     "FIN CAT": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:FIN_CAT",
+        type: "FR:end_of_catenary",
         properties: {
             type: "end_of_catenary",
             form: "sign"
@@ -428,7 +432,7 @@ const SIGNAL_MAPPING = {
     "GIVRE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:GIVRE",
+        type: "FR:frost",
         properties: {
             form: "light"
         }
@@ -456,7 +460,7 @@ const SIGNAL_MAPPING = {
     "CAB E": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_DIS",
+        type: "FR:cab_signalling_advance",
         properties: {
             form: "sign"
         }
@@ -464,7 +468,7 @@ const SIGNAL_MAPPING = {
     "CAB R": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_EXE",
+        type: "FR:cab_signalling_entry",
         properties: {
             form: "sign",
             function: "entry"
@@ -473,7 +477,7 @@ const SIGNAL_MAPPING = {
     "CAB S": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:CAB_FIN",
+        type: "FR:cab_signalling_exit",
         properties: {
             form: "sign",
             function: "exit"
@@ -482,10 +486,11 @@ const SIGNAL_MAPPING = {
     "REP TVM": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:TVM",
+        type: "FR:marker",
+        subcat: "main",
+        subtype: "stop_marker",
         properties: {
-            form: "sign",
-            function: "block_marker"
+            form: "sign"
         }
     },
     "REP TGV": {
@@ -502,20 +507,22 @@ const SIGNAL_MAPPING = {
     // Wrong-road (IPCS)
     "TECS": {
         group: "wrongRoad",
-        cat: "wrong_road:entry",
-        type: "FR:TECS",
+        cat: "wrong_road",
+        type: "FR:transition",
+        subcat: "entry",
+        subtype: "FR:TECS",
         properties: {
-            form: "light",
-            function: "entry"
+            form: "light"
         }
     },
     "TSCS": {
         group: "wrongRoad",
-        cat: "wrong_road:exit",
-        type: "FR:TSCS",
+        cat: "wrong_road",
+        type: "FR:transition",
+        subcat: "exit",
+        subtype: "FR:TSCS",
         properties: {
-            form: "light",
-            function: "exit"
+            form: "light"
         }
     },
 
@@ -549,10 +556,13 @@ const SIGNAL_MAPPING = {
     "ARRET VOY": {
         group: "stop",
         cat: "stop",
-        type: "FR:TT",
+        type: "FR:passenger_stop",
+        subcat: "classic",
+        subtype: "FR:TT",
         allowMultiple: true,
         properties: {
-            form: "sign"
+            form: "sign",
+            for: "head_of_train"
         }
     },
     "ATC": {
@@ -566,7 +576,7 @@ const SIGNAL_MAPPING = {
     "JAL ARRET": {
         group: "stop",
         cat: "stop",
-        type: "FR:Jalon",
+        type: "FR:marker",
         properties: {
             type: "stop_marker",
             form: "sign"
@@ -593,7 +603,7 @@ const SIGNAL_MAPPING = {
     "APPROCHETS": {
         group: "station",
         cat: "station_distant",
-        type: "FR:ETS",
+        type: "FR:facility_approach_simplified",
         properties: {
             form: "sign"
         }
@@ -601,7 +611,7 @@ const SIGNAL_MAPPING = {
     "APPROETSA": {
         group: "station",
         cat: "station_distant",
-        type: "FR:ETS_A",
+        type: "FR:facility_approach",
         properties: {
             form: "sign"
         }
@@ -609,7 +619,7 @@ const SIGNAL_MAPPING = {
     "LIMITETS": {
         group: "station",
         cat: "station",
-        type: "FR:Limites",
+        type: "FR:facility_boundary",
         properties: {
             form: "sign"
         }
@@ -629,7 +639,7 @@ const SIGNAL_MAPPING = {
     "MIBLAN VER": {
         group: "station",
         cat: "departure",
-        type: "FR:MIB-MIV",
+        type: "FR:departure_marker",
         linkedTo: ["CARRE", "CV"],
         properties: {
             type: "allow",
@@ -648,7 +658,7 @@ const SIGNAL_MAPPING = {
     },
     "REP ITIN": {
         group: "station",
-        cat: "station",
+        cat: "departure",
         type: "FR:RLI",
         allowMultiple: true,
         properties: {
@@ -678,32 +688,47 @@ const SIGNAL_MAPPING = {
     "JAL MAN": {
         group: "shunting",
         cat: "shunting",
-        type: "FR:shunting_marker",
+        type: "FR:marker",
         properties: {
-            form: "sign",
-            type: "shunting_marker"
+            form: "sign"
         }
     },
     "DEPOT": {
         group: "shunting",
-        cat: "shunting_route:depot",
-        type: "FR:D",
+        cat: "shunting_route",
+        type: "FR:destination",
+        subcat: "depot",
+        subtype: "FR:D",
         properties: {
             form: "sign"
         }
     },
     "G": {
         group: "shunting",
-        cat: "shunting_route:stabling",
-        type: "FR:G",
+        cat: "shunting_route",
+        type: "FR:destination",
+        subcat: "stabling",
+        subtype: "FR:G",
         properties: {
             form: "sign"
         }
     },
     "IMP": {
         group: "shunting",
-        cat: "shunting_route:dead_end",
-        type: "FR:Imp",
+        cat: "shunting_route",
+        type: "FR:destination",
+        subcat: "dead_end",
+        subtype: "FR:Imp",
+        properties: {
+            form: "sign"
+        }
+    },
+    "HEURT...": {
+        group: "shunting",
+        cat: "shunting_route",
+        type: "FR:destination",
+        subcat: "buffer_stop",
+        subtype: "FR:Heurtoir",
         properties: {
             form: "sign"
         }
@@ -732,15 +757,6 @@ const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
-    "HEURT...": {
-        group: "shunting",
-        cat: "shunting",
-        type: "FR:buffer_stop",
-        properties: {
-            type: "buffer_stop",
-            form: "sign"
-        }
-    },
     // SLM (Signal Lumineux de Manoeuvre): installed on main tracks to facilitate
     // shunting operations. Despite being on main infrastructure it is a shunting
     // signal, so cat=shunting to avoid conflicts with Carre (cat=main).
@@ -757,7 +773,7 @@ const SIGNAL_MAPPING = {
     "GABARIT": {
         group: "miscellaneous",
         cat: "minor",
-        type: "FR:Gabarit",
+        type: "FR:reduced_clearance",
         properties: {
             form: "sign"
         }
@@ -775,8 +791,8 @@ const SIGNAL_MAPPING = {
     // never as luminous signals. mechanical: true means resolveGroupDefs() uses
     // properties directly without checking for mechanical combos.
     "R30": {
-        group: "main",
-        cat: "main",
+        group: "speedLimit",
+        cat: "speed_limit",
         type: "FR:R30",
         mechanical: {
             properties: {
@@ -785,8 +801,8 @@ const SIGNAL_MAPPING = {
         }
     },
     "RR30": {
-        group: "main",
-        cat: "main",
+        group: "speedLimit",
+        cat: "speed_limit",
         type: "FR:RR30",
         mechanical: {
             properties: {
@@ -796,12 +812,6 @@ const SIGNAL_MAPPING = {
     }
 };
 
-/**
- * Mechanical combo detection rules.
- * When ALL types in a Set are co-located, signals with a mechanical section
- * are resolved using their mechanical property set.
- * Luminous signals cannot produce these patterns in practice.
- */
 // ===== Private helpers =====
 
 /**
@@ -945,6 +955,8 @@ export function getGroupForType(signalType) {
 export function getGroupForCat(osmCat) {
     for (const def of Object.values(SIGNAL_MAPPING)) {
         if (def.cat === osmCat) return def.group;
+        // Slot key match for entries with subcat (e.g. "wrong_road:entry", "stop:classic").
+        if (def.subcat && `${def.cat}:${def.subcat}` === osmCat) return def.group;
     }
     return null;
 }

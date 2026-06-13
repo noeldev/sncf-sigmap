@@ -73,15 +73,15 @@ export function getHighestPriorityType(types) {
 
 /**
  * Determine whether a signal can join an existing node group.
- * cat is always top-level in SIGNAL_MAPPING — invariant across luminous/mechanical
- * forms — so no isMech context is needed here.
+ * Uses _catSlot() so signals with the same cat but different subcats
+ * (e.g. two ETCS markers with distinct sub-functions) can share a node.
  */
 export function canFit(feat, group) {
     const entry = getMappingEntry(feat.p.signalType);
     if (group.direction !== feat.p.direction) return false;
     if (group.placement !== feat.p.placement) return false;
     if (!entry) return true;  // unknown signal: skip cat check
-    return !group.categories.has(entry.cat);
+    return !group.categories.has(_catSlot(entry));
 }
 
 /**
@@ -102,6 +102,22 @@ export function groupFeats(feats) {
     const sorted = _sortFeats(feats, isMech, idMap);
     const nodeGroups = _distributeToNodes(sorted, isMech, idMap);
     return { nodeGroups, isMech };
+}
+
+// ===== Private helpers =====
+
+/**
+ * Effective OSM category slot for a mapping entry.
+ * When an entry has a subcat (e.g. "REP TGV" with subcat="main"),
+ * the slot is "cat:subcat" — two signals with the same cat but
+ * different subcats occupy different slots and do NOT conflict.
+ * Entries without subcat use cat alone (existing behaviour).
+ *
+ * @param {{ cat: string, subcat?: string }} entry
+ * @returns {string}
+ */
+function _catSlot(entry) {
+    return entry.subcat ? `${entry.cat}:${entry.subcat}` : entry.cat;
 }
 
 // ===== Private — pipeline steps =====
@@ -139,7 +155,7 @@ function _sortFeats(feats, isMech, idMap) {
         const links = _activeLinks(feat.p.signalType, isMech);
         if (links.length > 0) {
             const entry = getMappingEntry(feat.p.signalType);
-            if (entry) linkedCats.add(entry.cat);
+            if (entry) linkedCats.add(_catSlot(entry));
         }
     }
 
@@ -201,13 +217,13 @@ function _distributeToNodes(sorted, isMech, idMap) {
                 direction: feat.p.direction,
                 placement: feat.p.placement,
                 feats: [feat],
-                categories: entry ? new Set([entry.cat]) : new Set(),
+                categories: entry ? new Set([_catSlot(entry)]) : new Set(),
                 networkKeys: new Map([[feat.p.signalType, idMap.get(feat)]]),
             });
         } else {
             groups[idx].feats.push(feat);
             groups[idx].networkKeys.set(feat.p.signalType, idMap.get(feat));
-            if (entry) groups[idx].categories.add(entry.cat);
+            if (entry) groups[idx].categories.add(_catSlot(entry));
         }
     }
 
@@ -321,7 +337,7 @@ function _tier(feat, anchorKeys, linkedCats, isMech) {
     if (anchorKeys.has(signalType)) return 0;
     if (_activeLinks(signalType, isMech).length > 0) return 1;
     const entry = getMappingEntry(signalType);
-    if (entry && linkedCats.has(entry.cat)) return 2;
+    if (entry && linkedCats.has(_catSlot(entry))) return 2;
     return 3;
 }
 
