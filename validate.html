@@ -38,6 +38,9 @@
                         <span class="nav-sep header-nav-sep-results" hidden>|</span>
                         <a href="#section-spec" id="nav-spec"
                            class="header-nav-result" data-i18n="nav.spec" hidden>Wiki spec diff</a>
+                        <span class="nav-sep header-nav-sep-results" hidden>|</span>
+                        <a href="#section-preset" id="nav-preset"
+                           class="header-nav-result" data-i18n="nav.preset" hidden>Preset sync</a>
                     </nav>
                 </div>
             </div>
@@ -62,10 +65,6 @@
         <!-- hidden: shown programmatically after a run (report-renderer.js / renderStats) -->
         <div class="stats-grid" id="stats-grid" hidden>
             <div class="stat-card">
-                <div class="stat-label" data-i18n="stat.tiles">Tiles</div>
-                <div class="stat-value" id="stat-tiles">-</div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-label" data-i18n="stat.signals">Signals</div>
                 <div class="stat-value" id="stat-signals">-</div>
             </div>
@@ -81,28 +80,13 @@
                 <div class="stat-label" data-i18n="stat.unmapped">Unmapped types</div>
                 <div class="stat-value" id="stat-unmapped">-</div>
             </div>
-            <!-- Row 2: visible only after wiki spec resolves -->
-            <div id="stats-spec-row" hidden>
-                <div class="stat-card">
-                    <div class="stat-label" data-i18n="stat.wikiPairs">Wiki pairs</div>
-                    <div class="stat-value" id="stat-wiki-pairs">-</div>
-                </div>
-                <div class="stat-card c-ok">
-                    <div class="stat-label" data-i18n="stat.matched">Matched</div>
-                    <div class="stat-value" id="stat-matched">-</div>
-                </div>
-                <div class="stat-card c-conflict">
-                    <div class="stat-label" data-i18n="stat.onlyWiki">Only in wiki</div>
-                    <div class="stat-value" id="stat-only-wiki">-</div>
-                </div>
                 <div class="stat-card c-warn">
-                    <div class="stat-label" data-i18n="stat.onlyCode">Only in code</div>
-                    <div class="stat-value" id="stat-only-code">-</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">&nbsp;</div>
-                    <div class="stat-value">&nbsp;</div>
-                </div>
+                <div class="stat-label" data-i18n="stat.wikiDiff">Wiki diff</div>
+                <div class="stat-value" id="stat-wiki-diff">-</div>
+            </div>
+            <div class="stat-card c-warn">
+                <div class="stat-label" data-i18n="stat.presetDiff">Preset diff</div>
+                <div class="stat-value" id="stat-preset-diff">-</div>
             </div>
         </div>
 
@@ -186,6 +170,25 @@
                     </details>
                 </div>
 
+            </div>
+        </section>
+
+        <!-- Section D: JOSM preset cross-check (automatic) -->
+        <!-- hidden: shown programmatically once the wiki reference is ready
+             (validate-main.js _runPresetCheck). The presets are loaded from the
+             configured source (validate-config.json) with no interaction. -->
+        <section class="result-section cp-panel cp-panel--open" id="section-preset" hidden>
+            <div class="panel-summary" role="button" tabindex="0"
+                 aria-expanded="true" aria-controls="body-preset">
+                <svg class="panel-arrow" width="12" height="12" aria-hidden="true">
+                    <use href="#icon-chevron"></use>
+                </svg>
+                <h2 data-i18n="section.preset">JOSM preset sync</h2>
+                <span class="badge" id="badge-preset">0</span>
+            </div>
+            <div class="cp-body" id="body-preset">
+                <div id="preset-status" class="preset-status mono-sm"></div>
+                <div id="preset-content"></div>
             </div>
         </section>
 
@@ -389,6 +392,28 @@
             <td class="col-key mono-sm" data-field="key"></td>
             <td class="col-type text-blue mono-sm" data-field="type"></td>
             <td></td>
+        </tr>
+    </template>
+
+    <!-- Preset sync table: 3 columns (OSM key | wiki value | preset value).
+         A dash in a value column means the pair is absent from that source. -->
+    <template id="tpl-thead-preset">
+        <thead>
+            <tr>
+                <th class="col-row-num" data-i18n="column.rowNum">#</th>
+                <th class="col-key" data-i18n="column.osmKey">OSM key</th>
+                <th class="col-type" data-i18n="column.typeValueWiki">Type (wiki)</th>
+                <th class="col-type" data-i18n="column.typeValuePreset">Type (preset)</th>
+            </tr>
+        </thead>
+    </template>
+
+    <template id="tpl-preset-row">
+        <tr>
+            <td class="col-row-num dim" data-field="row-num"></td>
+            <td class="col-key mono-sm" data-field="key"></td>
+            <td class="col-type mono-sm" data-field="type-wiki"></td>
+            <td class="col-type mono-sm" data-field="type-preset"></td>
         </tr>
     </template>
 

@@ -4,18 +4,19 @@ Thumbs.db
 *.swp
 
 # TileBuilder build artefacts — never commit compiled output
-tools/TileBuilder/bin/
-tools/TileBuilder/obj/
+/tools/TileBuilder/bin/
+/tools/TileBuilder/obj/
 
-# Logs
+# Logs / IDE / local config
 *.log
-/.vs
-/.netlify
-/tools/TileBuilder/.vs
+**/.vs/
+.netlify/
+
+# Local / secret configs
 /js/config.secret.js
 /js/config.local.js
-/tree.txt
+/js/validate/validate-config.json
 /tools/TileBuilder/Properties/launchSettings.json
 
-# Local Netlify folder
-.netlify
+# Debug artefacts
+tree.txt

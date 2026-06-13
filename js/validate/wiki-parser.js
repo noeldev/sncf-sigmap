@@ -4,57 +4,77 @@
 /**
  * wiki-parser.js - Fetch and parse the OpenRailwayMap/Tagging_in_France wiki page.
  *
- * Uses the MediaWiki REST API (CORS-enabled via origin=*) to download the
- * rendered HTML of the wiki page, then extracts all signal type definitions
- * matching the pattern:
- *   railway:signal:<cat>=<FR:type>
+ * Downloads the raw MediaWiki *wikitext* (not the rendered HTML) via the parse
+ * API (prop=wikitext, CORS-enabled via origin=*), or reads it from a local file
+ * when a source is given (local-server testing), then extracts signal
+ * definitions from the {{Tag}} / {{TagValue}} templates.
  *
- * Uses DOMParser on each <li> textContent to avoid regex truncation caused
- * by <wbr> and inline HTML inside identifiers like FR:TIV-D_MOB or
- * speed_limit_distant. textContent strips tags and decodes entities, giving
- * clean plain text per bullet before the regex runs.
+ * Every value is captured as-is (FR:, bare values like "light"/"forward",
+ * etc.); which namespaces to compare (e.g. excluding ETCS:) is a comparison
+ * policy applied in spec-compare.js, not here.
  *
- * Filtering rules applied to regex matches on plain text:
- *   1. Value must start with "FR:".
- *   2. Value must not contain ";" (excludes states=FR:C;FR:VL multi-value lists).
- *   3. Last segment of the key after "railway:signal:" must not be a known
- *      property sub-key that only takes non-FR: values.
- *      "condition" is intentionally NOT in this list: the wiki defines
- *      railway:signal:speed_limit_distant:condition=FR:L, so
- *      "speed_limit_distant:condition" is a valid category.
+ * Why wikitext rather than rendered HTML:
+ *   - The template grammar is stable; rendered HTML (wbr, spans, entities) is
+ *     not, and required DOMParser plus textContent workarounds.
+ *   - {{TagValue}} renders as the value alone (no "key=value"), so an HTML scan
+ *     silently drops every enumerated value. The wikitext carries the key.
+ *
+ * Two distinct things are extracted, because the wiki documents them
+ * differently:
+ *
+ *   keys  - every documented key (cat), from any {{Tag|railway:signal:<cat>...}},
+ *           even when the value is left empty. This is presence: the wiki says
+ *           the key exists. Example: {{Tag|railway:signal:main:states|}} declares
+ *           the key but enumerates no value (it links to a sub-page instead).
+ *
+ *   pairs - enumerated (cat, FR:value) values only. A value counts as enumerated
+ *           when it is given as the value of a single-value {{Tag|...|FR:x}} or
+ *           listed inside an enumeration block {{Tag|...||( {{TagValue}} / ... )}}.
+ *           A bare {{TagValue}} sitting in prose (e.g. "...displaying the FR:C
+ *           state...") is NOT an enumeration and is ignored: it would otherwise
+ *           inject phantom values for keys the wiki never enumerated.
+ *
+ * Enumeration blocks {{Tag|...||( ... )}} may span several lines (the "(" can
+ * sit on the line after "||"), so blocks are matched across newlines rather
+ * than per line; a {{TagValue}} counts as enumerated only when it lies inside
+ * such a block. The closing ")}}" is the first one after the opener, which is
+ * unambiguous here because enumerated FR: values never contain ")".
+ *
+ * No category filtering is applied: pairs is the complete enumerated set. Each
+ * comparison applies its own scope (see spec-compare.js).
  *
  * Public API:
- *   fetchWikiSpec()  -> Promise<WikiSpec | null>
+ *   fetchWikiSpec(source?)  -> Promise<WikiSpec | null>
  *
  * WikiSpec:
- *   pairs:   Array<{ cat: string, type: string }>
- *   byCat:   Map<string, Set<string>>
- *   byType:  Map<string, Set<string>>
+ *   pairs:  Array<{ cat: string, type: string }>   enumerated values
+ *   byCat:  Map<string, Set<string>>               enumerated values per cat
+ *   keys:   Set<string>                            every documented cat (presence)
  */
 
 const WIKI_API_URL =
     'https://wiki.openstreetmap.org/w/api.php'
     + '?action=parse'
     + '&page=OpenRailwayMap%2FTagging_in_France'
-    + '&prop=text'
+    + '&prop=wikitext'
     + '&format=json'
     + '&origin=*';
 
-// Sub-key suffixes that carry only non-FR: values and must be excluded.
-// "condition" is absent because speed_limit_distant:condition=FR:L is valid.
-const PROPERTY_SUFFIXES = new Set([
-    'form', 'states', 'shape', 'plate', 'caption',
-    'function', 'type', 'height', 'clearing_light', 'short_route',
-    'speed', 'arrangement', 'for', 'carriages', 'voltage',
-    'frequency', 'automatic', 'deactivated', 'ref',
-]);
-
-const RE_TAG = /railway:signal:([^\s=;]+)=(FR:[^\s;]+)/g;
+// Every documented key: {{Tag|railway:signal:<cat>...}} up to the first "|" or "}".
+const RE_KEY = /\{\{Tag\|railway:signal:([^|}]+)[|}]/g;
+// Single-value tag: {{Tag|railway:signal:<cat>|<value>}} (one value, not "||").
+const RE_TAG_VALUE = /\{\{Tag\|railway:signal:([^|}]+)\|([^|}]+)\}\}/g;
+// Enumeration block: {{Tag|railway:signal:<cat>||( ... )}}; the "(" may follow a
+// newline. Group 1 is the list body, scanned for its {{TagValue}} entries.
+const RE_ENUM_BLOCK = /\{\{Tag\|railway:signal:[^|}]+\|\|\s*\(([\s\S]*?)\)\}\}/g;
+// Enumerated value reference inside a block: {{TagValue|railway:signal:<cat>|<value>}}.
+const RE_TAGVALUE = /\{\{TagValue\|railway:signal:([^|}]+)\|([^|}]+)\}\}/g;
 
 // ===== sessionStorage cache =====
 // The wiki page changes rarely; cache the parsed result for 1 hour to avoid
 // a network round-trip on every page reload.
 
+// DevTools > Application > Storage > Session Storage > https://localhost:8443
 const CACHE_KEY = 'sncf-sigmap:wiki-spec';
 const CACHE_TTL = 3_600_000; // 1 hour in ms
 
@@ -70,7 +90,7 @@ function _loadCache() {
         return {
             pairs: data.pairs,
             byCat: new Map(data.byCat.map(([k, v]) => [k, new Set(v)])),
-            byType: new Map(data.byType.map(([k, v]) => [k, new Set(v)])),
+            keys: new Set(data.keys),
         };
     } catch {
         return null;
@@ -84,7 +104,7 @@ function _saveCache(spec) {
             data: {
                 pairs: spec.pairs,
                 byCat: [...spec.byCat.entries()].map(([k, v]) => [k, [...v]]),
-                byType: [...spec.byType.entries()].map(([k, v]) => [k, [...v]]),
+                keys: [...spec.keys],
             },
         }));
     } catch {
@@ -94,65 +114,87 @@ function _saveCache(spec) {
 
 // ===== Public API =====
 
-export async function fetchWikiSpec() {
-    const cached = _loadCache();
-    if (cached) return cached;
+/**
+ * Build the WikiSpec from the wiki page.
+ *
+ * @param {string} [source]  Optional URL or local path to a raw wikitext file.
+ *                           When given (local-server testing), it is fetched
+ *                           directly and the API/cache are bypassed so edits
+ *                           are picked up. When omitted, the MediaWiki API is
+ *                           used and the result is cached.
+ * @returns {Promise<WikiSpec | null>}
+ */
+export async function fetchWikiSpec(source) {
+    if (!source) {
+        const cached = _loadCache();
+        if (cached) return cached;
+    }
 
-    const html = await _fetchRenderedHtml();
-    if (html === null) return null;
-    const spec = _parse(html);
-    _saveCache(spec);
+    const wikitext = source ? await _fetchText(source) : await _fetchApi();
+    if (wikitext === null) return null;
+
+    const spec = _parse(wikitext);
+    if (!source) _saveCache(spec);
     return spec;
 }
 
-async function _fetchRenderedHtml() {
+/** Fetch a raw wikitext file (local path or URL). */
+async function _fetchText(url) {
     try {
-        const res = await fetch(WIKI_API_URL);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const html = json?.parse?.text?.['*'];
-        if (typeof html !== 'string' || !html.length) {
-            throw new Error('Unexpected API response shape');
-        }
-        return html;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+        return await res.text();
     } catch (err) {
-        console.error('[wiki-parser] fetch failed:', err.message);
+        console.error('[wiki-parser] file fetch failed:', err.message);
         return null;
     }
 }
 
-function _parse(html) {
+/** Fetch the rendered wikitext through the MediaWiki parse API. */
+async function _fetchApi() {
+    try {
+        const res = await fetch(WIKI_API_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const wikitext = json?.parse?.wikitext?.['*'];
+        if (typeof wikitext !== 'string' || !wikitext.length) {
+            throw new Error('Unexpected API response shape');
+        }
+        return wikitext;
+    } catch (err) {
+        console.error('[wiki-parser] API fetch failed:', err.message);
+        return null;
+    }
+}
+
+function _parse(wikitext) {
     const pairs = [];
     const byCat = new Map();
-    const byType = new Map();
+    const keys = new Set();
     const seen = new Set();
 
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const items = doc.querySelectorAll('li');
+    const addValue = (cat, type) => {
+        cat = cat.trim();
+        type = type.trim();
+        const pairKey = `${cat}|${type}`;
+        if (seen.has(pairKey)) return;
+        seen.add(pairKey);
+        pairs.push({ cat, type });
+        if (!byCat.has(cat)) byCat.set(cat, new Set());
+        byCat.get(cat).add(type);
+    };
 
-    for (const li of items) {
-        const text = li.textContent;
-        RE_TAG.lastIndex = 0;
-        let match;
-        while ((match = RE_TAG.exec(text)) !== null) {
-            const cat = match[1];
-            const type = match[2];
+    // Documented keys (presence), including keys with no enumerated value.
+    for (const m of wikitext.matchAll(RE_KEY)) keys.add(m[1].trim());
 
-            const lastSegment = cat.split(':').pop();
-            if (PROPERTY_SUFFIXES.has(lastSegment)) continue;
+    // Single-value tags are enumerated values on their own.
+    for (const m of wikitext.matchAll(RE_TAG_VALUE)) addValue(m[1], m[2]);
 
-            const pairKey = `${cat}|${type}`;
-            if (seen.has(pairKey)) continue;
-            seen.add(pairKey);
-
-            pairs.push({ cat, type });
-
-            if (!byCat.has(cat)) byCat.set(cat, new Set());
-            if (!byType.has(type)) byType.set(type, new Set());
-            byCat.get(cat).add(type);
-            byType.get(type).add(cat);
-        }
+    // Enumeration blocks: take the {{TagValue}} entries listed inside. Prose
+    // {{TagValue}} mentions outside any block are intentionally ignored.
+    for (const block of wikitext.matchAll(RE_ENUM_BLOCK)) {
+        for (const v of block[1].matchAll(RE_TAGVALUE)) addValue(v[1], v[2]);
     }
 
-    return { pairs, byCat, byType };
+    return { pairs, byCat, keys };
 }

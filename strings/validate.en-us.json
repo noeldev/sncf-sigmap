@@ -16,23 +16,22 @@
     "conflicts": "Co-location conflicts",
     "unmapped": "Unmapped types",
     "spec": "Wiki spec diff",
+    "preset": "Preset sync",
     "btnTop": "Top"
   },
   "stat": {
-    "tiles": "Tiles",
     "signals": "Signals",
     "locations": "Locations",
     "conflicts": "Conflicts",
     "unmapped": "Unmapped types",
-    "wikiPairs": "Wiki pairs",
-    "matched": "Matched",
-    "onlyWiki": "Only in wiki",
-    "onlyCode": "Only in code"
+    "wikiDiff": "Wiki diff",
+    "presetDiff": "Preset diff"
   },
   "section": {
     "conflicts": "Co-location conflicts",
     "unmapped": "Unmapped signal types",
-    "spec": "Wiki spec cross-check"
+    "spec": "Wiki spec cross-check",
+    "preset": "JOSM preset sync"
   },
   "column": {
     "rowNum": "#",
@@ -47,7 +46,8 @@
     "osmKey": "OSM key",
     "typeValue": "Type value",
     "typeValueWiki": "Type value (wiki)",
-    "typeValueCode": "Type value (code)"
+    "typeValueCode": "Type value (code)",
+    "typeValuePreset": "Type value (preset)"
   },
   "filter": {
     "label": "Filter",
@@ -63,7 +63,8 @@
     "allMapped": "OK — All signal types are mapped in signal-types.js.",
     "allMatch": "OK — All signal-types.js OSM types match the wiki spec.",
     "allImplemented": "OK — All wiki-defined OSM types are implemented in signal-types.js.",
-    "noMatches": "No matches found."
+    "noMatches": "No matches found.",
+    "presetInSync": "OK — Presets are in sync with the wiki."
   },
   "progress": {
     "starting": "Starting…",
@@ -93,5 +94,10 @@
     "station": "Station and facilities",
     "miscellaneous": "Miscellaneous",
     "unsupported": "Unsupported types"
+  },
+  "preset": {
+    "loading": "Loading presets…",
+    "loaded": "{0} matched, {1} discrepancies — {2} only in wiki, {3} only in presets",
+    "error": "Error: {0}"
   }
 }

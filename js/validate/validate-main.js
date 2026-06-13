@@ -14,6 +14,15 @@
  *     3. Cross-check all OSM (cat, type) pairs against wiki.
  *        Rendered as soon as the wiki response arrives.
  *
+ *   Preset check (automatic, no interaction):
+ *     Once the wiki reference is ready, the JOSM presets are loaded from the
+ *     configured source and diffed against the wiki.
+ *
+ * Sources and options come from an optional validate-config.json (next to this
+ * module, git-ignored): presetSource and wikiSource may be a local path or URL,
+ * excludedNamespaces lists value namespaces to skip (default ETCS:). The wiki
+ * defaults to the live MediaWiki API; the presets default to the GitHub raw URL.
+ *
  * GeoJSON export:
  *   Exports ALL signals as a FeatureCollection for OSM integration.
  *   Co-located nodes are offset by ~50 cm so JOSM can distinguish them.
@@ -26,7 +35,8 @@ import { isMapped } from '../signal-types.js';
 import { normalizeSignal } from '../sncf-convert.js';
 import { loadManifest, fetchTileByKey } from '../tiles.js';
 import { loadStrings, translateAll, t } from '../translation.js';
-import { buildCodeSpec, compareSpecs } from './spec-compare.js';
+import { buildCodeSpec, compareSpecs, comparePresetToWiki } from './spec-compare.js';
+import { fetchPresetXML } from './preset-parser.js';
 import { markOutliers } from './outlier-detector.js';
 import { fetchWikiSpec } from './wiki-parser.js';
 import {
@@ -37,12 +47,23 @@ import {
 import {
     APP_URL,
     renderStats, renderConflicts, renderUnmapped,
-    renderSpecDiff, clearResults
+    renderSpecDiff, renderPresetDiff, revealSection, clearResults
 } from './report-renderer.js';
+
+// ===== Config =====
+
+// Optional local config next to the validate modules; absence is not an error.
+// Resolved relative to this module so it works regardless of the page path.
+const CONFIG_URL = new URL('validate-config.json', import.meta.url);
+
+// Production preset source, used when validate-config.json sets no presetSource.
+const DEFAULT_PRESET_URL =
+    'https://raw.githubusercontent.com/noeldev/FrenchRailwaySignalling/main/presets/French_Railway_Signalling.xml';
 
 // ===== State =====
 
 let _lastResults = null;
+let _config = {};
 
 // ===== Entry point =====
 
@@ -50,8 +71,31 @@ _init();
 
 async function _init() {
     await _initI18n();
+    _config = await _loadConfig();
     _bindEvents();
     _run();
+}
+
+/**
+ * Load validate-config.json. Absence is fine (returns {}). A present but
+ * malformed file (e.g. JSON comments, which are not allowed) is reported on the
+ * console instead of failing silently, then defaults are used.
+ */
+async function _loadConfig() {
+    let res;
+    try {
+        res = await fetch(CONFIG_URL);
+    } catch {
+        return {}; // file not reachable: treat as absent
+    }
+    if (!res.ok) return {}; // absent
+
+    try {
+        return await res.json();
+    } catch (err) {
+        console.warn('[validate] validate-config.json is present but not valid JSON; using defaults.', err);
+        return {};
+    }
 }
 
 // ===== Initialisation helpers =====
@@ -88,10 +132,17 @@ async function _run() {
     clearResults();
     _setProgress(0, t('progress.fetching'));
 
-    const [wikiSpec, manifest] = await Promise.all([fetchWikiSpec(), loadManifest()]);
+    const [wikiSpec, manifest] = await Promise.all([
+        fetchWikiSpec(_config.wikiSource),
+        loadManifest(),
+    ]);
 
     // Pass B: spec diff — rendered immediately when wiki arrives.
     const specStats = _runSpecDiff(wikiSpec);
+
+    // Preset cross-check — runs automatically from the configured source.
+    // Fire-and-forget so the tile scan is not delayed.
+    _runPresetCheck(wikiSpec);
 
     if (!manifest) {
         _setProgress(0, t('error.manifest'));
@@ -122,12 +173,11 @@ async function _run() {
     };
 
     renderStats({
-        tiles: tilesLoaded,
         signals: totalSignals,
         locations: locationGroups.size,
         conflictLocations: conflicts.length,
         unmappedTypes: unmappedTypes.size,
-        ...(specStats ?? {}),
+        wikiDiff: specStats ? specStats.onlyInWiki + specStats.onlyInCode : undefined,
     });
 
     renderConflicts(conflicts);
@@ -144,7 +194,7 @@ function _runSpecDiff(wikiSpec) {
         return null;
     }
     // buildCodeSpec() derives its data from signal-types.js internally.
-    const diffResult = compareSpecs(wikiSpec, buildCodeSpec());
+    const diffResult = compareSpecs(wikiSpec, buildCodeSpec(), _config.excludedNamespaces);
     renderSpecDiff(diffResult);
     return {
         wikiPairs: wikiSpec.pairs.length,
@@ -152,6 +202,36 @@ function _runSpecDiff(wikiSpec) {
         onlyInWiki: diffResult.onlyInWiki.length,
         onlyInCode: diffResult.onlyInCode.length,
     };
+}
+
+// ===== Preset cross-check =====
+
+/**
+ * Load the JOSM presets from the configured source and diff them against the
+ * wiki. Runs automatically; the section shows the result with no interaction.
+ */
+async function _runPresetCheck(wikiSpec) {
+    if (!wikiSpec) return; // no reference to compare against
+    revealSection('section-preset');
+    _setPresetStatus(t('preset.loading'));
+    try {
+        const source = _config.presetSource || DEFAULT_PRESET_URL;
+        const presetSpec = await fetchPresetXML(source);
+        const diff = comparePresetToWiki(wikiSpec, presetSpec, _config.excludedNamespaces);
+        renderPresetDiff(diff);
+        const onlyWiki = diff.onlyInWiki.length;
+        const onlyPreset = diff.onlyInPreset.length;
+        _setPresetStatus(t('preset.loaded',
+            diff.matched.length, onlyWiki + onlyPreset, onlyWiki, onlyPreset));
+    } catch (err) {
+        console.error('[preset-check]', err);
+        _setPresetStatus(t('preset.error', err.message));
+    }
+}
+
+function _setPresetStatus(text) {
+    const el = document.getElementById('preset-status');
+    if (el) el.textContent = text;
 }
 
 // ===== Pass A helpers =====

@@ -13,6 +13,7 @@
  *   - Conflict table + filter dropdown    (renderConflicts)
  *   - Unmapped types table                (renderUnmapped)
  *   - Spec diff sections                  (renderSpecDiff)
+ *   - Preset vs wiki sync table           (renderPresetDiff)
  *   - Lazy Google Maps hrefs
  *   - Group-colored chip left borders      (group-mapping.js)
  *
@@ -97,19 +98,16 @@ function _getFilterTemplates() {
 // ===== Public API =====
 
 export function renderStats(stats) {
-    _setText('stat-tiles', stats.tiles.toLocaleString());
     _setText('stat-signals', stats.signals.toLocaleString());
     _setText('stat-locations', stats.locations.toLocaleString());
     _setText('stat-conflicts', stats.conflictLocations.toLocaleString());
     _setText('stat-unmapped', stats.unmappedTypes.toLocaleString());
 
-    if (stats.wikiPairs !== undefined) {
-        _setText('stat-wiki-pairs', stats.wikiPairs.toLocaleString());
-        _setText('stat-matched', stats.matched.toLocaleString());
-        _setText('stat-only-wiki', stats.onlyInWiki.toLocaleString());
-        _setText('stat-only-code', stats.onlyInCode.toLocaleString());
-        _show('stats-spec-row');
+    // Wiki diff = code<->wiki discrepancies; undefined when the wiki failed.
+    if (stats.wikiDiff !== undefined) {
+        _setText('stat-wiki-diff', stats.wikiDiff.toLocaleString());
     }
+    // stat-preset-diff is filled by renderPresetDiff (async preset check).
 
     _show('stats-grid');
     _showNavLinks();
@@ -203,47 +201,11 @@ export function renderUnmapped(unmappedTypes) {
 export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
     _show('section-spec');
 
-    // Build the unified "Unmatched entries" list.
-    //
-    // Each (osmKey, typeValue) pair is its own row — no merging for genuinely
-    // different values. Exception: case-insensitive matches on the same OSM key
-    // (e.g. FR:Chevron in wiki vs FR:chevron in code) are merged into one row
-    // showing both values, since they represent the same mapping entry.
-    //
-    // Merging key: osmKey + '|' + typeValue.toLowerCase()
-    const rows = [];
-    const wikiNormMap = new Map(); // normalised key -> row index
-
-    for (const { cat, type } of onlyInWiki) {
-        const key = makeSignalCatKey(cat);
-        const idx = rows.length;
-        rows.push({ key, wikiType: type, codeType: null });
-        wikiNormMap.set(key + '|' + type.toLowerCase(), idx);
-    }
-
-    for (const { cat, type } of onlyInCode) {
-        const key = makeSignalCatKey(cat);
-        const normKey = key + '|' + type.toLowerCase();
-        const existingIdx = wikiNormMap.get(normKey);
-        if (existingIdx !== undefined) {
-            // Case-insensitive match: merge into the wiki row.
-            rows[existingIdx].codeType = type;
-        } else {
-            rows.push({ key, wikiType: null, codeType: type });
-        }
-    }
-
-    // Sort: alphabetically by OSM key, then by type value within the same key.
-    rows.sort((a, b) =>
-        a.key.localeCompare(b.key) ||
-        (a.wikiType ?? '').localeCompare(b.wikiType ?? '') ||
-        (a.codeType ?? '').localeCompare(b.codeType ?? '')
-    );
-
-    // Amber highlight: a type value that appears in BOTH columns (at any row)
-    // signals a likely cross-key association worth investigating.
-    const wikiTypeSet = new Set(rows.filter(r => r.wikiType).map(r => r.wikiType));
-    const codeTypeSet = new Set(rows.filter(r => r.codeType).map(r => r.codeType));
+    // Unmatched entries: only-in-wiki + only-in-code merged into one table,
+    // with case-insensitive same-key values collapsed onto a shared row.
+    // Code cats are normalised to OSM keys via makeSignalCatKey.
+    const rows = _buildUnmatchedRows(onlyInWiki, onlyInCode, makeSignalCatKey);
+    const { aSet, bSet } = _typeColumnSets(rows);
 
     _renderSpecTable({
         contentId: 'unmatched-content',
@@ -254,18 +216,15 @@ export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
         rowId: 'tpl-spec-row-unmatched',
         emptyBadge: 'badge-blue',
         filledBadge: 'badge-amber',
-        fillRow(row, { key, wikiType, codeType }, i) {
+        fillRow(row, { key, a, b }, i) {
             _fill(row, 'row-num', i + 1);
             _fill(row, 'key', key);
-            // Amber when: case-insensitive merge (both present on this row)
-            //          OR the value also appears somewhere in the opposite column.
-            const wikiEl = row.querySelector('[data-field="type-wiki"]');
-            const wikiHighlight = !!wikiType && (!!codeType || codeTypeSet.has(wikiType));
-            _setSpecCell(wikiEl, wikiType, wikiHighlight, !wikiType);
-
-            const codeEl = row.querySelector('[data-field="type-code"]');
-            const codeHighlight = !!codeType && (!!wikiType || wikiTypeSet.has(codeType));
-            _setSpecCell(codeEl, codeType, codeHighlight, !codeType);
+            // Amber when both columns are present on this row, or the value also
+            // appears somewhere in the opposite column (likely cross-key link).
+            _setSpecCell(row.querySelector('[data-field="type-wiki"]'),
+                a, !!a && (!!b || bSet.has(a)), !a);
+            _setSpecCell(row.querySelector('[data-field="type-code"]'),
+                b, !!b && (!!a || aSet.has(b)), !b);
         },
     });
 
@@ -288,10 +247,58 @@ export function renderSpecDiff({ matched, onlyInWiki, onlyInCode }) {
     });
 }
 
+/**
+ * Reveal a result section by id without populating it. Used to surface the
+ * preset section (and its status line) even when the preset fails to load.
+ */
+export function revealSection(id) {
+    _show(id);
+}
+
+/**
+ * Render the JOSM preset vs wiki synchronisation table.
+ *
+ * Wiki is the reference. Each row is a discrepancy with the wiki value and the
+ * preset value side by side; a dash means the pair is absent from that source:
+ *   wiki value + dash  -> documented in the wiki, missing from the presets.
+ *   dash + preset value -> defined in the presets, undocumented in the wiki.
+ * Same merge/highlight semantics as the spec cross-check, so a case-only
+ * mismatch (FR:Chevron vs FR:chevron) collapses onto one highlighted row.
+ *
+ * @param {{ matched: object[], onlyInWiki: object[], onlyInPreset: object[] }} diff
+ */
+export function renderPresetDiff({ onlyInWiki, onlyInPreset }) {
+    _show('section-preset');
+    _setText('stat-preset-diff', (onlyInWiki.length + onlyInPreset.length).toLocaleString());
+
+    // Preset cats already are OSM keys (no code normalisation): identity keyFn.
+    const rows = _buildUnmatchedRows(onlyInWiki, onlyInPreset, cat => cat);
+    const { aSet, bSet } = _typeColumnSets(rows);
+
+    _renderSpecTable({
+        contentId: 'preset-content',
+        badgeId: 'badge-preset',
+        items: rows,
+        emptyMsg: t('message.presetInSync'),
+        theadId: 'tpl-thead-preset',
+        rowId: 'tpl-preset-row',
+        emptyBadge: 'badge-blue',
+        filledBadge: 'badge-amber',
+        fillRow(row, { key, a, b }, i) {
+            _fill(row, 'row-num', i + 1);
+            _fill(row, 'key', key);
+            _setSpecCell(row.querySelector('[data-field="type-wiki"]'),
+                a, !!a && (!!b || bSet.has(a)), !a);
+            _setSpecCell(row.querySelector('[data-field="type-preset"]'),
+                b, !!b && (!!a || aSet.has(b)), !b);
+        },
+    });
+}
+
 
 export function clearResults() {
-    const sectionIds = ['stats-grid', 'stats-spec-row',
-        'section-conflicts', 'section-unmapped', 'section-spec'];
+    const sectionIds = ['stats-grid',
+        'section-conflicts', 'section-unmapped', 'section-spec', 'section-preset'];
 
     for (const id of sectionIds) {
         const el = _el(id);
@@ -300,8 +307,8 @@ export function clearResults() {
         el.classList.remove('visible');
     }
 
-    ['stat-tiles', 'stat-signals', 'stat-locations', 'stat-conflicts', 'stat-unmapped',
-        'stat-wiki-pairs', 'stat-matched', 'stat-only-wiki', 'stat-only-code']
+    ['stat-signals', 'stat-locations', 'stat-conflicts', 'stat-unmapped',
+        'stat-wiki-diff', 'stat-preset-diff']
         .forEach(id => _setText(id, '-'));
 
     _showNavLinks(false);
@@ -373,7 +380,7 @@ function _buildChip(feat) {
     const chip = _cloneEl(mapping ? 'tpl-chip' : 'tpl-chip-unmap');
     chip.style.borderLeftColor = color;
     _fill(chip, 'sncf-type', feat.p.signalType || '(empty)');
-    if (mapping) _fill(chip, 'cat', mapping.cat);
+    if (mapping) _fill(chip, 'cat', mapping.subcat ? `${mapping.cat}:${mapping.subcat}` : mapping.cat);
 
     if (feat.p.networkId) {
         const idEl = chip.querySelector('[data-field="chip-id"]');
@@ -696,6 +703,49 @@ function _setSpecCell(cell, value, isHighlight, isDim) {
     cell.textContent = value ?? '—';
     cell.classList.toggle('text-amber', isHighlight);
     cell.classList.toggle('dim', isDim);
+}
+
+/**
+ * Build the merged "unmatched" row list shared by the wiki/code spec diff and
+ * the wiki/preset diff. Each side contributes {cat, type} entries; rows are
+ * keyed by keyFn(cat). A case-insensitive value match on the same key collapses
+ * the two sides onto one row ({a} from the first list, {b} from the second).
+ *
+ * @param {Array<{cat,type}>} onlyA  Entries unique to the reference side (-> a).
+ * @param {Array<{cat,type}>} onlyB  Entries unique to the other side (-> b).
+ * @param {(cat: string) => string} keyFn  Maps a cat to its display/merge key.
+ * @returns {Array<{ key: string, a: string|null, b: string|null }>} sorted rows
+ */
+function _buildUnmatchedRows(onlyA, onlyB, keyFn) {
+    const rows = [];
+    const indexByNorm = new Map(); // key + '|' + lowercased value -> row index
+
+    for (const { cat, type } of onlyA) {
+        const key = keyFn(cat);
+        indexByNorm.set(key + '|' + type.toLowerCase(), rows.length);
+        rows.push({ key, a: type, b: null });
+    }
+    for (const { cat, type } of onlyB) {
+        const key = keyFn(cat);
+        const idx = indexByNorm.get(key + '|' + type.toLowerCase());
+        if (idx !== undefined) rows[idx].b = type;
+        else rows.push({ key, a: null, b: type });
+    }
+
+    rows.sort((x, y) =>
+        x.key.localeCompare(y.key) ||
+        (x.a ?? '').localeCompare(y.a ?? '') ||
+        (x.b ?? '').localeCompare(y.b ?? '')
+    );
+    return rows;
+}
+
+/** Sets of the distinct values present in each column (for cross-column highlight). */
+function _typeColumnSets(rows) {
+    return {
+        aSet: new Set(rows.filter(r => r.a).map(r => r.a)),
+        bSet: new Set(rows.filter(r => r.b).map(r => r.b)),
+    };
 }
 
 function _renderSpecTable({ contentId, badgeId, items, emptyMsg, theadId, rowId,
