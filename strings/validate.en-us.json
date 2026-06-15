@@ -6,7 +6,7 @@
     "title": "Permanent Signalling",
     "subtitle": "(Signal Validation)",
     "beta": "Beta",
-    "export": "Export GeoJSON"
+    "export": "Export"
   },
   "tooltip": {
     "duplicate": "Suspected outlier signals",
@@ -69,7 +69,7 @@
   "progress": {
     "starting": "Starting…",
     "fetching": "Fetching wiki spec and tile manifest…",
-    "tile": "Tile {0} / {1} — {2} signals",
+    "tile": "Tile {0} / {1} — {2} signals",
     "analysing": "Analysing co-location groups…"
   },
   "error": {
@@ -78,7 +78,16 @@
     "tileLoad": "Warning: tile {0} could not be loaded."
   },
   "export": {
-    "done": "Exported {0} OSM nodes ({1} raw signals)"
+    "geojson": "GeoJSON",
+    "maproulette": "MapRoulette",
+    "done": "Exported {0} OSM nodes ({1} raw signals)",
+    "mrReady": "{0} MapRoulette files ready — {1} tasks, {2} OSM nodes",
+    "mrTitle": "MapRoulette challenges",
+    "downloadAll": "Download all",
+    "download": "Download",
+    "close": "Close",
+    "fileSummary": "{0} tasks, {1} nodes",
+    "totalSummary": "{0} files, {1} tasks, {2} nodes"
   },
   "group": {
     "main": "Main signals",

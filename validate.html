@@ -44,9 +44,40 @@
                     </nav>
                 </div>
             </div>
-            <!-- Right zone: status + export (validate-specific) -->
+            <!-- Right zone: status + export menu (validate-specific) -->
             <div class="header-right">
-                <button id="btn-export" class="btn-export" data-i18n="header.export" disabled>Export GeoJSON</button>
+                <div class="export-menu" id="export-menu">
+                    <button id="btn-export" class="btn-export" type="button"
+                            aria-haspopup="menu" aria-expanded="false" disabled>
+                        <span data-i18n="header.export">Export</span>
+                        <svg class="export-chevron" width="10" height="10" aria-hidden="true">
+                            <use href="#icon-chevron"></use>
+                        </svg>
+                    </button>
+                    <div class="export-dropdown" role="menu" hidden>
+                        <button class="export-item" type="button" role="menuitem"
+                                data-format="geojson" data-i18n="export.geojson">
+                            GeoJSON
+                        </button>
+                        <button class="export-item" type="button" role="menuitem"
+                                data-format="maproulette" data-i18n="export.maproulette">
+                            MapRoulette
+                        </button>
+                    </div>
+                    <!-- MapRoulette file list (anchored inside the menu) -->
+                    <div class="mr-files" id="mr-files" hidden>
+                        <div class="mr-files-head">
+                            <span class="mr-files-title" data-i18n="export.mrTitle">MapRoulette challenges</span>
+                            <button class="mr-files-close" id="mr-files-close" type="button">&times;</button>
+                        </div>
+                        <div class="mr-files-summary mono-sm" id="mr-files-summary"></div>
+                        <button class="mr-files-all" id="mr-files-all" type="button"
+                                data-i18n="export.downloadAll">
+                            Download all
+                        </button>
+                        <div class="mr-files-list" id="mr-files-list"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- Progress bar — always visible as a color accent in the header.
@@ -80,7 +111,7 @@
                 <div class="stat-label" data-i18n="stat.unmapped">Unmapped types</div>
                 <div class="stat-value" id="stat-unmapped">-</div>
             </div>
-                <div class="stat-card c-warn">
+            <div class="stat-card c-warn">
                 <div class="stat-label" data-i18n="stat.wikiDiff">Wiki diff</div>
                 <div class="stat-value" id="stat-wiki-diff">-</div>
             </div>
@@ -417,6 +448,14 @@
         </tr>
     </template>
 
+    <!-- One row of the MapRoulette file list (export-panel.js) -->
+    <template id="tpl-mr-file-row">
+        <div class="mr-file-row">
+            <span class="mr-file-label mono-sm" data-field="label"></span>
+            <span class="mr-file-meta mono-sm" data-field="meta"></span>
+            <button class="mr-file-dl" type="button">Download</button>
+        </div>
+    </template>
 
     <!-- SVG sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">

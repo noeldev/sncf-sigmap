@@ -20,16 +20,22 @@
  *
  * Sources and options come from an optional validate-config.json (next to this
  * module, git-ignored): presetSource and wikiSource may be a local path or URL,
- * excludedNamespaces lists value namespaces to skip (default ETCS:). The wiki
- * defaults to the live MediaWiki API; the presets default to the GitHub raw URL.
+ * excludedNamespaces lists value namespaces to skip (default ETCS:),
+ * maprouletteGroupDigits sets the line-code prefix length used to split the
+ * MapRoulette files (default 1). The wiki defaults to the live MediaWiki API;
+ * the presets default to the GitHub raw URL.
  *
- * GeoJSON export:
- *   Exports ALL signals as a FeatureCollection for OSM integration.
+ * Export menu:
+ *   A single Export button opens a dropdown with two formats. Both reuse the
+ *   same node generation (osm-export.js) so they stay consistent, OSM node count
+ *   included:
+ *     - GeoJSON     - a single standard FeatureCollection (immediate download).
+ *     - MapRoulette - line-by-line cooperative challenges, split into one file
+ *                     per line-code bucket and listed in a popover so each can
+ *                     be downloaded on its own or all at once (export-panel.js).
  *   Co-located nodes are offset by ~50 cm so JOSM can distinguish them.
  */
 
-import { NODE_OFFSET_DEG } from '../config.js';
-import { buildNodeTags } from '../osm-tags.js';
 import { groupFeats } from '../signal-grouping.js';
 import { isMapped } from '../signal-types.js';
 import { normalizeSignal } from '../sncf-convert.js';
@@ -38,6 +44,9 @@ import { loadStrings, translateAll, t } from '../translation.js';
 import { buildCodeSpec, compareSpecs, comparePresetToWiki } from './spec-compare.js';
 import { fetchPresetXML } from './preset-parser.js';
 import { markOutliers } from './outlier-detector.js';
+import { buildFeatureCollection, buildMapRouletteChallenges } from './osm-export.js';
+import { showMapRouletteFiles, hideMapRouletteFiles } from './export-panel.js';
+import { triggerDownload, timestampedName } from './download.js';
 import { fetchWikiSpec } from './wiki-parser.js';
 import {
     buildLocationGroups,
@@ -119,8 +128,7 @@ function _detectLocale() {
 }
 
 function _bindEvents() {
-    const btn = document.getElementById('btn-export');
-    btn.addEventListener('click', _exportGeoJSON);
+    _bindExportMenu();
 }
 
 // ===== Run =====
@@ -334,67 +342,94 @@ function _detectConflicts(locationGroups) {
     return { conflicts, conflictRows };
 }
 
-// ===== GeoJSON export =====
+// ===== Export menu =====
 
-const RE_CLEANUP = /[-:]/g;
+function _bindExportMenu() {
+    const toggle = document.getElementById('btn-export');
+    const menu = document.getElementById('export-menu');
+    const dropdown = menu.querySelector('.export-dropdown');
 
-function _getExportFilename() {
-    const now = new Date();
-    const iso = now.toISOString(); // Ex: "2026-06-02T14:30:15.123Z"
-    const timestamp = iso.slice(0, 19).replace('T', '_').replace(RE_CLEANUP, '');
-    return `signals-sncf-osm_${timestamp}Z.geojson`;
+    toggle.addEventListener('click', () => {
+        if (toggle.disabled) return;
+        _toggleExportMenu(toggle, dropdown);
+    });
+
+    // One delegated handler for every item; data-format selects the writer.
+    dropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.export-item');
+        if (!item) return;
+        _closeExportMenu(toggle, dropdown);
+        _runExport(item.dataset.format);
+    });
+
+    // Dismiss the action dropdown on outside click or Escape.
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target)) _closeExportMenu(toggle, dropdown);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') _closeExportMenu(toggle, dropdown);
+    });
 }
 
+function _toggleExportMenu(toggle, dropdown) {
+    const willOpen = dropdown.hidden;
+    dropdown.hidden = !willOpen;
+    toggle.setAttribute('aria-expanded', String(willOpen));
+}
+
+function _closeExportMenu(toggle, dropdown) {
+    dropdown.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+}
+
+function _runExport(format) {
+    // The MapRoulette popover is only relevant to that format; close it for any
+    // other action so it does not linger behind a GeoJSON download.
+    if (format !== 'maproulette') hideMapRouletteFiles();
+
+    if (format === 'geojson') _exportGeoJSON();
+    else if (format === 'maproulette') _exportMapRoulette();
+}
+
+// ===== Export writers =====
+
 /**
- * Export all signals as a standard GeoJSON FeatureCollection.
- *
- * Co-located signals at the same location produce multiple OSM nodes.
- * Each node is offset by ~50 cm along the longitude axis so that JOSM
- * and other editors can distinguish them visually and edit each one
- * independently.
+ * Export all signals as a single standard GeoJSON FeatureCollection.
  *
  * Properties are pure OSM key=value tags. Compatible with JOSM, QGIS,
- * geojson.io, and MapRoulette.
+ * geojson.io, and MapRoulette (classic challenges).
  */
-
 function _exportGeoJSON() {
     if (!_lastResults) return;
     const { tileScan } = _lastResults;
 
-    const features = [];
-    for (const loc of tileScan.locationGroups.values()) {
-        const { nodeGroups, isMech } = groupFeats(loc.feats);
-        for (let i = 0; i < nodeGroups.length; i++) {
-            const tags = buildNodeTags(nodeGroups[i].feats, { isMech });
-            // Offset each node on the latitude axis so co-located nodes are
-            // individually selectable in JOSM. Same constant as signal-popup.js.
-            const lat = loc.lat + i * NODE_OFFSET_DEG;
-            features.push({
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [loc.lng, lat] },
-                properties: Object.fromEntries(tags),
-            });
-        }
-    }
-
-    const blob = new Blob(
-        [JSON.stringify({
-            type: 'FeatureCollection',
-            name: 'SNCF Signalisation Permanente — OSM export',
-            description: `Generated by ${APP_URL}/validate.html`,
-            features,
-        }, null, 2)],
-        { type: 'application/geo+json' }
+    const fc = buildFeatureCollection(tileScan.locationGroups, { appUrl: APP_URL });
+    triggerDownload(
+        JSON.stringify(fc, null, 2),
+        timestampedName('signals-sncf-osm', 'geojson'),
+        'application/geo+json'
     );
 
-    const a = Object.assign(document.createElement('a'), {
-        href: URL.createObjectURL(blob),
-        download: _getExportFilename(),
-    });
-    a.click();
-    URL.revokeObjectURL(a.href);
+    _setStatus(t('export.done', fc.features.length, tileScan.signals));
+}
 
-    _setStatus(t('export.done', features.length, tileScan.signals));
+/**
+ * Export all signals as MapRoulette cooperative challenges, split by line code.
+ * The files are listed in the popover for individual or bulk download. The total
+ * OSM node count across all files matches the GeoJSON export exactly.
+ */
+function _exportMapRoulette() {
+    if (!_lastResults) return;
+    const { tileScan } = _lastResults;
+
+    const files = buildMapRouletteChallenges(tileScan.locationGroups, {
+        groupDigits: _config.maprouletteGroupDigits,
+    });
+    showMapRouletteFiles(files);
+
+    const tasks = files.reduce((sum, f) => sum + f.taskCount, 0);
+    const nodes = files.reduce((sum, f) => sum + f.nodeCount, 0);
+    _setStatus(t('export.mrReady', files.length, tasks, nodes));
 }
 
 // ===== UI helpers =====

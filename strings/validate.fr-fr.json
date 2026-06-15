@@ -1,0 +1,112 @@
+{
+  "page": {
+    "title": "Signalisation Permanente - Validation des signaux"
+  },
+  "header": {
+    "title": "Signalisation Permanente",
+    "subtitle": "(Validation des signaux)",
+    "beta": "Bêta",
+    "export": "Exporter"
+  },
+  "tooltip": {
+    "duplicate": "Signaux aberrants suspectés",
+    "mechanical": "Installation de signalisation mécanique"
+  },
+  "nav": {
+    "conflicts": "Conflits de co-localisation",
+    "unmapped": "Types non mappés",
+    "spec": "Écart spéc. wiki",
+    "preset": "Synchro preset",
+    "btnTop": "Haut"
+  },
+  "stat": {
+    "signals": "Signaux",
+    "locations": "Emplacements",
+    "conflicts": "Conflits",
+    "unmapped": "Types non mappés",
+    "wikiDiff": "Écart wiki",
+    "presetDiff": "Écart preset"
+  },
+  "section": {
+    "conflicts": "Conflits de co-localisation",
+    "unmapped": "Types de signaux non mappés",
+    "spec": "Vérification croisée de la spéc. wiki",
+    "preset": "Synchronisation du preset JOSM"
+  },
+  "column": {
+    "rowNum": "#",
+    "track": "Code voie",
+    "location": "Emplacement",
+    "direction": "Sens",
+    "position": "Position",
+    "nodes": "Nœuds",
+    "type": "Type de signal SNCF",
+    "occurrences": "Occurrences",
+    "sampleIds": "Exemples d'ID réseau",
+    "osmKey": "Clé OSM",
+    "typeValue": "Valeur du type",
+    "typeValueWiki": "Valeur du type (wiki)",
+    "typeValueCode": "Valeur du type (code)",
+    "typeValuePreset": "Valeur du type (preset)"
+  },
+  "filter": {
+    "label": "Filtrer",
+    "all": "Tous",
+    "mechanical": "Mécanique"
+  },
+  "spec": {
+    "matched": "Entrées concordantes",
+    "unmatched": "Entrées discordantes"
+  },
+  "message": {
+    "noConflicts": "OK — Aucun conflit de co-localisation détecté.",
+    "allMapped": "OK — Tous les types de signaux sont mappés dans signal-types.js.",
+    "allMatch": "OK — Tous les types OSM de signal-types.js correspondent à la spéc. wiki.",
+    "allImplemented": "OK — Tous les types OSM définis dans le wiki sont implémentés dans signal-types.js.",
+    "noMatches": "Aucune correspondance trouvée.",
+    "presetInSync": "OK — Les presets sont synchronisés avec le wiki."
+  },
+  "progress": {
+    "starting": "Démarrage…",
+    "fetching": "Récupération de la spéc. wiki et du manifeste des tuiles…",
+    "tile": "Tuile {0} / {1} — {2} signaux",
+    "analysing": "Analyse des groupes de co-localisation…"
+  },
+  "error": {
+    "warnWikiFailed": "Avertissement : échec de récupération du wiki — comparaison de la spéc. ignorée.",
+    "manifest": "Erreur : échec du chargement de manifest.json",
+    "tileLoad": "Avertissement : la tuile {0} n'a pas pu être chargée."
+  },
+  "export": {
+    "geojson": "GeoJSON",
+    "maproulette": "MapRoulette",
+    "done": "{0} nœuds OSM exportés ({1} signaux bruts)",
+    "mrReady": "{0} fichiers MapRoulette prêts — {1} tâches, {2} nœuds OSM",
+    "mrTitle": "Défis MapRoulette",
+    "downloadAll": "Tout télécharger",
+    "download": "Télécharger",
+    "close": "Fermer",
+    "fileSummary": "{0} tâches, {1} nœuds",
+    "totalSummary": "{0} fichiers, {1} tâches, {2} nœuds"
+  },
+  "group": {
+    "main": "Signaux principaux",
+    "distant": "Signaux d'annonce",
+    "speedLimit": "Limitations de vitesse",
+    "route": "Indicateurs de direction",
+    "stop": "Signaux d'arrêt",
+    "shunting": "Manœuvres",
+    "crossing": "Passages à niveau",
+    "electricity": "Électricité de traction",
+    "trainProtection": "Signalisation en cabine / ETCS",
+    "wrongRoad": "Contresens (IPCS)",
+    "station": "Gare et installations",
+    "miscellaneous": "Divers",
+    "unsupported": "Types non pris en charge"
+  },
+  "preset": {
+    "loading": "Chargement des presets…",
+    "loaded": "{0} concordants, {1} écarts — {2} uniquement dans le wiki, {3} uniquement dans les presets",
+    "error": "Erreur : {0}"
+  }
+}

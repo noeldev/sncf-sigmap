@@ -122,6 +122,172 @@ body {
         cursor: not-allowed;
     }
 
+/* Export menu (dropdown) */
+.export-menu {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+    .export-menu .btn-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+.export-chevron {
+    transform: rotate(90deg);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.export-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 200;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+.export-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    padding: 7px 12px;
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .1s;
+}
+
+    .export-item:hover {
+        background: var(--panel2);
+        color: var(--accent2);
+    }
+
+/* MapRoulette file list popover */
+.mr-files {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 300;
+    width: 300px;
+    max-width: calc(100vw - 24px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    font-family: var(--ff-sans);
+}
+
+.mr-files-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.mr-files-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.mr-files-close {
+    background: transparent;
+    border: 0;
+    color: var(--text2);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+    .mr-files-close:hover {
+        color: var(--text);
+    }
+
+.mr-files-summary {
+    color: var(--text2);
+    margin-bottom: 8px;
+}
+
+.mr-files-all {
+    width: 100%;
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: 1px solid transparent;
+    padding: 5px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .2s;
+    margin-bottom: 8px;
+}
+
+    .mr-files-all:hover {
+        background: var(--accent2);
+    }
+
+.mr-files-list {
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--panel);
+}
+
+.mr-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 4px;
+    border-bottom: 1px solid var(--panel2);
+}
+
+    .mr-file-row:last-child {
+        border-bottom: 0;
+    }
+
+.mr-file-label {
+    color: var(--text);
+    min-width: 64px;
+}
+
+.mr-file-meta {
+    flex: 1;
+    color: var(--text2);
+    white-space: nowrap;
+}
+
+.mr-file-dl {
+    font-family: var(--ff-sans);
+    font-size: 11px;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 3px 9px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: color .1s, border-color .1s;
+    flex-shrink: 0;
+}
+
+    .mr-file-dl:hover {
+        color: var(--accent2);
+        border-color: var(--accent2);
+    }
+
 /* Progress bar */
 .progress-wrap {
     display: flex;
