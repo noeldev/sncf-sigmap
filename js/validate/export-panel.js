@@ -23,7 +23,7 @@
  *   hideMapRouletteFiles()      -> void
  */
 
-import { t } from '../translation.js';
+import { t } from '../core/translation.js';
 import { triggerDownload, timestampedName } from './download.js';
 
 // ===== Constants =====

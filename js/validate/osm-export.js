@@ -46,9 +46,9 @@
  *       -> Array<{ label, content, taskCount, nodeCount }>  (sorted by label)
  */
 
-import { APP_ID, NODE_OFFSET_DEG } from '../config.js';
-import { buildNodeTags } from '../osm-tags.js';
-import { groupFeats } from '../signal-grouping.js';
+import { APP_ID, NODE_OFFSET_DEG } from '../core/config.js';
+import { buildNodeTags } from '../domain/osm-tags.js';
+import { groupFeats } from '../domain/signal-grouping.js';
 
 // ===== Constants =====
 

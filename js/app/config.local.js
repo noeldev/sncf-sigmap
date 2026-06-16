@@ -1,0 +1,1 @@
+export const JAWG_API_KEY = 'oCLDlb3gtVsGcPAjDWRGxhiFABGFsx2Tm6rRHYIA2vxEAydVNEtScCPUQga1cYG3';

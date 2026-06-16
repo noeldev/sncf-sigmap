@@ -19,6 +19,6 @@ Thumbs.db
 /tools/TileBuilder/Properties/launchSettings.json
 
 # Debug artefacts
-tree.txt
 /import.ps1
 /import.txt
+/tree.txt

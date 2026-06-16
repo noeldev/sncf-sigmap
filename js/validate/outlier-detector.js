@@ -24,7 +24,7 @@
  *   markOutliers(feats) -> void   (mutates feat.p._outlier; caller must clean up)
  */
 
-import { getMappingEntry } from '../signal-types.js';
+import { getMappingEntry } from '../domain/signal-types.js';
 
 /**
  * Mark p._outlier = true on feats that should land in secondary (suspect) nodes.

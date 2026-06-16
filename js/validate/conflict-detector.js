@@ -49,8 +49,8 @@
  *   Conflict      = { direction, placement, nodes: NodeGroup[], dupCats: string[] }
  */
 
-import { normalizeSignal } from '../sncf-convert.js';
-import { getMappingEntry } from '../signal-types.js';
+import { getMappingEntry } from '../domain/signal-types.js';
+import { normalizeSignal } from '../domain/sncf-convert.js';
 
 // ===== Public API =====
 
