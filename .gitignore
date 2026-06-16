@@ -20,3 +20,5 @@ Thumbs.db
 
 # Debug artefacts
 tree.txt
+/import.ps1
+/import.txt
