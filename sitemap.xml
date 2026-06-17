@@ -9,7 +9,7 @@
 		<priority>1.0</priority>
 	</url>
 
-	<!-- Signal validation tool (English only) -->
+	<!-- Signal validation tool -->
 	<url>
 		<loc>https://sncf-sigmap.netlify.app/validate.html</loc>
 		<changefreq>monthly</changefreq>

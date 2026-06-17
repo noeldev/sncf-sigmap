@@ -8,7 +8,7 @@
  * path based on its current language setting.
  */
 
-import { sendHelpSwitchTab } from '../js/help-channel.js';
+import { sendHelpSwitchTab } from '../js/app/help-channel.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Links that open a tab in the main app sidebar.

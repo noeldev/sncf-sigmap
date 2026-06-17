@@ -42,7 +42,7 @@
  *   PresetDiff = { matched, onlyInWiki, onlyInPreset }
  */
 
-import { getAllOsmPairs } from '../signal-types.js';
+import { getAllOsmPairs } from '../domain/signal-types.js';
 
 // ===== Public API =====
 

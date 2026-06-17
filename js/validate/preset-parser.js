@@ -37,7 +37,11 @@
  */
 
 const SIGNAL_KEY_PREFIX = 'railway:signal:';
-const DEFAULT_DELIMITER = ',';
+// JOSM default value separator for the values= list: comma for <combo>,
+// semicolon for <multiselect> (which also joins selected values with it).
+// An explicit delimiter="" attribute overrides these.
+const COMBO_DELIMITER = ',';
+const MULTISELECT_DELIMITER = ';';
 
 // ===== Public API =====
 
@@ -164,7 +168,9 @@ function _pushChoice(out, el) {
 
     const values = el.getAttribute('values');
     if (values !== null) {
-        const delimiter = el.getAttribute('delimiter') || DEFAULT_DELIMITER;
+        const fallback = el.tagName === 'multiselect'
+            ? MULTISELECT_DELIMITER : COMBO_DELIMITER;
+        const delimiter = el.getAttribute('delimiter') || fallback;
         for (const v of values.split(delimiter)) out.push([key, v]);
     }
 

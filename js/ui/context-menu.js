@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Noël Danjou
+
+/**
+ * context-menu.js — Floating context menu for map markers.
+ *
+ * Uses <template> elements from index.html and event delegation on the menu.
+ * Closes on Escape, outside mousedown, map movestart, or closeContextMenu().
+ *
+ * Public API:
+ *   showContextMenu(x, y, items)  — show menu at viewport coords.
+ *   closeContextMenu()            — dismiss any open menu.
+ *   isContextMenuOpen()           — true when a menu is currently visible.
+ *
+ * Item shape: { labelKey, shortcut?, iconId?, action, enabled? }
+ *   iconId  — optional suffix of an SVG <symbol> id in index.html
+ *             (e.g. 'share' → <use href="#icon-share">).
+ *             tpl-ctx-item always contains a .ctx-icon SVG with an empty
+ *             <use>. When iconId is provided the href is filled in; when it
+ *             is absent the <use> renders nothing but the column space is
+ *             preserved, keeping all items aligned regardless of whether they
+ *             carry an icon — same behaviour as Windows 11 context menus.
+ *   enabled — when explicitly false, the item is rendered as disabled: it appears
+ *             grayed out, is not focusable, and its action is never called.
+ *             Omitting the property (or setting it to true) renders a normal item.
+ * Separator: the string 'separator'
+ */
+
+import { translateElement } from '../core/translation.js';
+
+let _menuEl = null;
+let _actions = null;   // parallel array to .ctx-item NodeList — action per item
+
+const _tpl = {
+    get menu() { return document.getElementById('tpl-ctx-menu'); },
+    get item() { return document.getElementById('tpl-ctx-item'); },
+    get sep()  { return document.getElementById('tpl-ctx-sep'); },
+};
+
+
+/**
+ * Build the menu DOM from an items array and attach delegated event listeners.
+ * Separated from showContextMenu so DOM construction is independently readable.
+ *
+ * @param {Array} items  Item descriptors or the string 'separator'.
+ * @returns {HTMLElement}
+ */
+function _buildMenu(items) {
+    const menu = _tpl.menu.content.cloneNode(true).querySelector('.ctx-menu');
+    _actions = [];
+
+    for (const item of items) {
+        if (item === 'separator') {
+            menu.appendChild(_tpl.sep.content.cloneNode(true).firstElementChild);
+            continue;
+        }
+        const el = _tpl.item.content.cloneNode(true).querySelector('.ctx-item');
+        el.querySelector('.ctx-label').dataset.i18n = item.labelKey;
+        el.querySelector('.ctx-shortcut').textContent = item.shortcut ?? '';
+
+        // Fill the icon <use> href when iconId is provided.
+        // tpl-ctx-item always contains .ctx-icon > use; an empty use renders
+        // nothing but reserves the column width for alignment.
+        if (item.iconId) {
+            el.querySelector('.ctx-icon use').setAttribute('href', `#icon-${item.iconId}`);
+        }
+
+        const disabled = item.enabled === false;
+        if (disabled) {
+            // Disabled items are visible but non-interactive: no data-idx, no focus,
+            // no action pushed to _actions. The CSS class handles visual graying.
+            el.classList.add('is-disabled');
+            el.setAttribute('aria-disabled', 'true');
+            el.removeAttribute('tabindex');
+        } else {
+            // data-idx maps the element back to _actions — set before translateElement
+            // so the attribute is present when event delegation reads it.
+            el.dataset.idx = _actions.length;
+            _actions.push(item.action);
+        }
+
+        translateElement(el);
+        menu.appendChild(el);
+    }
+
+    // Delegated mousedown — activates the option under the pointer.
+    menu.addEventListener('mousedown', _onMenuMousedown);
+    // Delegated keydown — arrow navigation + Enter/Space/Escape.
+    menu.addEventListener('keydown', _onMenuKeydown);
+
+    return menu;
+}
+
+let _menuTimer = null;
+
+/**
+ * Show the context menu at viewport coordinates (x, y).
+ * @param {number}   x      clientX from the triggering event.
+ * @param {number}   y      clientY from the triggering event.
+ * @param {Array}    items  Array of item descriptors or the string 'separator'.
+ */
+export function showContextMenu(x, y, items) {
+    closeContextMenu();
+
+    const menu = _buildMenu(items);
+
+    // In fullscreen mode only the fullscreen element and its descendants are
+    // rendered. Append inside that subtree so the menu is visible.
+    const container = document.fullscreenElement ?? document.body;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    container.appendChild(menu);
+    _menuEl = menu;
+
+    // Clamp to viewport after insertion so rendered dimensions are known.
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth)
+        menu.style.left = Math.max(0, x - rect.width) + 'px';
+    if (rect.bottom > window.innerHeight)
+        menu.style.top = Math.max(0, y - rect.height) + 'px';
+
+    menu.querySelector('.ctx-item')?.focus();
+
+    // Deferred so the triggering event does not immediately close the menu.
+    _menuTimer = setTimeout(() => {
+        document.addEventListener('mousedown', _onOutsideMousedown, { capture: true, once: true });
+    }, 0);
+}
+
+/** Dismiss the context menu if one is open. */
+export function closeContextMenu() {
+    if (_menuTimer) {
+        clearTimeout(_menuTimer);
+        _menuTimer = null;
+    }
+    if (!_menuEl) return;
+    _menuEl.remove();
+    _menuEl = null;
+    _actions = null;
+    document.removeEventListener('mousedown', _onOutsideMousedown, { capture: true });
+}
+
+/**
+ * Return true when a context menu is currently visible.
+ * Used by map-layer.js to suppress tooltip display while a menu is open.
+ * @returns {boolean}
+ */
+export function isContextMenuOpen() {
+    return !!_menuEl;
+}
+
+
+// ===== Private helpers =====
+
+function _activateIdx(idx, shiftKey = false) {
+    const action = _actions?.[idx];
+    closeContextMenu();
+    action?.(shiftKey);
+}
+
+function _onMenuMousedown(e) {
+    const el = e.target.closest('.ctx-item[data-idx]');
+    if (!el) return;
+    e.preventDefault();
+    _activateIdx(parseInt(el.dataset.idx, 10), e.shiftKey);
+}
+
+function _onOutsideMousedown(e) {
+    if (!_menuEl?.contains(e.target)) closeContextMenu();
+}
+
+function _getItems() {
+    // Exclude disabled items from keyboard navigation — they have no data-idx.
+    return [...(_menuEl?.querySelectorAll('.ctx-item[data-idx]') ?? [])];
+}
+
+function _moveItemFocus(delta) {
+    const items = _getItems();
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement);
+    const newIndex = (current + delta + items.length) % items.length;
+    items[newIndex].focus();
+}
+
+const _nextItem = () => _moveItemFocus(1);
+const _prevItem = () => _moveItemFocus(-1);
+
+function _onMenuKeydown(e) {
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            _nextItem();
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            _prevItem();
+            break;
+        case 'Tab':
+            // Trap focus within the menu.
+            e.preventDefault();
+            if (e.shiftKey) {
+                _prevItem();
+            } else {
+                _nextItem();
+            }
+            break;
+        case 'Enter':
+        case ' ': {
+            e.preventDefault();
+            const idx = document.activeElement?.dataset.idx;
+            if (idx !== undefined) _activateIdx(parseInt(idx, 10), e.shiftKey);
+            break;
+        }
+        case 'Escape':
+            e.preventDefault();
+            closeContextMenu();
+            break;
+    }
+}

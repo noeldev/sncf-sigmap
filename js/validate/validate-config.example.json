@@ -1,5 +1,5 @@
 {
-    "presetSource": "FrenchRailwaySignalling/presets/French_Railway_Signalling.xml",
-    "wikiSource": "FrenchRailwaySignalling/wiki/backup/OpenRailwayMap/Tagging_in_France.wiki",
-    "excludedNamespaces": ["ETCS:"]
+  "presetSource": "FrenchRailwaySignalling/presets/French_Railway_Signalling.xml",
+  "wikiSource": "FrenchRailwaySignalling/wiki/backup/OpenRailwayMap/Tagging_in_France.wiki",
+  "excludedNamespaces": [ "ETCS:" ]
 }

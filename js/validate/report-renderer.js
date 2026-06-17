@@ -28,13 +28,13 @@
  *   clearResults() restores both.
  */
 
-import { getMappingEntry, getGroupForCat } from '../signal-types.js';
-import { getColorForGroup, getUnsupportedGroup } from '../group-mapping.js';
-import { getTypePriority } from '../signal-grouping.js';
-import { initCollapsiblePanelsInRoot } from '../collapsible-panel.js';
-import { t, translateElement } from '../translation.js';
-import { makeSignalCatKey } from '../osm-tags.js';
-import { contrastColor } from '../signal-mapping.js';
+import { t, translateElement } from '../core/translation.js';
+import { getColorForGroup, getUnsupportedGroup } from '../domain/group-mapping.js';
+import { makeSignalCatKey } from '../domain/osm-tags.js';
+import { getTypePriority } from '../domain/signal-grouping.js';
+import { contrastColor } from '../domain/signal-mapping.js';
+import { getMappingEntry, getGroupForCat } from '../domain/signal-types.js';
+import { initCollapsiblePanelsInRoot } from '../ui/collapsible-panel.js';
 import {
     initConflictFilter, resetConflictFilter,
     toggleCat, toggleMechanical,

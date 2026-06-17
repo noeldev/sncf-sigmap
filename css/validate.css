@@ -122,6 +122,264 @@ body {
         cursor: not-allowed;
     }
 
+/* Export menu (dropdown) */
+.export-menu {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+    .export-menu .btn-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+.export-chevron {
+    transform: rotate(90deg);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.export-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 200;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+.export-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    padding: 7px 12px;
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .1s;
+}
+
+    .export-item:hover {
+        background: var(--panel2);
+        color: var(--accent2);
+    }
+
+/* ===== MapRoulette export dialog ===== */
+.mr-dialog {
+    /* margin:auto centers the modal; the global *{margin:0} reset would
+       otherwise pin it to the top-left corner. */
+    margin: auto;
+    width: 480px;
+    max-width: calc(100vw - 32px);
+    padding: 16px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+    .mr-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+.mr-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.mr-dialog-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.mr-dialog-close {
+    background: transparent;
+    border: 0;
+    color: var(--text2);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+    .mr-dialog-close:hover {
+        color: var(--text);
+    }
+
+/* Short list (about a dozen files): grow with content, scroll only past a cap. */
+.mr-table-wrap {
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--panel);
+}
+
+.mr-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 12px;
+}
+
+    .mr-table col.mr-col-check {
+        width: 38px;
+    }
+
+    .mr-table col.mr-col-num {
+        width: 84px;
+    }
+
+    .mr-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel2);
+        color: var(--text2);
+        font-weight: 600;
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .mr-table tbody td {
+        padding: 3px 8px;
+        border-bottom: 1px solid var(--panel2);
+    }
+
+    .mr-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .mr-table tbody tr:hover td {
+        background: var(--panel);
+    }
+
+    .mr-table tfoot td {
+        position: sticky;
+        bottom: 0;
+        padding: 6px 8px;
+        border-top: 1px solid var(--border);
+        background: var(--panel2);
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    /* Match the Download button colour; default UA blue would clash. */
+    .mr-table input[type="checkbox"] {
+        accent-color: var(--accent);
+        margin: 0;
+        vertical-align: middle;
+    }
+
+    /* thead th forces text-align:left, so re-center the check column header to
+       line its checkbox up with the row checkboxes below. */
+    .mr-table thead th.mr-col-check {
+        text-align: center;
+    }
+
+.mr-col-check {
+    text-align: center;
+}
+
+.mr-col-num {
+    text-align: right;
+    white-space: nowrap;
+    /* Plain weight: the per-row figures should not read as bold. */
+    font-weight: 400;
+}
+
+.mr-file-label {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mr-file-region {
+    color: var(--text2);
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.mr-merge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+    .mr-merge input {
+        accent-color: var(--accent);
+        margin: 0;
+    }
+
+    /* Greyed out until at least two challenges are selected. */
+    .mr-merge:has(input:disabled) {
+        color: var(--text2);
+        cursor: default;
+    }
+
+.mr-dialog-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.mr-links {
+    color: var(--text2);
+}
+
+    .mr-links a {
+        color: var(--accent2);
+        text-decoration: none;
+    }
+
+        .mr-links a:hover {
+            text-decoration: underline;
+        }
+
+.mr-download {
+    font-family: var(--ff-sans);
+    font-size: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: 1px solid transparent;
+    padding: 6px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .2s;
+}
+
+    .mr-download:hover:not(:disabled) {
+        background: var(--accent2);
+    }
+
+    .mr-download:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
 /* Progress bar */
 .progress-wrap {
     display: flex;
