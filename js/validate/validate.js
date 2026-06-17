@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Noël Danjou
 
 /**
- * validate-main.js - Validation orchestrator.
+ * validate.js - Validation orchestrator.
  *
  * Two independent passes launched in parallel:
  *
@@ -20,44 +20,51 @@
  *
  * Sources and options come from an optional validate-config.json (next to this
  * module, git-ignored): presetSource and wikiSource may be a local path or URL,
- * excludedNamespaces lists value namespaces to skip (default ETCS:),
- * maprouletteGroupDigits sets the line-code prefix length used to split the
- * MapRoulette files (default 1). The wiki defaults to the live MediaWiki API;
- * the presets default to the GitHub raw URL.
+ * and excludedNamespaces lists value namespaces to skip (default ETCS:).
+ * The wiki defaults to the live MediaWiki API; presets default to the GitHub raw URL.
  *
  * Export menu:
- *   A single Export button opens a dropdown with two formats. Both reuse the
- *   same node generation (osm-export.js) so they stay consistent, OSM node count
- *   included:
+ *   A single Export button opens a dropdown with two formats. Both reuse one
+ *   cached node-generation pass (osm-export.js) so they stay consistent down to
+ *   the OSM node count:
  *     - GeoJSON     - a single standard FeatureCollection (immediate download).
- *     - MapRoulette - line-by-line cooperative challenges, split into one file
- *                     per line-code bucket and listed in a popover so each can
- *                     be downloaded on its own or all at once (export-panel.js).
- *   Co-located nodes are offset by ~50 cm so JOSM can distinguish them.
+ *     - MapRoulette - line-by-line cooperative challenges, one file per leading
+ *                     line-code digit, listed in a modal dialog for selective
+ *                     download or merge (export-panel.js).
+ *   The location grouping is built once during the tile scan and reused; node
+ *   generation is built once on first export and cached. Generation and (for
+ *   MapRoulette) challenge building report into one monotonic progress range so
+ *   the shared bar only ever advances. The export button is disabled for the
+ *   whole procedure to prevent re-entrancy. Co-located nodes are offset by
+ *   ~50 cm so JOSM can tell them apart.
  */
 
-import { loadManifest, fetchTileByKey } from '../core/tiles.js';
-import { loadStrings, translateAll, t } from '../core/translation.js';
 import { groupFeats } from '../domain/signal-grouping.js';
 import { isMapped } from '../domain/signal-types.js';
 import { normalizeSignal } from '../domain/sncf-convert.js';
+import { loadManifest, fetchTileByKey } from '../core/tiles.js';
+import { loadStrings, translateAll, t } from '../core/translation.js';
+import { buildCodeSpec, compareSpecs, comparePresetToWiki } from './spec-compare.js';
+import { fetchPresetXML } from './preset-parser.js';
+import { markOutliers } from './outlier-detector.js';
+import {
+    generateNodeSets,
+    buildFeatureCollection,
+    buildMapRouletteChallenges,
+} from './osm-export.js';
+import { openMapRouletteDialog } from './export-panel.js';
+import { triggerDownload, timestampedName } from './download.js';
+import { fetchWikiSpec } from './wiki-parser.js';
 import {
     buildLocationGroups,
     flagDuplicates,
     findConflicts
 } from './conflict-detector.js';
-import { triggerDownload, timestampedName } from './download.js';
-import { showMapRouletteFiles, hideMapRouletteFiles } from './export-panel.js';
-import { markOutliers } from './outlier-detector.js';
-import { fetchPresetXML } from './preset-parser.js';
-import { buildFeatureCollection, buildMapRouletteChallenges } from './osm-export.js';
 import {
     APP_URL,
     renderStats, renderConflicts, renderUnmapped,
     renderSpecDiff, renderPresetDiff, revealSection, clearResults
 } from './report-renderer.js';
-import { buildCodeSpec, compareSpecs, comparePresetToWiki } from './spec-compare.js';
-import { fetchWikiSpec } from './wiki-parser.js';
 
 // ===== Config =====
 
@@ -69,10 +76,17 @@ const CONFIG_URL = new URL('validate-config.json', import.meta.url);
 const DEFAULT_PRESET_URL =
     'https://raw.githubusercontent.com/noeldev/FrenchRailwaySignalling/main/presets/French_Railway_Signalling.xml';
 
+// Fraction of the progress bar used by the node-generation phase when it is
+// followed by the MapRoulette build phase. GeoJSON has no second phase.
+const GEN_PHASE_FRACTION = 0.5;
+
 // ===== State =====
 
 let _lastResults = null;
 let _config = {};
+
+// Guards the whole export procedure (generation + download) against re-entrancy.
+let _exporting = false;
 
 // ===== Entry point =====
 
@@ -93,14 +107,21 @@ async function _init() {
 async function _loadConfig() {
     let res;
     try {
-        res = await fetch(CONFIG_URL);
+        // no-store: a dev edits this file and reloads expecting the new values,
+        // so never serve a cached copy.
+        res = await fetch(CONFIG_URL, { cache: 'no-store' });
     } catch {
         return {}; // file not reachable: treat as absent
     }
-    if (!res.ok) return {}; // absent
+    if (!res.ok) {
+        console.info('[validate] no validate-config.json next to validate.js; using defaults.');
+        return {}; // absent
+    }
 
     try {
-        return await res.json();
+        const cfg = await res.json();
+        console.info('[validate] validate-config.json loaded.');
+        return cfg;
     } catch (err) {
         console.warn('[validate] validate-config.json is present but not valid JSON; using defaults.', err);
         return {};
@@ -119,7 +140,7 @@ async function _initI18n() {
 
 /**
  * Return the browser locale to use for validate strings.
- * Uses navigator.language directly — no fixed supported-locale list.
+ * Uses navigator.language directly - no fixed supported-locale list.
  * loadStrings() constructs the filename as validate.{locale.toLowerCase()}.json
  * and falls back to en-US when the file cannot be loaded.
  */
@@ -145,10 +166,10 @@ async function _run() {
         loadManifest(),
     ]);
 
-    // Pass B: spec diff — rendered immediately when wiki arrives.
+    // Pass B: spec diff - rendered immediately when wiki arrives.
     const specStats = _runSpecDiff(wikiSpec);
 
-    // Preset cross-check — runs automatically from the configured source.
+    // Preset cross-check - runs automatically from the configured source.
     // Fire-and-forget so the tile scan is not delayed.
     _runPresetCheck(wikiSpec);
 
@@ -177,6 +198,8 @@ async function _run() {
             conflictRows,
             unmappedTypes,
             locationGroups,
+            // Filled lazily on first export, then reused (see _ensureNodeSets).
+            nodeSets: null,
         },
     };
 
@@ -302,7 +325,7 @@ function _detectConflicts(locationGroups) {
         // Two-pass grouping:
         //   1. Identify outlier feats via isolation-score criterion (outlier-detector.js).
         //   2. Sort feats: originals first, outliers last.
-        //   3. groupFeats() on sorted order — each outlier's type is already claimed
+        //   3. groupFeats() on sorted order - each outlier's type is already claimed
         //      by an original in the primary node, so the outlier goes to a secondary node.
         markOutliers(loc.feats);
         const sortedFeats = [...loc.feats].sort(
@@ -382,13 +405,52 @@ function _closeExportMenu(toggle, dropdown) {
     toggle.setAttribute('aria-expanded', 'false');
 }
 
-function _runExport(format) {
-    // The MapRoulette popover is only relevant to that format; close it for any
-    // other action so it does not linger behind a GeoJSON download.
-    if (format !== 'maproulette') hideMapRouletteFiles();
+/**
+ * Run an export format end to end. The export button is disabled for the whole
+ * procedure (generation, and for MapRoulette the open dialog) and re-enabled
+ * only when it completes, errors, or the dialog is closed - so the button can
+ * never be triggered twice concurrently.
+ *
+ * Progress is monotonic: when generation runs ahead of the MapRoulette build,
+ * generation fills [0, GEN_PHASE_FRACTION] and the build fills the remainder;
+ * a cached generation lets the build use the whole bar.
+ */
+async function _runExport(format) {
+    if (_exporting || !_lastResults) return;
+    _exporting = true;
+    _enableExport(false);
 
-    if (format === 'geojson') _exportGeoJSON();
-    else if (format === 'maproulette') _exportMapRoulette();
+    try {
+        const scan = _lastResults.tileScan;
+        const needGen = !scan.nodeSets;
+        const genSpan = (format === 'maproulette' && needGen) ? GEN_PHASE_FRACTION : 1;
+
+        if (needGen) {
+            _setProgress(0, t('export.generating'));
+            scan.nodeSets = await generateNodeSets(scan.locationGroups, {
+                onProgress: f => _setProgress(f * genSpan, t('export.generating')),
+            });
+        }
+
+        if (format === 'geojson') {
+            _exportGeoJSON(scan.nodeSets);
+            _endExport();
+        } else if (format === 'maproulette') {
+            await _exportMapRoulette(scan.nodeSets, needGen ? genSpan : 0);
+        } else {
+            _endExport();
+        }
+    } catch (err) {
+        console.error('[export]', err);
+        _setStatus(t('export.error', err.message));
+        _endExport();
+    }
+}
+
+/** Release the export guard and re-enable the button. */
+function _endExport() {
+    _exporting = false;
+    _enableExport(true);
 }
 
 // ===== Export writers =====
@@ -399,37 +461,38 @@ function _runExport(format) {
  * Properties are pure OSM key=value tags. Compatible with JOSM, QGIS,
  * geojson.io, and MapRoulette (classic challenges).
  */
-function _exportGeoJSON() {
-    if (!_lastResults) return;
-    const { tileScan } = _lastResults;
-
-    const fc = buildFeatureCollection(tileScan.locationGroups, { appUrl: APP_URL });
+function _exportGeoJSON(nodeSets) {
+    const fc = buildFeatureCollection(nodeSets, { appUrl: APP_URL });
     triggerDownload(
         JSON.stringify(fc, null, 2),
         timestampedName('signals-sncf-osm', 'geojson'),
         'application/geo+json'
     );
-
-    _setStatus(t('export.done', fc.features.length, tileScan.signals));
+    _setProgress(1, t('export.done', fc.features.length, _lastResults.tileScan.signals));
 }
 
 /**
- * Export all signals as MapRoulette cooperative challenges, split by line code.
- * The files are listed in the popover for individual or bulk download. The total
- * OSM node count across all files matches the GeoJSON export exactly.
+ * Export all signals as MapRoulette cooperative challenges: one file per leading
+ * line-code digit. The files are listed in a modal for selective download (or
+ * merge). Their total OSM node count matches the GeoJSON export exactly.
+ *
+ * @param {Array} nodeSets
+ * @param {number} base  Progress fraction already consumed by generation.
  */
-function _exportMapRoulette() {
-    if (!_lastResults) return;
-    const { tileScan } = _lastResults;
+async function _exportMapRoulette(nodeSets, base) {
+    const span = 1 - base;
 
-    const files = buildMapRouletteChallenges(tileScan.locationGroups, {
-        groupDigits: _config.maprouletteGroupDigits,
+    const files = await buildMapRouletteChallenges(nodeSets, {
+        onProgress: f => _setProgress(base + f * span, t('export.generating')),
     });
-    showMapRouletteFiles(files);
 
+    // The regional files partition every signal, so their sum is the grand total.
     const tasks = files.reduce((sum, f) => sum + f.taskCount, 0);
     const nodes = files.reduce((sum, f) => sum + f.nodeCount, 0);
-    _setStatus(t('export.mrReady', files.length, tasks, nodes));
+    _setProgress(1, t('export.mrReady', files.length, tasks, nodes));
+
+    // The dialog owns re-enabling the export button via onClose.
+    openMapRouletteDialog(files, { onClose: _endExport });
 }
 
 // ===== UI helpers =====

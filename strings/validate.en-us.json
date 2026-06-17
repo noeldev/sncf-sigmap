@@ -80,14 +80,20 @@
   "export": {
     "geojson": "GeoJSON",
     "maproulette": "MapRoulette",
+    "generating": "Generating export…",
     "done": "Exported {0} OSM nodes ({1} raw signals)",
     "mrReady": "{0} MapRoulette files ready — {1} tasks, {2} OSM nodes",
     "mrTitle": "MapRoulette challenges",
-    "downloadAll": "Download all",
+    "colChallenge": "Challenge",
+    "colTasks": "Tasks",
+    "colNodes": "Nodes",
+    "totalRow": "Total",
+    "merge": "Merge selected challenges",
     "download": "Download",
     "close": "Close",
-    "fileSummary": "{0} tasks, {1} nodes",
-    "totalSummary": "{0} files, {1} tasks, {2} nodes"
+    "mrLink": "MapRoulette",
+    "geojsonLink": "geojson.io",
+    "error": "Export failed: {0}"
   },
   "group": {
     "main": "Main signals",

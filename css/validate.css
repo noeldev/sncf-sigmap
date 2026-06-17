@@ -174,118 +174,210 @@ body {
         color: var(--accent2);
     }
 
-/* MapRoulette file list popover */
-.mr-files {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    z-index: 300;
-    width: 300px;
-    max-width: calc(100vw - 24px);
+/* ===== MapRoulette export dialog ===== */
+.mr-dialog {
+    /* margin:auto centers the modal; the global *{margin:0} reset would
+       otherwise pin it to the top-left corner. */
+    margin: auto;
+    width: 480px;
+    max-width: calc(100vw - 32px);
+    padding: 16px;
     background: var(--panel);
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-    padding: 10px;
-    font-family: var(--ff-sans);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
-.mr-files-head {
+    .mr-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+.mr-dialog-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
 }
 
-.mr-files-title {
-    font-size: 12px;
+.mr-dialog-title {
+    font-size: 14px;
     font-weight: 600;
     color: var(--text);
 }
 
-.mr-files-close {
+.mr-dialog-close {
     background: transparent;
     border: 0;
     color: var(--text2);
-    font-size: 16px;
+    font-size: 20px;
     line-height: 1;
     cursor: pointer;
     padding: 0 2px;
 }
 
-    .mr-files-close:hover {
+    .mr-dialog-close:hover {
         color: var(--text);
     }
 
-.mr-files-summary {
-    color: var(--text2);
-    margin-bottom: 8px;
+/* Short list (about a dozen files): grow with content, scroll only past a cap. */
+.mr-table-wrap {
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--panel);
 }
 
-.mr-files-all {
+.mr-table {
     width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 12px;
+}
+
+    .mr-table col.mr-col-check {
+        width: 38px;
+    }
+
+    .mr-table col.mr-col-num {
+        width: 84px;
+    }
+
+    .mr-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--panel2);
+        color: var(--text2);
+        font-weight: 600;
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .mr-table tbody td {
+        padding: 3px 8px;
+        border-bottom: 1px solid var(--panel2);
+    }
+
+    .mr-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .mr-table tbody tr:hover td {
+        background: var(--panel);
+    }
+
+    .mr-table tfoot td {
+        position: sticky;
+        bottom: 0;
+        padding: 6px 8px;
+        border-top: 1px solid var(--border);
+        background: var(--panel2);
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    /* Match the Download button colour; default UA blue would clash. */
+    .mr-table input[type="checkbox"] {
+        accent-color: var(--accent);
+        margin: 0;
+        vertical-align: middle;
+    }
+
+    /* thead th forces text-align:left, so re-center the check column header to
+       line its checkbox up with the row checkboxes below. */
+    .mr-table thead th.mr-col-check {
+        text-align: center;
+    }
+
+.mr-col-check {
+    text-align: center;
+}
+
+.mr-col-num {
+    text-align: right;
+    white-space: nowrap;
+    /* Plain weight: the per-row figures should not read as bold. */
+    font-weight: 400;
+}
+
+.mr-file-label {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mr-file-region {
+    color: var(--text2);
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.mr-merge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+    .mr-merge input {
+        accent-color: var(--accent);
+        margin: 0;
+    }
+
+    /* Greyed out until at least two challenges are selected. */
+    .mr-merge:has(input:disabled) {
+        color: var(--text2);
+        cursor: default;
+    }
+
+.mr-dialog-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.mr-links {
+    color: var(--text2);
+}
+
+    .mr-links a {
+        color: var(--accent2);
+        text-decoration: none;
+    }
+
+        .mr-links a:hover {
+            text-decoration: underline;
+        }
+
+.mr-download {
     font-family: var(--ff-sans);
     font-size: 12px;
     background: var(--accent);
     color: #fff;
     border: 1px solid transparent;
-    padding: 5px 12px;
+    padding: 6px 16px;
     border-radius: var(--radius);
     cursor: pointer;
     transition: background .2s;
-    margin-bottom: 8px;
 }
 
-    .mr-files-all:hover {
+    .mr-download:hover:not(:disabled) {
         background: var(--accent2);
     }
 
-.mr-files-list {
-    max-height: 300px;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) var(--panel);
-}
-
-.mr-file-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 4px;
-    border-bottom: 1px solid var(--panel2);
-}
-
-    .mr-file-row:last-child {
-        border-bottom: 0;
-    }
-
-.mr-file-label {
-    color: var(--text);
-    min-width: 64px;
-}
-
-.mr-file-meta {
-    flex: 1;
-    color: var(--text2);
-    white-space: nowrap;
-}
-
-.mr-file-dl {
-    font-family: var(--ff-sans);
-    font-size: 11px;
-    background: var(--panel2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 3px 9px;
-    border-radius: 2px;
-    cursor: pointer;
-    transition: color .1s, border-color .1s;
-    flex-shrink: 0;
-}
-
-    .mr-file-dl:hover {
-        color: var(--accent2);
-        border-color: var(--accent2);
+    .mr-download:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
     }
 
 /* Progress bar */

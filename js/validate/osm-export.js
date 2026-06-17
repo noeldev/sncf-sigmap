@@ -6,44 +6,56 @@
  *
  * Single source of node generation shared by both export formats, so the two
  * stay strictly consistent (same node splitting, same co-location offset, same
- * tags, and the SAME total node count). The DOM side (menu, popover, download)
- * lives in validate-main.js / export-panel.js.
+ * tags, and the SAME total node count). The DOM side (menu, dialog, download)
+ * lives in validate.js / export-panel.js.
  *
- * Node generation:
- *   For each location group, groupFeats() splits the feats into one or more OSM
- *   nodes (separate nodes come from opposite directions or category conflicts;
- *   they are intentionally kept separate). Co-located nodes are offset by
- *   NODE_OFFSET_DEG on the latitude axis so editors can select them apart.
+ * Generate once, format twice:
+ *   generateNodeSets() runs the heavy pass exactly once (groupFeats +
+ *   buildNodeTags per location, co-location offset applied). validate.js caches
+ *   the result, so exporting GeoJSON then MapRoulette - or re-exporting - never
+ *   rebuilds the nodes. buildFeatureCollection() and buildMapRouletteChallenges()
+ *   are formatters over that cached structure.
  *
  * Two formats, one node source:
  *   buildFeatureCollection()     - standard GeoJSON FeatureCollection (all nodes
  *                                  flattened into one features array).
- *   buildMapRouletteChallenges() - line-by-line GeoJSON (NDJSON), split into one
- *                                  file per line-code bucket. Each task is a
- *                                  standalone FeatureCollection carrying a
- *                                  cooperativeWork .osc so JOSM can pre-create
- *                                  the node(s); all nodes of a location stay in
- *                                  the same task. Every location lands in exactly
- *                                  one bucket, so the union of all files
- *                                  reproduces the GeoJSON node set node-for-node.
+ *   buildMapRouletteChallenges() - line-by-line GeoJSON (NDJSON), one file per
+ *                                  leading line-code digit (0..9) for
+ *                                  region-by-region challenges. Each task
+ *                                  is a standalone FeatureCollection carrying a
+ *                                  cooperativeWork .osc so JOSM can pre-create the
+ *                                  node(s); all nodes of a location stay in the
+ *                                  same task. Every location lands in exactly one
+ *                                  file, so the union of all files reproduces the
+ *                                  GeoJSON node set node-for-node.
  *
- * Bucketing:
- *   Locations are grouped by the leading digits of their SNCF line code
- *   (code_ligne, exposed as p.lineCode). The code is reduced to digits and
- *   left-padded to LINE_CODE_WIDTH, then sliced to groupDigits. groupDigits=1
- *   yields ~10 regional files; 3 yields ~80-100 axis files. Locations with no
- *   usable line code fall into a single UNKNOWN_BUCKET so none are dropped.
+ * Bucketing and regions:
+ *   Locations are grouped by the leading digit of their SNCF line code
+ *   (code_ligne, exposed as p.lineCode), giving ten regional files; every signal
+ *   in the open data carries a 6-digit code, so all are covered. Each file
+ *   carries a coarse, informal French region label (REGION_LABEL) shown as-is
+ *   (never translated, not an official name).
+ *
+ * XML:
+ *   The .osc document is built with the DOM (createElement / XMLSerializer),
+ *   not assembled from strings, so attribute values are escaped by the
+ *   serializer and no XML markup lives in this file.
+ *
+ * Async:
+ *   The heavy loops await a macrotask every BATCH_SIZE items so the shared
+ *   progress bar updates and the page stays responsive on the full dataset.
  *
  * MapRoulette cooperative format reference:
  *   https://github.com/osmlab/maproulette3/wiki/Cooperative-Challenges
  *   meta.version = 2, meta.type = 2 (change file), file.format = osc, base64.
  *
- * Pure module: no DOM, no app config beyond imported constants. Side-effect free.
- *
  * Public API:
- *   buildFeatureCollection(locationGroups, opts)    -> object   (GeoJSON)
- *   buildMapRouletteChallenges(locationGroups, opts)
- *       -> Array<{ label, content, taskCount, nodeCount }>  (sorted by label)
+ *   generateNodeSets(locationGroups, opts)     -> Promise<Array<NodeSet>>
+ *   buildFeatureCollection(nodeSets, opts)     -> object   (GeoJSON)
+ *   buildMapRouletteChallenges(nodeSets, opts) -> Promise<Array<ChallengeFile>>
+ *
+ *   NodeSet       = { lineCode: string, nodes: Array<{ lat, lng, tags }> }
+ *   ChallengeFile = { bucket, region, taskCount, nodeCount, content }
  */
 
 import { APP_ID, NODE_OFFSET_DEG } from '../core/config.js';
@@ -53,10 +65,13 @@ import { groupFeats } from '../domain/signal-grouping.js';
 // ===== Constants =====
 
 // Name embedded in the standard GeoJSON FeatureCollection (output string, not a comment).
-const COLLECTION_NAME = 'SNCF Signalisation Permanente \u2014 OSM export';
+const COLLECTION_NAME = 'SNCF Signalisation Permanente - OSM export';
 
 // generator attribute written on the osmChange document.
 const OSC_GENERATOR = APP_ID;
+
+// XML prolog (XMLSerializer does not emit one).
+const XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>\n';
 
 // MapRoulette cooperative metadata - only this exact combination is supported.
 const MR_META = { version: 2, type: 2 };
@@ -64,25 +79,63 @@ const MR_META = { version: 2, type: 2 };
 // SNCF RFN line codes are 6 digits; shorter codes have leading zeros stripped.
 const LINE_CODE_WIDTH = 6;
 
-// Default number of leading line-code digits used to bucket challenge files.
-const DEFAULT_GROUP_DIGITS = 1;
+// Coarse SNCF operating region by leading line-code digit. These informal
+// groupings are shown as-is (a single French label, never translated) since
+// they are an approximation, not officially established names.
+const REGION_LABEL = {
+    0: 'Est / Nord-Est', 1: 'Est / Nord-Est',
+    2: 'Nord',
+    3: 'Ouest', 4: 'Ouest',
+    5: 'Sud-Ouest', 6: 'Sud-Ouest',
+    7: 'Sud-Est', 8: 'Sud-Est', 9: 'Sud-Est',
+};
 
-// Bucket for locations whose line code is missing or non-numeric.
-const UNKNOWN_BUCKET = 'misc';
+// Items processed between cooperative yields to the event loop.
+const BATCH_SIZE = 2000;
 
 // ===== Public API =====
 
 /**
- * Build a standard GeoJSON FeatureCollection of all exported OSM nodes.
+ * Run the single heavy generation pass over every location group.
  *
  * @param {Map<string, object>} locationGroups
+ * @param {{ onProgress?: (f:number)=>void, batchSize?: number }} [opts]
+ * @returns {Promise<Array<{ lineCode: string, nodes: Array<object> }>>}
+ */
+export async function generateNodeSets(locationGroups, { onProgress, batchSize = BATCH_SIZE } = {}) {
+    const sets = [];
+    const total = locationGroups.size || 1;
+    let i = 0;
+
+    for (const loc of locationGroups.values()) {
+        const { nodeGroups, isMech } = groupFeats(loc.feats);
+        const nodes = nodeGroups.map((ng, idx) => ({
+            lat: loc.lat + idx * NODE_OFFSET_DEG,
+            lng: loc.lng,
+            tags: buildNodeTags(ng.feats, { isMech }),
+        }));
+        sets.push({ lineCode: _lineCodeOf(loc), nodes });
+
+        if (++i % batchSize === 0) {
+            onProgress?.(i / total);
+            await _yield();
+        }
+    }
+    onProgress?.(1);
+    return sets;
+}
+
+/**
+ * Build a standard GeoJSON FeatureCollection from the generated node sets.
+ *
+ * @param {Array<{ nodes: Array<object> }>} nodeSets
  * @param {{ appUrl?: string }} [opts]  appUrl is used in the description field.
  * @returns {object}  GeoJSON FeatureCollection.
  */
-export function buildFeatureCollection(locationGroups, { appUrl } = {}) {
+export function buildFeatureCollection(nodeSets, { appUrl } = {}) {
     const features = [];
-    for (const nodes of _iterLocationNodes(locationGroups.values())) {
-        for (const node of nodes) features.push(_toFeature(node));
+    for (const set of nodeSets) {
+        for (const node of set.nodes) features.push(_toFeature(node));
     }
 
     const fc = { type: 'FeatureCollection', name: COLLECTION_NAME, features };
@@ -91,63 +144,57 @@ export function buildFeatureCollection(locationGroups, { appUrl } = {}) {
 }
 
 /**
- * Build MapRoulette cooperative challenges, one file per line-code bucket.
+ * Build MapRoulette cooperative challenge files from the generated node sets:
+ * one file per leading line-code digit (0..9). Every signal in the SNCF open
+ * data carries a 6-digit line code, so these ten buckets cover them all.
  *
- * One task per location group; all the location's nodes are bundled in the same
- * task (FeatureCollection + a single .osc creating every node). MapRoulette
- * auto-detects the line-by-line format, so no special extension is required.
- *
- * @param {Map<string, object>} locationGroups
- * @param {{ groupDigits?: number }} [opts]  Leading line-code digits per bucket.
- * @returns {Array<{ label: string, content: string, taskCount: number, nodeCount: number }>}
+ * @param {Array<{ lineCode: string, nodes: Array<object> }>} nodeSets
+ * @param {{ onProgress?: (f:number)=>void, batchSize?: number }} [opts]
+ * @returns {Promise<Array<{
+ *   bucket: string, region: string,
+ *   taskCount: number, nodeCount: number, content: string
+ * }>>}
  */
-export function buildMapRouletteChallenges(locationGroups, { groupDigits = DEFAULT_GROUP_DIGITS } = {}) {
-    const digits = _clampDigits(groupDigits);
-    const buckets = _bucketByLineCode(locationGroups, digits);
+export async function buildMapRouletteChallenges(nodeSets, { onProgress, batchSize = BATCH_SIZE } = {}) {
+    const buckets = new Map();      // bucket key -> { lines, nodeCount }
+    const total = nodeSets.length || 1;
+    let done = 0;
+
+    for (const set of nodeSets) {
+        const key = _bucketKey(set.lineCode);
+        if (!buckets.has(key)) buckets.set(key, { lines: [], nodeCount: 0 });
+
+        const bucket = buckets.get(key);
+        bucket.lines.push(_buildTask(set.nodes));
+        bucket.nodeCount += set.nodes.length;
+
+        if (++done % batchSize === 0) {
+            onProgress?.(done / total);
+            await _yield();
+        }
+    }
+    onProgress?.(1);
 
     const files = [];
-    for (const [bucket, locs] of buckets) {
-        const lines = [];
-        let nodeCount = 0;
-        for (const nodes of _iterLocationNodes(locs)) {
-            nodeCount += nodes.length;
-            lines.push(_buildTask(nodes));
-        }
+    for (const [key, bucket] of buckets) {
         files.push({
-            label: _bucketLabel(bucket),
-            content: lines.join('\n'),
-            taskCount: lines.length,
-            nodeCount,
+            bucket: _bucketLabel(key),
+            region: _region(key),
+            taskCount: bucket.lines.length,
+            nodeCount: bucket.nodeCount,
+            content: bucket.lines.join('\n'),
         });
     }
-
-    // Stable order so the file list and downloads are predictable.
-    files.sort((a, b) => a.label.localeCompare(b.label));
+    // Stable order: "0xxxxx".."9xxxxx".
+    files.sort((a, b) => a.bucket.localeCompare(b.bucket));
     return files;
 }
 
-// ===== Node generation (shared) =====
+// ===== Node helpers =====
 
-/**
- * Yield, for each location, its array of OSM nodes.
- * Each node is { lat, lng, tags } with the co-location offset already applied.
- * Accepts any iterable of location groups so both the full export and a single
- * bucket reuse the exact same generation.
- *
- * @param {Iterable<object>} locs
- * @returns {Generator<Array<{ lat: number, lng: number, tags: Map<string,string> }>>}
- */
-function* _iterLocationNodes(locs) {
-    for (const loc of locs) {
-        const { nodeGroups, isMech } = groupFeats(loc.feats);
-        yield nodeGroups.map((ng, i) => ({
-            // Offset each co-located node on the latitude axis (same constant as
-            // signal-popup.js) so editors can distinguish them individually.
-            lat: loc.lat + i * NODE_OFFSET_DEG,
-            lng: loc.lng,
-            tags: buildNodeTags(ng.feats, { isMech }),
-        }));
-    }
+/** Line code of a location, taken from its first feat (all share the same one). */
+function _lineCodeOf(loc) {
+    return loc.feats[0]?.p.lineCode ?? '';
 }
 
 /** Convert one node into a GeoJSON Point Feature with OSM key=value properties. */
@@ -159,41 +206,22 @@ function _toFeature(node) {
     };
 }
 
-// ===== Line-code bucketing =====
+// ===== Bucketing / regions =====
 
-/** Keep groupDigits within [1, LINE_CODE_WIDTH]; fall back to the default. */
-function _clampDigits(n) {
-    const d = Number.isInteger(n) ? n : DEFAULT_GROUP_DIGITS;
-    return Math.min(Math.max(d, 1), LINE_CODE_WIDTH);
+/** Bucket key: the leading digit of the zero-padded line code ("0".."9"). */
+function _bucketKey(lineCode) {
+    const digits = String(lineCode ?? '').replace(/\D/g, '');
+    return digits.padStart(LINE_CODE_WIDTH, '0')[0];
 }
 
-/**
- * Split the location groups into buckets keyed by their line-code prefix.
- * Every location lands in exactly one bucket (UNKNOWN_BUCKET when no code),
- * which guarantees the node count is preserved across all files.
- */
-function _bucketByLineCode(locationGroups, digits) {
-    const buckets = new Map();
-    for (const loc of locationGroups.values()) {
-        const key = _bucketKey(loc, digits);
-        if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key).push(loc);
-    }
-    return buckets;
-}
-
-/** Leading-digit prefix of a location's line code, or UNKNOWN_BUCKET. */
-function _bucketKey(loc, digits) {
-    const lineCode = loc.feats[0]?.p.lineCode ?? '';
-    const onlyDigits = lineCode.replace(/\D/g, '');
-    if (!onlyDigits) return UNKNOWN_BUCKET;
-    return onlyDigits.padStart(LINE_CODE_WIDTH, '0').slice(0, digits);
-}
-
-/** Human-readable bucket label, e.g. "7" -> "7xxxxx", "752" -> "752xxx". */
+/** Human-readable bucket label, e.g. "7" -> "7xxxxx". */
 function _bucketLabel(bucket) {
-    if (bucket === UNKNOWN_BUCKET) return UNKNOWN_BUCKET;
-    return bucket + 'x'.repeat(LINE_CODE_WIDTH - bucket.length);
+    return bucket + 'x'.repeat(LINE_CODE_WIDTH - 1);
+}
+
+/** Informal region label for a leading-digit bucket. */
+function _region(bucket) {
+    return REGION_LABEL[Number(bucket)] ?? '';
 }
 
 // ===== MapRoulette task building =====
@@ -223,43 +251,41 @@ function _buildTask(nodes) {
 }
 
 /**
- * Build an OSM Change document that creates every node of a location.
- * Negative ids (-1, -2, ...) mark the nodes as new elements for JOSM.
+ * Build an OSM Change document that creates every node of a location, using the
+ * DOM so attribute values are escaped by the serializer. Negative ids
+ * (-1, -2, ...) mark the nodes as new elements for JOSM.
  *
  * @param {Array<{ lat, lng, tags }>} nodes
  * @returns {string}  .osc XML.
  */
 function _buildOsc(nodes) {
-    const body = nodes.map((node, i) => _buildOscNode(node, -(i + 1))).join('\n');
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<osmChange version="0.6" generator="${OSC_GENERATOR}">
-  <create>
-${body}
-  </create>
-</osmChange>`;
-}
+    const doc = document.implementation.createDocument(null, 'osmChange', null);
+    const root = doc.documentElement;
+    root.setAttribute('version', '0.6');
+    root.setAttribute('generator', OSC_GENERATOR);
 
-/** Build a single <node> element with its tags. */
-function _buildOscNode(node, id) {
-    const tags = [...node.tags]
-        .map(([k, v]) => `      <tag k="${_xmlEscape(k)}" v="${_xmlEscape(v)}"/>`)
-        .join('\n');
-    return `    <node id="${id}" lat="${node.lat}" lon="${node.lng}" version="0" changeset="0">
-${tags}
-    </node>`;
+    const create = doc.createElement('create');
+    nodes.forEach((node, i) => {
+        const el = doc.createElement('node');
+        el.setAttribute('id', String(-(i + 1)));
+        el.setAttribute('lat', String(node.lat));
+        el.setAttribute('lon', String(node.lng));
+        el.setAttribute('version', '0');
+        el.setAttribute('changeset', '0');
+        for (const [k, v] of node.tags) {
+            const tag = doc.createElement('tag');
+            tag.setAttribute('k', k);
+            tag.setAttribute('v', v);
+            el.appendChild(tag);
+        }
+        create.appendChild(el);
+    });
+    root.appendChild(create);
+
+    return XML_DECL + new XMLSerializer().serializeToString(doc);
 }
 
 // ===== Encoding helpers =====
-
-/** Escape the five XML-significant characters in an attribute value. */
-function _xmlEscape(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
 
 /**
  * Base64-encode a UTF-8 string. btoa() is Latin1-only, so the string is first
@@ -273,4 +299,9 @@ function _utf8ToBase64(str) {
     let binary = '';
     for (const b of bytes) binary += String.fromCharCode(b);
     return btoa(binary);
+}
+
+/** Yield a macrotask so the UI (progress bar) can repaint between batches. */
+function _yield() {
+    return new Promise(resolve => setTimeout(resolve, 0));
 }

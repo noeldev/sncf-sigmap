@@ -64,19 +64,6 @@
                             MapRoulette
                         </button>
                     </div>
-                    <!-- MapRoulette file list (anchored inside the menu) -->
-                    <div class="mr-files" id="mr-files" hidden>
-                        <div class="mr-files-head">
-                            <span class="mr-files-title" data-i18n="export.mrTitle">MapRoulette challenges</span>
-                            <button class="mr-files-close" id="mr-files-close" type="button">&times;</button>
-                        </div>
-                        <div class="mr-files-summary mono-sm" id="mr-files-summary"></div>
-                        <button class="mr-files-all" id="mr-files-all" type="button"
-                                data-i18n="export.downloadAll">
-                            Download all
-                        </button>
-                        <div class="mr-files-list" id="mr-files-list"></div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -448,13 +435,17 @@
         </tr>
     </template>
 
-    <!-- One row of the MapRoulette file list (export-panel.js) -->
+    <!-- One row of the MapRoulette file table (export-panel.js) -->
     <template id="tpl-mr-file-row">
-        <div class="mr-file-row">
-            <span class="mr-file-label mono-sm" data-field="label"></span>
-            <span class="mr-file-meta mono-sm" data-field="meta"></span>
-            <button class="mr-file-dl" type="button">Download</button>
-        </div>
+        <tr class="mr-file-row">
+            <td class="mr-col-check"><input type="checkbox" class="mr-file-check"></td>
+            <td class="mr-file-label">
+                <span class="mr-file-code mono-sm" data-field="label"></span>
+                <span class="mr-file-region" data-field="region"></span>
+            </td>
+            <td class="mr-col-num mono-sm" data-field="tasks"></td>
+            <td class="mr-col-num mono-sm" data-field="nodes"></td>
+        </tr>
     </template>
 
     <!-- SVG sprite -->
@@ -468,6 +459,64 @@
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </symbol>
     </svg>
+
+
+    <!-- MapRoulette export dialog (export-panel.js).
+         Native <dialog>: showModal() centers it, dims the page, traps focus,
+         and closes on Escape. The inert backdrop blocks the export button so it
+         cannot be re-triggered while the dialog is open. -->
+    <dialog id="mr-dialog" class="mr-dialog">
+        <div class="mr-dialog-head">
+            <h2 class="mr-dialog-title" data-i18n="export.mrTitle">MapRoulette challenges</h2>
+            <button class="mr-dialog-close" id="mr-dialog-close" type="button"
+                    data-i18n-aria="export.close" data-i18n-title="export.close">&times;</button>
+        </div>
+
+        <div class="mr-table-wrap">
+            <table class="mr-table">
+                <colgroup>
+                    <col class="mr-col-check">
+                    <col>
+                    <col class="mr-col-num">
+                    <col class="mr-col-num">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="mr-col-check"><input type="checkbox" id="mr-check-all" checked></th>
+                        <th data-i18n="export.colChallenge">Challenge</th>
+                        <th class="mr-col-num" data-i18n="export.colTasks">Tasks</th>
+                        <th class="mr-col-num" data-i18n="export.colNodes">Nodes</th>
+                    </tr>
+                </thead>
+                <tbody id="mr-tbody"></tbody>
+                <tfoot>
+                    <tr>
+                        <td></td>
+                        <td data-i18n="export.totalRow">Total</td>
+                        <td class="mr-col-num" id="mr-total-tasks"></td>
+                        <td class="mr-col-num" id="mr-total-nodes"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <label class="mr-merge">
+            <input type="checkbox" id="mr-merge" disabled>
+            <span data-i18n="export.merge">Merge selected challenges</span>
+        </label>
+
+        <div class="mr-dialog-foot">
+            <p class="mr-links mono-sm">
+                <a href="https://maproulette.org/" target="_blank" rel="noopener noreferrer"
+                   data-i18n="export.mrLink">MapRoulette</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="https://geojson.io/" target="_blank" rel="noopener noreferrer"
+                   data-i18n="export.geojsonLink">geojson.io</a>
+            </p>
+            <button class="mr-download" id="mr-download" type="button"
+                    data-i18n="export.download">Download</button>
+        </div>
+    </dialog>
 
 
     <!-- ENTRY POINT -->

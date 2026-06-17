@@ -80,14 +80,20 @@
   "export": {
     "geojson": "GeoJSON",
     "maproulette": "MapRoulette",
+    "generating": "Génération de l'export…",
     "done": "{0} nœuds OSM exportés ({1} signaux bruts)",
     "mrReady": "{0} fichiers MapRoulette prêts — {1} tâches, {2} nœuds OSM",
     "mrTitle": "Défis MapRoulette",
-    "downloadAll": "Tout télécharger",
+    "colChallenge": "Défi",
+    "colTasks": "Tâches",
+    "colNodes": "Nœuds",
+    "totalRow": "Total",
+    "merge": "Fusionner les défis sélectionnés",
     "download": "Télécharger",
     "close": "Fermer",
-    "fileSummary": "{0} tâches, {1} nœuds",
-    "totalSummary": "{0} fichiers, {1} tâches, {2} nœuds"
+    "mrLink": "MapRoulette",
+    "geojsonLink": "geojson.io",
+    "error": "Échec de l'export : {0}"
   },
   "group": {
     "main": "Signaux principaux",

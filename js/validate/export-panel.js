@@ -2,152 +2,213 @@
 // Copyright (C) 2026 Noël Danjou
 
 /**
- * export-panel.js - MapRoulette file list popover.
+ * export-panel.js - MapRoulette export dialog (native <dialog> modal).
  *
- * The MapRoulette export produces one file per line-code bucket. This popover
- * lists them so the user can download each file independently (to test bucket
- * by bucket) or all of them at once.
+ * The MapRoulette export produces one file per leading line-code digit (0..9)
+ * for region-by-region challenges. This dialog lists those ten files in a table
+ * so the user can pick a subset and download them - separately, or merged into a
+ * single file.
  *
- * "Download all" fires the per-file downloads with a short stagger so the
- * browser does not collapse or drop rapid successive downloads; the browser may
- * still ask once to allow multiple downloads.
+ * Why a native <dialog>:
+ *   showModal() gives a centered, backdrop-dimmed, focus-trapped modal with
+ *   Escape-to-close for free, and its inert backdrop blocks the export button
+ *   underneath, reinforcing the re-entrancy guard in validate.js. The dialog
+ *   markup lives in validate.html; rows are cloned from #tpl-mr-file-row. No
+ *   HTML strings are built here.
  *
- * The popover markup lives in validate.html (anchored inside #export-menu);
- * rows are cloned from the #tpl-mr-file-row template. No HTML strings here.
+ * Selection:
+ *   Every row carries a checkbox and the header checkbox toggles them all (the
+ *   list is short - ten files - so there is no text filter). The footer total
+ *   follows the current selection (the grand total when all ten are checked - the
+ *   parity figure to cross-check against the GeoJSON node count).
  *
- * Visibility note: the popover sits inside #export-menu, so the click that opens
- * it (the MapRoulette menu item) is ignored by the outside-click handler.
+ * Download:
+ *   The Download button writes the selected files as staggered browser downloads
+ *   (one user prompt, then all land in the Downloads folder) and closes the
+ *   dialog. When "merge" is ticked (enabled once two or more files are selected),
+ *   the selected challenges are instead concatenated into a single NDJSON file -
+ *   so ticking every region yields one whole-France challenge on demand. Closing
+ *   (button, Escape, backdrop) calls onClose so validate.js re-enables the export
+ *   button.
+ *
+ *   The changeset comment and source are not handled here: they are entered once
+ *   in the MapRoulette challenge form at challenge creation (MapRoulette appends
+ *   #maproulette itself), so they belong to neither the dialog nor the .osc.
  *
  * Public API:
- *   showMapRouletteFiles(files) -> void
- *   hideMapRouletteFiles()      -> void
+ *   openMapRouletteDialog(files, { onClose }) -> void
  */
 
-import { t } from '../core/translation.js';
-import { triggerDownload, timestampedName } from './download.js';
+import { timestamp, triggerDownload } from './download.js';
 
 // ===== Constants =====
 
 const MR_MIME = 'application/geo+json';
 const FILE_PREFIX = 'signals-sncf-maproulette';
 
-// Delay between successive downloads in "Download all" (ms). Keeps the browser
-// from dropping files when many are requested in the same tick.
+// Delay between successive downloads (ms) so the browser does not drop files
+// requested in the same tick.
 const DOWNLOAD_STAGGER_MS = 300;
 
 // ===== State =====
 
 let _files = [];
-let _root = null;
-let _list = null;
-let _summary = null;
+let _onClose = null;
+let _closeNotified = false;
+
+let _dialog = null;
+let _tbody = null;
+let _checkAll = null;
+let _merge = null;
+let _totalTasks = null;
+let _totalNodes = null;
+let _download = null;
 
 // ===== Init =====
 
 _init();
 
 function _init() {
-    _root = document.getElementById('mr-files');
-    if (!_root) return;
+    _dialog = document.getElementById('mr-dialog');
+    if (!_dialog) return;
 
-    _list = document.getElementById('mr-files-list');
-    _summary = document.getElementById('mr-files-summary');
+    _tbody = document.getElementById('mr-tbody');
+    _checkAll = document.getElementById('mr-check-all');
+    _merge = document.getElementById('mr-merge');
+    _totalTasks = document.getElementById('mr-total-tasks');
+    _totalNodes = document.getElementById('mr-total-nodes');
+    _download = document.getElementById('mr-download');
 
-    document.getElementById('mr-files-close')
-        .addEventListener('click', hideMapRouletteFiles);
-    document.getElementById('mr-files-all')
-        .addEventListener('click', _downloadAll);
+    document.getElementById('mr-dialog-close')
+        .addEventListener('click', () => _dialog.close());
 
-    // One delegated handler for every row's Download button.
-    _list.addEventListener('click', (e) => {
-        const btn = e.target.closest('.mr-file-dl');
-        if (!btn) return;
-        const idx = Number(btn.closest('.mr-file-row').dataset.index);
-        _downloadFile(_files[idx]);
+    // Header checkbox toggles every row.
+    _checkAll.addEventListener('change', () => {
+        for (const cb of _allChecks()) cb.checked = _checkAll.checked;
+        _syncControls();
     });
 
-    // Dismiss on a click truly outside both the popover and the export menu,
-    // or on Escape. Clicks inside the export menu (e.g. the opening item) are
-    // ignored so the popover is not closed on the same click that opened it.
-    document.addEventListener('click', (e) => {
-        if (_root.hidden) return;
-        if (_root.contains(e.target) || _isExportMenu(e.target)) return;
-        hideMapRouletteFiles();
+    // Delegated row checkbox changes.
+    _tbody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('mr-file-check')) _syncControls();
     });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') hideMapRouletteFiles();
+
+    _download.addEventListener('click', _downloadSelected);
+
+    // Native close (button, Escape, or programmatic): notify the caller once.
+    _dialog.addEventListener('close', () => {
+        if (_closeNotified) return;
+        _closeNotified = true;
+        _onClose?.();
     });
 }
 
 // ===== Public API =====
 
 /**
- * Populate and reveal the popover for the given challenge files.
+ * Populate and open the modal for the given challenge files.
  *
- * @param {Array<{ label, content, taskCount, nodeCount }>} files
+ * @param {Array<{ bucket, region, taskCount, nodeCount, content }>} files
+ * @param {{ onClose?: () => void }} [opts]
  */
-export function showMapRouletteFiles(files) {
-    if (!_root) return;
+export function openMapRouletteDialog(files, { onClose } = {}) {
+    if (!_dialog) { onClose?.(); return; }
     _files = files;
+    _onClose = onClose ?? null;
+    _closeNotified = false;
     _render();
-    _root.hidden = false;
+    _dialog.showModal();
 }
 
-/** Hide the popover. */
-export function hideMapRouletteFiles() {
-    if (_root) _root.hidden = true;
-}
-
-// ===== Private =====
+// ===== Rendering =====
 
 function _render() {
-    // Close button label/title (set here so strings are already loaded).
-    const close = document.getElementById('mr-files-close');
-    close.title = t('export.close');
-    close.setAttribute('aria-label', t('export.close'));
-
     const tpl = document.getElementById('tpl-mr-file-row');
     const frag = document.createDocumentFragment();
 
-    let totalTasks = 0;
-    let totalNodes = 0;
-
     _files.forEach((file, i) => {
-        totalTasks += file.taskCount;
-        totalNodes += file.nodeCount;
-
         const row = tpl.content.cloneNode(true).firstElementChild;
         row.dataset.index = i;
-        row.querySelector('[data-field="label"]').textContent = file.label;
-        row.querySelector('[data-field="meta"]').textContent =
-            t('export.fileSummary', file.taskCount.toLocaleString(), file.nodeCount.toLocaleString());
-        row.querySelector('.mr-file-dl').textContent = t('export.download');
+        row.querySelector('[data-field="label"]').textContent = _label(file);
+        row.querySelector('[data-field="region"]').textContent = _region(file);
+        row.querySelector('[data-field="tasks"]').textContent = file.taskCount.toLocaleString();
+        row.querySelector('[data-field="nodes"]').textContent = file.nodeCount.toLocaleString();
+        row.querySelector('.mr-file-check').checked = true;
         frag.appendChild(row);
     });
 
-    _list.replaceChildren(frag);
-    _summary.textContent = t('export.totalSummary',
-        _files.length.toLocaleString(),
-        totalTasks.toLocaleString(),
-        totalNodes.toLocaleString());
+    _tbody.replaceChildren(frag);
+    _syncControls();
 }
 
-function _downloadFile(file) {
-    if (!file) return;
-    triggerDownload(
-        file.content,
-        timestampedName(`${FILE_PREFIX}_${file.label}`, 'geojson'),
-        MR_MIME
-    );
+/** Dialog label for a file: its bucket ("0xxxxx".."9xxxxx"). */
+function _label(file) {
+    return file.bucket;
 }
 
-function _downloadAll() {
-    _files.forEach((file, i) => {
-        setTimeout(() => _downloadFile(file), i * DOWNLOAD_STAGGER_MS);
-    });
+/** Informal region label (already a plain string; never translated). */
+function _region(file) {
+    return file.region ?? '';
 }
 
-function _isExportMenu(target) {
-    const menu = document.getElementById('export-menu');
-    return !!menu && menu.contains(target);
+// ===== Selection =====
+
+function _allChecks() {
+    return [..._tbody.querySelectorAll('.mr-file-check')];
+}
+
+function _selectedFiles() {
+    return [..._tbody.querySelectorAll('.mr-file-row')]
+        .filter(row => row.querySelector('.mr-file-check').checked)
+        .map(row => _files[Number(row.dataset.index)]);
+}
+
+function _syncControls() {
+    const all = _allChecks();
+    const checked = all.filter(cb => cb.checked).length;
+    _checkAll.checked = all.length > 0 && checked === all.length;
+    _checkAll.indeterminate = checked > 0 && checked < all.length;
+
+    // Totals reflect the current selection (what gets downloaded or merged).
+    const selected = _selectedFiles();
+    const tasks = selected.reduce((sum, f) => sum + f.taskCount, 0);
+    const nodes = selected.reduce((sum, f) => sum + f.nodeCount, 0);
+    _totalTasks.textContent = tasks.toLocaleString();
+    _totalNodes.textContent = nodes.toLocaleString();
+
+    // Merging only makes sense with two or more challenges.
+    _merge.disabled = selected.length < 2;
+    if (_merge.disabled) _merge.checked = false;
+
+    _download.disabled = selected.length === 0;
+}
+
+// ===== Download =====
+
+function _downloadSelected() {
+    const selected = _selectedFiles();
+    if (!selected.length) return;
+
+    const stamp = timestamp();
+
+    // Merge: concatenate the selected NDJSON files into one challenge file.
+    if (_merge.checked && selected.length >= 2) {
+        const content = selected.map(f => f.content).join('\n');
+        triggerDownload(content, `${FILE_PREFIX}_merged_${stamp}.geojson`, MR_MIME);
+        _dialog.close();
+        return;
+    }
+
+    // Otherwise download each selected file separately (staggered so the browser
+    // does not drop files requested in the same tick).
+    selected.forEach((file, i) => setTimeout(
+        () => triggerDownload(file.content, _fileName(file, stamp), MR_MIME),
+        i * DOWNLOAD_STAGGER_MS));
+
+    _dialog.close();
+}
+
+/** signals-sncf-maproulette_0xxxxx_<stamp>.geojson */
+function _fileName(file, stamp) {
+    return `${FILE_PREFIX}_${file.bucket}_${stamp}.geojson`;
 }
