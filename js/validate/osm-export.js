@@ -19,8 +19,10 @@
  * Two formats, one node source:
  *   buildFeatureCollection()     - standard GeoJSON FeatureCollection (all nodes
  *                                  flattened into one features array).
- *   buildMapRouletteChallenges() - line-by-line GeoJSON (NDJSON), one file per
- *                                  leading line-code digit (0..9) for
+ *   buildMapRouletteChallenges() - line-by-line GeoJSON (RFC 7464 JSON text
+ *                                  sequence: each task on its own line, prefixed
+ *                                  by a record separator and terminated by LF),
+ *                                  one file per leading line-code digit (0..9) for
  *                                  region-by-region challenges. Each task
  *                                  is a standalone FeatureCollection carrying a
  *                                  cooperativeWork .osc so JOSM can pre-create the
@@ -41,20 +43,29 @@
  *   not assembled from strings, so attribute values are escaped by the
  *   serializer and no XML markup lives in this file.
  *
+ *   MapRoulette task features also carry a display-only code_voie property (the
+ *   SNCF track code shared by the node's signals). It is NOT written to the .osc,
+ *   so it never reaches OSM; it only lets a challenge instruction name the target
+ *   track, e.g. "Attach this signal to track {{code_voie}}". This is the one
+ *   place a task feature and its .osc differ, and it is deliberate.
+ *
  * Async:
  *   The heavy loops await a macrotask every BATCH_SIZE items so the shared
  *   progress bar updates and the page stays responsive on the full dataset.
  *
  * MapRoulette cooperative format reference:
  *   https://github.com/osmlab/maproulette3/wiki/Cooperative-Challenges
+ *   https://learn.maproulette.org/en-US/documentation/line-by-line-geojson/
  *   meta.version = 2, meta.type = 2 (change file), file.format = osc, base64.
+ *   Line-by-line records use the RFC 7464 record separator (0x1E), required
+ *   since MapRoulette v3.6.5.
  *
  * Public API:
  *   generateNodeSets(locationGroups, opts)     -> Promise<Array<NodeSet>>
  *   buildFeatureCollection(nodeSets, opts)     -> object   (GeoJSON)
  *   buildMapRouletteChallenges(nodeSets, opts) -> Promise<Array<ChallengeFile>>
  *
- *   NodeSet       = { lineCode: string, nodes: Array<{ lat, lng, tags }> }
+ *   NodeSet       = { lineCode: string, nodes: Array<{ lat, lng, tags, trackCode }> }
  *   ChallengeFile = { bucket, region, taskCount, nodeCount, content }
  */
 
@@ -73,6 +84,10 @@ const OSC_GENERATOR = APP_ID;
 // XML prolog (XMLSerializer does not emit one).
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>\n';
 
+// RFC 7464 record separator (0x1E). Each line-by-line task is written as
+// RS + JSON + LF; required by MapRoulette since v3.6.5 for reliable parsing.
+const RS = '\x1E';
+
 // MapRoulette cooperative metadata - only this exact combination is supported.
 const MR_META = { version: 2, type: 2 };
 
@@ -83,11 +98,16 @@ const LINE_CODE_WIDTH = 6;
 // groupings are shown as-is (a single French label, never translated) since
 // they are an approximation, not officially established names.
 const REGION_LABEL = {
-    0: 'Est / Nord-Est', 1: 'Est / Nord-Est',
+    0: 'Est / Nord-Est',
+    1: 'Est / Nord-Est',
     2: 'Nord',
-    3: 'Ouest', 4: 'Ouest',
-    5: 'Sud-Ouest', 6: 'Sud-Ouest',
-    7: 'Sud-Est', 8: 'Sud-Est', 9: 'Sud-Est',
+    3: 'Ouest',
+    4: 'Ouest',
+    5: 'Sud-Ouest',
+    6: 'Sud-Ouest',
+    7: 'Sud-Est',
+    8: 'Sud-Est',
+    9: 'Sud-Est',
 };
 
 // Items processed between cooperative yields to the event loop.
@@ -113,6 +133,7 @@ export async function generateNodeSets(locationGroups, { onProgress, batchSize =
             lat: loc.lat + idx * NODE_OFFSET_DEG,
             lng: loc.lng,
             tags: buildNodeTags(ng.feats, { isMech }),
+            trackCode: _uniformTrackCode(ng.feats),
         }));
         sets.push({ lineCode: _lineCodeOf(loc), nodes });
 
@@ -182,7 +203,7 @@ export async function buildMapRouletteChallenges(nodeSets, { onProgress, batchSi
             region: _region(key),
             taskCount: bucket.lines.length,
             nodeCount: bucket.nodeCount,
-            content: bucket.lines.join('\n'),
+            content: _toJsonSeq(bucket.lines),
         });
     }
     // Stable order: "0xxxxx".."9xxxxx".
@@ -197,13 +218,38 @@ function _lineCodeOf(loc) {
     return loc.feats[0]?.p.lineCode ?? '';
 }
 
+/**
+ * The SNCF track code (code_voie) shared by a node's signals, or '' when it is
+ * missing or they disagree. Locations are keyed by trackCode|milepost, so a
+ * node's feats normally share it; the empty result guards the lat/lng fallback,
+ * where co-located signals may sit on different tracks.
+ */
+function _uniformTrackCode(feats) {
+    const first = feats[0]?.p.trackCode ?? '';
+    if (!first) return '';
+    return feats.every(f => f.p.trackCode === first) ? first : '';
+}
+
 /** Convert one node into a GeoJSON Point Feature with OSM key=value properties. */
-function _toFeature(node) {
+function _toFeature(node, extra) {
+    const properties = Object.fromEntries(node.tags);
+    if (extra) Object.assign(properties, extra);
     return {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [node.lng, node.lat] },
-        properties: Object.fromEntries(node.tags),
+        properties,
     };
+}
+
+/**
+ * Task feature for MapRoulette: the OSM tags plus a display-only code_voie
+ * property. This is intentionally NOT written to the .osc, so it never reaches
+ * OSM; it only lets the challenge instruction surface the target track, e.g.
+ * "Attach this signal to track {{code_voie}}". Omitted when the track code is
+ * unknown or not shared by the node's signals.
+ */
+function _toMapRouletteFeature(node) {
+    return _toFeature(node, node.trackCode ? { code_voie: node.trackCode } : undefined);
 }
 
 // ===== Bucketing / regions =====
@@ -227,16 +273,29 @@ function _region(bucket) {
 // ===== MapRoulette task building =====
 
 /**
+ * Wrap task lines as an RFC 7464 JSON text sequence: each line is preceded by
+ * the record separator (RS, 0x1E) and terminated by LF. MapRoulette requires
+ * the RS since v3.6.5; emitting it on every record (including the last) keeps
+ * merged files valid under plain concatenation.
+ *
+ * @param {string[]} lines  One JSON task per entry (no separators).
+ * @returns {string}
+ */
+function _toJsonSeq(lines) {
+    return lines.map(line => RS + line + '\n').join('');
+}
+
+/**
  * Build one line-by-line GeoJSON task: a standalone FeatureCollection plus a
  * cooperativeWork section carrying the base64-encoded .osc for its node(s).
  *
  * @param {Array<{ lat, lng, tags }>} nodes  All nodes at one location.
- * @returns {string}  A single JSON line (no trailing newline).
+ * @returns {string}  A single JSON line (no separators; _toJsonSeq adds them).
  */
 function _buildTask(nodes) {
     const task = {
         type: 'FeatureCollection',
-        features: nodes.map(_toFeature),
+        features: nodes.map(_toMapRouletteFeature),
         cooperativeWork: {
             meta: MR_META,
             file: {

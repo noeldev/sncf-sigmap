@@ -191,9 +191,11 @@ function _downloadSelected() {
 
     const stamp = timestamp();
 
-    // Merge: concatenate the selected NDJSON files into one challenge file.
+    // Merge: concatenate the selected files into one challenge file. Each file
+    // is a complete RFC 7464 sequence (every line RS-prefixed, LF-terminated),
+    // so plain concatenation stays valid.
     if (_merge.checked && selected.length >= 2) {
-        const content = selected.map(f => f.content).join('\n');
+        const content = selected.map(f => f.content).join('');
         triggerDownload(content, `${FILE_PREFIX}_merged_${stamp}.geojson`, MR_MIME);
         _dialog.close();
         return;
