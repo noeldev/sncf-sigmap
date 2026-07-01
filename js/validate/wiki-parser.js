@@ -40,6 +40,16 @@
  * such a block. The closing ")}}" is the first one after the opener, which is
  * unambiguous here because enumerated FR: values never contain ")".
  *
+ * States sub-pages:
+ *   The main page links to dedicated Key: sub-pages for signal states
+ *   (e.g. FR:Key:railway:signal:main:states) rather than enumerating values
+ *   inline. Those sub-pages use standalone {{TagValue|railway:signal:<cat>|FR:x}}
+ *   entries directly in wiki table cells -- not inside {{Tag|...||( ... )}} enum
+ *   blocks. The main-page rule (TagValue only inside blocks) would silently drop
+ *   every state value, so sub-pages are parsed with standaloneTagValues = true,
+ *   which applies RE_TAGVALUE unconditionally. The shared _seen set prevents
+ *   duplication if both passes happen to match the same pair.
+ *
  * No category filtering is applied: pairs is the complete enumerated set. Each
  * comparison applies its own scope (see spec-compare.js).
  *
@@ -52,13 +62,15 @@
  *   keys:   Set<string>                            every documented cat (presence)
  */
 
-const WIKI_API_URL =
-    'https://wiki.openstreetmap.org/w/api.php'
-    + '?action=parse'
-    + '&page=OpenRailwayMap%2FTagging_in_France'
-    + '&prop=wikitext'
-    + '&format=json'
-    + '&origin=*';
+// Main tagging page title (MediaWiki API page parameter).
+const MAIN_PAGE = 'OpenRailwayMap/Tagging_in_France';
+
+// Sub-pages that enumerate values not listed inline on the main page.
+// Fetched in parallel; failures are non-fatal (spec is partial but functional).
+const STATES_SUBPAGES = [
+    'FR:Key:railway:signal:main:states',
+    'FR:Key:railway:signal:distant:states',
+];
 
 // Every documented key: {{Tag|railway:signal:<cat>...}} up to the first "|" or "}".
 const RE_KEY = /\{\{Tag\|railway:signal:([^|}]+)[|}]/g;
@@ -67,7 +79,9 @@ const RE_TAG_VALUE = /\{\{Tag\|railway:signal:([^|}]+)\|([^|}]+)\}\}/g;
 // Enumeration block: {{Tag|railway:signal:<cat>||( ... )}}; the "(" may follow a
 // newline. Group 1 is the list body, scanned for its {{TagValue}} entries.
 const RE_ENUM_BLOCK = /\{\{Tag\|railway:signal:[^|}]+\|\|\s*\(([\s\S]*?)\)\}\}/g;
-// Enumerated value reference inside a block: {{TagValue|railway:signal:<cat>|<value>}}.
+// Tag value reference: {{TagValue|railway:signal:<cat>|<value>}}.
+// On the main page, only matched inside RE_ENUM_BLOCK (prose mentions are ignored).
+// On Key: sub-pages, matched unconditionally (all occurrences are table enumerations).
 const RE_TAGVALUE = /\{\{TagValue\|railway:signal:([^|}]+)\|([^|}]+)\}\}/g;
 
 // ===== sessionStorage cache =====
@@ -115,7 +129,7 @@ function _saveCache(spec) {
 // ===== Public API =====
 
 /**
- * Build the WikiSpec from the wiki page.
+ * Build the WikiSpec from the wiki page and its states sub-pages.
  *
  * @param {string} [source]  Optional URL or local path to a raw wikitext file.
  *                           When given (local-server testing), it is fetched
@@ -130,12 +144,45 @@ export async function fetchWikiSpec(source) {
         if (cached) return cached;
     }
 
-    const wikitext = source ? await _fetchText(source) : await _fetchApi();
-    if (wikitext === null) return null;
+    let mainText, subTexts;
+    if (source) {
+        // Local testing: single provided file, no sub-page fetch.
+        mainText = await _fetchText(source);
+        if (mainText === null) return null;
+        subTexts = [];
+    } else {
+        // Production: fetch main page and states sub-pages in parallel.
+        // Sub-page failures are non-fatal: the spec is partial but functional.
+        const results = await Promise.all([
+            _fetchPageWikitext(MAIN_PAGE),
+            ...STATES_SUBPAGES.map(p => _fetchPageWikitext(p)),
+        ]);
+        [mainText, ...subTexts] = results;
+        if (mainText === null) return null;
+    }
 
-    const spec = _parse(wikitext);
+    // Parse main page with enum-block-only TagValue rule (ignores prose mentions).
+    const acc = _parseInto(mainText, false);
+    // Parse sub-pages with standalone TagValue rule (all table entries are enumerations).
+    // The shared accumulator deduplicates pairs across all passes.
+    for (const sub of subTexts.filter(Boolean)) {
+        _parseInto(sub, true, acc);
+    }
+
+    const spec = _toSpec(acc);
     if (!source) _saveCache(spec);
     return spec;
+}
+
+// ===== Private =====
+
+function _wikiApiUrl(page) {
+    return 'https://wiki.openstreetmap.org/w/api.php'
+        + '?action=parse'
+        + '&page=' + encodeURIComponent(page)
+        + '&prop=wikitext'
+        + '&format=json'
+        + '&origin=*';
 }
 
 /** Fetch a raw wikitext file (local path or URL). */
@@ -150,10 +197,10 @@ async function _fetchText(url) {
     }
 }
 
-/** Fetch the rendered wikitext through the MediaWiki parse API. */
-async function _fetchApi() {
+/** Fetch wikitext for a named page through the MediaWiki parse API. */
+async function _fetchPageWikitext(page) {
     try {
-        const res = await fetch(WIKI_API_URL);
+        const res = await fetch(_wikiApiUrl(page));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const wikitext = json?.parse?.wikitext?.['*'];
@@ -162,39 +209,66 @@ async function _fetchApi() {
         }
         return wikitext;
     } catch (err) {
-        console.error('[wiki-parser] API fetch failed:', err.message);
+        console.warn(`[wiki-parser] page "${page}" fetch failed:`, err.message);
         return null;
     }
 }
 
-function _parse(wikitext) {
-    const pairs = [];
-    const byCat = new Map();
-    const keys = new Set();
-    const seen = new Set();
+/**
+ * Parse wikitext into an accumulator.
+ *
+ * @param {string}  wikitext
+ * @param {boolean} standaloneTagValues
+ *   false (main page): {{TagValue}} is only captured inside {{Tag|...||( ... )}}
+ *   enumeration blocks. Bare mentions in prose are intentionally ignored.
+ *   true (Key: sub-pages): {{TagValue}} is captured unconditionally. Every
+ *   occurrence is a table enumeration; there is no prose usage on these pages.
+ * @param {object} [acc]  Accumulator from a prior call to chain into. When
+ *   omitted a fresh one is created. The _seen set is shared across all chained
+ *   calls so duplicates are eliminated regardless of parse order.
+ * @returns {object}  The accumulator (same reference as acc when provided).
+ */
+function _parseInto(wikitext, standaloneTagValues, acc = null) {
+    if (!acc) {
+        acc = { pairs: [], byCat: new Map(), keys: new Set(), _seen: new Set() };
+    }
+
+    const { pairs, byCat, keys, _seen } = acc;
 
     const addValue = (cat, type) => {
         cat = cat.trim();
         type = type.trim();
         const pairKey = `${cat}|${type}`;
-        if (seen.has(pairKey)) return;
-        seen.add(pairKey);
+        if (_seen.has(pairKey)) return;
+        _seen.add(pairKey);
         pairs.push({ cat, type });
         if (!byCat.has(cat)) byCat.set(cat, new Set());
         byCat.get(cat).add(type);
     };
 
-    // Documented keys (presence), including keys with no enumerated value.
     for (const m of wikitext.matchAll(RE_KEY)) keys.add(m[1].trim());
-
-    // Single-value tags are enumerated values on their own.
     for (const m of wikitext.matchAll(RE_TAG_VALUE)) addValue(m[1], m[2]);
 
-    // Enumeration blocks: take the {{TagValue}} entries listed inside. Prose
-    // {{TagValue}} mentions outside any block are intentionally ignored.
-    for (const block of wikitext.matchAll(RE_ENUM_BLOCK)) {
-        for (const v of block[1].matchAll(RE_TAGVALUE)) addValue(v[1], v[2]);
+    if (standaloneTagValues) {
+        // Key: sub-pages: capture all {{TagValue}} entries directly.
+        for (const m of wikitext.matchAll(RE_TAGVALUE)) addValue(m[1], m[2]);
+    } else {
+        // Main page: only capture {{TagValue}} inside explicit enumeration blocks.
+        for (const block of wikitext.matchAll(RE_ENUM_BLOCK)) {
+            for (const v of block[1].matchAll(RE_TAGVALUE)) addValue(v[1], v[2]);
+        }
     }
 
-    return { pairs, byCat, keys };
+    return acc;
+}
+
+/**
+ * Extract the public WikiSpec from an accumulator, discarding the internal
+ * deduplication state (_seen). The returned object is safe to cache and expose.
+ *
+ * @param {object} acc
+ * @returns {WikiSpec}
+ */
+function _toSpec(acc) {
+    return { pairs: acc.pairs, byCat: acc.byCat, keys: acc.keys };
 }

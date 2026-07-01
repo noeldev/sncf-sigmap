@@ -2,20 +2,20 @@
 // Copyright (C) 2026 Noël Danjou
 
 /**
- * tiles-worker.js — Fetch, normalize and filter tile data off the main thread.
+ * tiles-worker.js -- Fetch, normalize and filter tile data off the main thread.
  *
  * Incoming message:
  *   { type, urls, activeFilters, bounds, forceOverview }
  *
- * Outgoing messages (via workerPost — see worker-contract.js):
- *   { source, status: 'partial', groups, loaded, total }  — detail mode only
+ * Outgoing messages (via workerPost -- see worker-contract.js):
+ *   { source, status: 'partial', groups, loaded, total }  -- detail mode only
  *   { source, status: 'progress', key, args }
  *   { source, status: 'done', groups, sampled, total }
  *   { source, status: 'error', error }
  *
  * Loading strategy (forceOverview flag):
- *   forceOverview = true  → parallel tile fetch, single 'done' at end.
- *   forceOverview = false → sequential tile fetch, incremental 'partial' updates.
+ *   forceOverview = true  -> parallel tile fetch, single 'done' at end.
+ *   forceOverview = false -> sequential tile fetch, incremental 'partial' updates.
  *
  * Sampling strategy (independent of loading strategy):
  *   Triggered when the total number of *marker groups* after filtering exceeds
@@ -24,7 +24,7 @@
  *   count of DOM nodes rendered, not to the number of raw signals in the data.
  *
  *   When sampling is triggered, _capGroups() is used:
- *     - If the excess is small (≤ 50% above the cap), a direct truncation
+ *     - If the excess is small (<= 50% above the cap), a direct truncation
  *       sorted by group size (descending) is used. This preserves the most
  *       informative markers and avoids the over-aggressive grid collisions that
  *       _spatialSampleGroups produces on a narrow viewport.
@@ -34,8 +34,8 @@
  * Each group represents one geographic location:
  *   { lat, lng, all: Signal[], display: Signal[] }
  *
- *   all     — every signal at that location, regardless of active filters.
- *   display — the subset that passes the active filters.
+ *   all     -- every signal at that location, regardless of active filters.
+ *   display -- the subset that passes the active filters.
  *
  * A group is included only when display.length > 0.
  */
@@ -43,6 +43,8 @@
 import { OVERVIEW_MAX_SIGNALS } from '../core/config.js';
 import { fetchTile } from '../core/tiles.js';
 import { normalizeSignal } from '../domain/sncf-convert.js';
+import { locationGroupKey } from '../domain/signal-grouping.js';
+import { applyContextRemaps } from '../domain/signal-types.js';
 import { workerPost } from './tiles-worker-contract.js';
 
 
@@ -92,20 +94,20 @@ async function _runOverview(urls, bounds, filterSets) {
  * Detail strategy: fetch tiles sequentially and send incremental 'partial'
  * updates so markers appear progressively as data arrives.
  *
- * Two independent concerns — deliberately kept separate:
+ * Two independent concerns -- deliberately kept separate:
  *
- *   safetyTriggered — controls whether partial updates continue.
+ *   safetyTriggered -- controls whether partial updates continue.
  *     Tracked via byKey.size (all in-bounds locations, before filtering).
  *     Conservative overestimate: stops partials early when the viewport is
  *     dense, even if many locations fail the active filters. Erring on the
- *     side of caution here is correct — we don't want to flood the main
+ *     side of caution here is correct -- we don't want to flood the main
  *     thread with partial renders that will be discarded anyway.
  *
- *   sampled (badge) — determined from the actual filtered group count at the
+ *   sampled (badge) -- determined from the actual filtered group count at the
  *     very end. A filter (e.g. a single line code) may reduce the visible
  *     groups well below the cap even when the raw viewport is dense.
  *     Decoupling this from safetyTriggered avoids showing the badge when
- *     all visible groups fit within the cap — the root cause of the bug
+ *     all visible groups fit within the cap -- the root cause of the bug
  *     where "Signals: 95" was reported as sampled when no sampling occurred.
  */
 async function _runDetail(urls, bounds, filterSets) {
@@ -145,11 +147,11 @@ async function _runDetail(urls, bounds, filterSets) {
  * Reduce groups to at most maxCount while retaining the most visible markers.
  *
  * Two-strategy selector:
- *   - Small excess (total ≤ maxCount * 1.5): sort by group size descending
+ *   - Small excess (total <= maxCount * 1.5): sort by group size descending
  *     and take the first maxCount. Preserves the most informative markers
  *     (multi-signal co-located groups) and avoids grid collisions that would
  *     produce far fewer results than maxCount on a narrow viewport (e.g. a
- *     dense urban area at zoom 12–14).
+ *     dense urban area at zoom 12-14).
  *   - Large excess (total > maxCount * 1.5): spatial grid sampling for a
  *     geographically representative distribution. Designed for the overview
  *     case (all of France with 120k+ groups).
@@ -162,7 +164,7 @@ function _capGroups(groups, maxCount) {
     if (groups.length <= maxCount) return groups;
 
     if (groups.length <= maxCount * 1.5) {
-        // Small excess — sort by descending display count, take first maxCount.
+        // Small excess -- sort by descending display count, take first maxCount.
         // Stable sort: equal-size groups retain their original (geographic) order.
         return groups
             .slice()
@@ -170,12 +172,12 @@ function _capGroups(groups, maxCount) {
             .slice(0, maxCount);
     }
 
-    // Large excess — spatial grid sample for a geographically uniform distribution.
+    // Large excess -- spatial grid sample for a geographically uniform distribution.
     return _spatialSampleGroups(groups, maxCount);
 }
 
 /**
- * Spatial grid subsampling — original two-phase algorithm.
+ * Spatial grid subsampling -- original two-phase algorithm.
  * First-encountered group per cell preserves natural size diversity.
  * Effective for large datasets spread over a wide geographic area.
  */
@@ -198,7 +200,7 @@ function _spatialSampleGroups(groups, maxCount) {
             const cx = Math.min(Math.floor(((g.lng - minLng) / lngRange) * gridSize), gridSize - 1);
             const cy = Math.min(Math.floor(((g.lat - minLat) / latRange) * gridSize), gridSize - 1);
             const k = cy * gridSize + cx;
-            if (!cells.has(k)) cells.set(k, g);   // first-encountered → natural size diversity
+            if (!cells.has(k)) cells.set(k, g);   // first-encountered -> natural size diversity
         }
         return [...cells.values()];
     }
@@ -232,7 +234,7 @@ function _groupByLocation(tiles, bounds) {
         for (const s of tile) {
             if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
             const p = normalizeSignal(s);
-            const key = _groupKey(p, s);
+            const key = locationGroupKey(p, s.lat, s.lng);
             if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
             byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
         }
@@ -254,7 +256,7 @@ function _mergeTile(tile, byKey, bounds, filterSets) {
     for (const s of tile) {
         if (s.lat < swLat || s.lat > neLat || s.lng < swLng || s.lng > neLng) continue;
         const p = normalizeSignal(s);
-        const key = _groupKey(p, s);
+        const key = locationGroupKey(p, s.lat, s.lng);
         if (!byKey.has(key)) byKey.set(key, { lat: s.lat, lng: s.lng, all: [] });
         byKey.get(key).all.push({ lat: s.lat, lng: s.lng, p });
         touched.add(key);
@@ -274,17 +276,13 @@ function _buildGroups(byKey, filterSets) {
     const hasFilters = Object.keys(filterSets).length > 0;
     const groups = [];
     for (const { lat, lng, all } of byKey.values()) {
+        // Apply context remaps once the full location set is known.
+        // Idempotent: safe to call even when byKey is reused across partial updates.
+        applyContextRemaps(all);
         const display = hasFilters ? all.filter(s => _matches(s.p, filterSets)) : all;
         if (display.length > 0) groups.push({ lat, lng, all, display });
     }
     return groups;
-}
-
-/** Derive the location key used to group co-located signals. */
-function _groupKey(p, s) {
-    return (p.trackCode && p.milepost)
-        ? `${p.trackCode}|${p.milepost}`
-        : `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
 }
 
 /** Returns true when signal properties satisfy all active filters. */

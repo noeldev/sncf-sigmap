@@ -778,6 +778,14 @@ const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    "TUNNEL": {
+        group: "miscellaneous",
+        cat: "minor",
+        type: "FR:tunnel",
+        properties: {
+            form: "sign"
+        }
+    },
     "SIFFLER": {
         group: "miscellaneous",
         cat: "whistle",
@@ -809,7 +817,51 @@ const SIGNAL_MAPPING = {
                 form: "sign"
             }
         }
-    }
+    },
+
+    // Border signals
+    "CARRE (CH)": {
+        group: "main",
+        cat: "main",
+        type: "CH-FDV:l",
+        properties: {
+            form: "light",
+            function: "entry",
+            states: "CH-FDV:524;CH-FDV:530;CH-FDV:542;CH-FDV:545"
+        }
+    },
+    "S (CH)": {
+        group: "main",
+        cat: "main",
+        type: "CH-FDV:l",
+        properties: {
+            form: "light",
+            function: "block",
+            states: "CH-FDV:524;CH-FDV:530;CH-FDV:542"
+        }
+    },
+    "A (CH)": {
+        group: "distant",
+        cat: "distant",
+        type: "CH-FDV:l",
+        properties: {
+            form: "light",
+            states: "CH-FDV:519;CH-FDV:528;CH-FDV:529;CH-FDV:534;CH-FDV:536"
+        }
+    },
+    // Räumungssignal (evacuation signal): co-located with S (CH) or CARRE (CH).
+    // The SNCF dataset uses the GAIA type "CV" for this signal, which is
+    // disambiguated from the French Carre Violet (FR:CV) by Swiss context
+    // detection in conflict-detector.js via getSwissContextRemap().
+    "CV (CH)": {
+        group: "shunting",
+        cat: "shunting",
+        type: "CH-FDV:308",
+        properties: {
+            form: "light",
+            states: "CH-FDV:308;CH-FDV:310"
+        }
+    },
 };
 
 // ===== Private helpers =====
@@ -830,7 +882,72 @@ function _resolveSection(entry, isMech) {
     return section ? { ...entry, ...section } : entry;
 }
 
+// ===== Border Context Remap =====
+
+// Registry of contextual type remappings based on co-located signals.
+// Allows disambiguation when a GAIA type has different meanings depending
+// on the regional context (e.g., cross-border installations).
+// To add a new country context, simply add a new object to this array.
+const BORDER_CONTEXTS = [
+    {
+        // Swiss border context
+        triggers: new Set(['S (CH)', 'CARRE (CH)']),
+        remaps: new Map([
+            ['CV', 'CV (CH)'], // SNCF "CV" becomes Swiss evacuation signal [Räumungssignal] (CH-FDV:308)
+        ]),
+    },
+    // Future contexts (Germany, Belgium, etc.) can be added here.
+];
+
+/**
+ * Return a type remap table for a given location based on contextual triggers.
+ * 
+ * @param {Iterable<string>} locationTypes  All GAIA types at a location.
+ * @returns {Map<string, string>}           originalType -> effectiveType
+ */
+function _getContextRemaps(locationTypes) {
+    const typeSet = locationTypes instanceof Set ? locationTypes : new Set(locationTypes);
+    const remap = new Map();
+
+    for (const ctx of BORDER_CONTEXTS) {
+        // Check if any trigger type is present at this location
+        const triggered = [...ctx.triggers].some(t => typeSet.has(t));
+        if (triggered) {
+            // Merge applicable remaps
+            for (const [from, to] of ctx.remaps) {
+                if (typeSet.has(from)) {
+                    remap.set(from, to);
+                }
+            }
+        }
+    }
+
+    return remap;
+}
+
 // ===== Public API =====
+
+/**
+ * Apply context-specific type remaps (e.g., cross-border) to a list of signal features.
+ * Mutates `feat.p.signalType` in place so all downstream processing (conflict detection, 
+ * tag building, map rendering, popups) sees the effective type.
+ *
+ * @param {Array<{p: {signalType: string}}>} feats  Signals at the same location.
+ */
+export function applyContextRemaps(feats) {
+    if (!feats || feats.length === 0) return;
+
+    const typeSet = new Set(feats.map(f => f.p.signalType));
+    const remap = _getContextRemaps(typeSet);
+    if (remap.size === 0) return;
+
+    for (const feat of feats) {
+        const remapped = remap.get(feat.p.signalType);
+        if (remapped !== undefined) {
+            feat.p.signalType = remapped;
+        }
+    }
+}
 
 /**
  * Return true when the co-located signal types form a mechanical installation.

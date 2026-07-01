@@ -15,11 +15,11 @@
  *   the data semantics: the same physical signal can appear once per line
  *   in the SNCF dataset (bifurcation points, shared infrastructure).
  *   sens (direction) and position (placement) are handled by canFit() inside
- *   groupFeats() — they determine node splitting, not location grouping.
+ *   groupFeats() -- they determine node splitting, not location grouping.
  *   nom_voie is excluded: it is always the trailing segment of code_voie and
  *   carries no additional identity information.
  *
- *   Note: this groupKey intentionally diverges from tiles-worker.js _groupKey
+ *   Note: this groupKey intentionally diverges from tiles-worker.js groupKey
  *   (trackCode|milepost only) because the two have different goals:
  *     - tiles-worker.js: physical co-location for map rendering
  *     - conflict-detector.js: data identity for OSM tagging analysis
@@ -27,16 +27,16 @@
  * Grouping logic is fully delegated to signal-grouping.js (no mirrored rules).
  *
  * Duplicate detection:
- *   isDupId   — same (networkId + signalType) in the same location group.
+ *   isDupId   -- same (networkId + signalType) in the same location group.
  *               Flags data entry errors where the same physical signal was
  *               imported twice under the same identifier.
- *   isDupType — same signalType appears in two or more nodeGroups at the same
+ *   isDupType -- same signalType appears in two or more nodeGroups at the same
  *               direction+placement, and that type does not have allowMultiple
  *               in signal-types.js. Flags data redundancy (e.g. two TIV-D).
  *               Types with allowMultiple: true (TLD, DESTI, ...) are exempt.
  *
  * Both flags are set directly on feat.p before the conflict data leaves this
- * module, so the renderer reads them as plain properties — no DOM scanning.
+ * module, so the renderer reads them as plain properties -- no DOM scanning.
  *
  * Public API:
  *   buildLocationGroups(tiles) -> Map<key, LocationGroup>
@@ -51,6 +51,7 @@
 
 import { getMappingEntry } from '../domain/signal-types.js';
 import { normalizeSignal } from '../domain/sncf-convert.js';
+import { locationGroupKey } from '../domain/signal-grouping.js';
 
 // ===== Public API =====
 
@@ -67,7 +68,7 @@ export function buildLocationGroups(tiles) {
         if (!Array.isArray(tile)) continue;
         for (const raw of tile) {
             const p = normalizeSignal(raw);
-            const key = _groupKey(p, raw);
+            const key = locationGroupKey(p, raw.lat, raw.lng);
 
             if (!byKey.has(key)) {
                 byKey.set(key, {
@@ -90,7 +91,7 @@ export function buildLocationGroups(tiles) {
  * Flag duplicate signals within each location group.
  *
  * isDupId: set on feats sharing the same (signalType + networkId) in the same
- * location. Indicates a data entry error — same physical signal imported twice.
+ * location. Indicates a data entry error -- same physical signal imported twice.
  *
  * Must be called after all tiles are accumulated into locationGroups, before
  * groupFeats() and findConflicts(), so the flags travel with the feat objects.
@@ -122,7 +123,7 @@ export function flagDuplicates(locationGroups) {
  * unless allowMultiple is set for that type in signal-types.js.
  *
  * Node order within each group is determined by the two-pass grouping in
- * validate-main.js (originals first → primary node, outliers last → secondary).
+ * validate.js (originals first -> primary node, outliers last -> secondary).
  * No re-sorting is applied here.
  *
  * @param {NodeGroup[]} nodes
@@ -218,7 +219,7 @@ function _flagSuspectNode(grpNodes, dupTypes) {
         const n = grpNodes[i];
         const fewerFeats = n.feats.length < suspect.feats.length;
         // >= instead of >: when sizes and maxIds are equal (isDupId case), the later
-        // node (higher index) becomes suspect — the second occurrence is the outlier.
+        // node (higher index) becomes suspect -- the second occurrence is the outlier.
         const tieHigherId = n.feats.length === suspect.feats.length && _maxId(n) >= _maxId(suspect);
         if (fewerFeats || tieHigherId) suspect = n;
     }
@@ -226,20 +227,4 @@ function _flagSuspectNode(grpNodes, dupTypes) {
     for (const feat of suspect.feats) {
         if (dupTypes.has(feat.p.signalType)) feat.p.isDupType = true;
     }
-}
-
-// ===== Private helpers =====
-
-/**
- * Derive the location group key using all three SNCF identity fields.
- * Falls back to lat/lng when any identifier is missing.
- *
- * @param {object} p    Normalized signal properties.
- * @param {object} raw  Raw tile signal (has .lat / .lng).
- * @returns {string}
- */
-function _groupKey(p, raw) {
-    return (p.trackCode && p.milepost)
-        ? `${p.trackCode}|${p.milepost}`
-        : `${raw.lat.toFixed(6)},${raw.lng.toFixed(6)}`;
 }

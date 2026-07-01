@@ -40,7 +40,7 @@
  */
 
 import { groupFeats } from '../domain/signal-grouping.js';
-import { isMapped } from '../domain/signal-types.js';
+import { isMapped, applyContextRemaps } from '../domain/signal-types.js';
 import { normalizeSignal } from '../domain/sncf-convert.js';
 import { loadManifest, fetchTileByKey } from '../core/tiles.js';
 import { loadStrings, translateAll, t } from '../core/translation.js';
@@ -58,7 +58,7 @@ import { fetchWikiSpec } from './wiki-parser.js';
 import {
     buildLocationGroups,
     flagDuplicates,
-    findConflicts
+    findConflicts,
 } from './conflict-detector.js';
 import {
     APP_URL,
@@ -152,6 +152,10 @@ function _bindEvents() {
     _bindExportMenu();
 }
 
+function _applyLocationContextRemaps(locationGroups) {
+    for (const loc of locationGroups.values()) applyContextRemaps(loc.feats);
+}
+
 // ===== Run =====
 
 async function _run() {
@@ -182,8 +186,12 @@ async function _run() {
     const { locationGroups, unmappedTypes, totalSignals, tilesLoaded } =
         await _scanTiles(Object.keys(manifest.tiles));
 
-
     _setProgress(1, t('progress.analysing'));
+
+    // Apply context remaps before flagDuplicates so all downstream passes
+    // (duplicate detection, conflict detection, export) use the effective types.
+    _applyLocationContextRemaps(locationGroups);
+
     flagDuplicates(locationGroups);
     const { conflicts, conflictRows } = _detectConflicts(locationGroups);
 
@@ -327,11 +335,10 @@ function _detectConflicts(locationGroups) {
         //   2. Sort feats: originals first, outliers last.
         //   3. groupFeats() on sorted order - each outlier's type is already claimed
         //      by an original in the primary node, so the outlier goes to a secondary node.
-        markOutliers(loc.feats);
+        const outliers = markOutliers(loc.feats);
         const sortedFeats = [...loc.feats].sort(
-            (a, b) => (a.p._outlier ? 1 : 0) - (b.p._outlier ? 1 : 0)
+            (a, b) => (outliers.has(a) ? 1 : 0) - (outliers.has(b) ? 1 : 0)
         );
-        for (const f of loc.feats) delete f.p._outlier;
 
         const { nodeGroups, isMech } = groupFeats(sortedFeats);
         const detected = findConflicts(nodeGroups);

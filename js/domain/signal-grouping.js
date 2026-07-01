@@ -72,6 +72,25 @@ export function getHighestPriorityType(types) {
 // ===== Public API =====
 
 /**
+ * Derive the location group key from normalized signal properties.
+ * Shared by conflict-detector.js and tiles-worker.js.
+ *
+ * trackCode already embeds the line identifier so it alone, combined with
+ * milepost, provides a stable identity key. Falls back to lat/lng (6 decimal
+ * places, ~0.1 m precision) when either field is missing.
+ *
+ * @param {object} p    Normalized signal properties (from normalizeSignal()).
+ * @param {number} lat  Raw latitude.
+ * @param {number} lng  Raw longitude.
+ * @returns {string}
+ */
+export function locationGroupKey(p, lat, lng) {
+    return (p.trackCode && p.milepost)
+        ? `${p.trackCode}|${p.milepost}`
+        : `${lat.toFixed(6)},${lng.toFixed(6)}`;
+}
+
+/**
  * Determine whether a signal can join an existing node group.
  * Uses _catSlot() so signals with the same cat but different subcats
  * (e.g. two ETCS markers with distinct sub-functions) can share a node.
