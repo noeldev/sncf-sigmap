@@ -27,7 +27,7 @@ On first visit, all tiles are fetched and cached by the browser. On subsequent v
 - **Pinned signals hover preview**: hovering a pinned signal tag works identically — fast path when the signal is visible, async slow path otherwise
 - Active filters persist across sessions and are restored on next visit
 - `Supported types only` toggle to highlight signal types that have an OSM mapping (defined in `signal-types.js`)
-- **Validation tool** (`validate.html`): four independent analyses run in parallel — (1) co-location conflicts (signals at the same location and direction that would force multiple OSM nodes due to a duplicate category); (2) unmapped SNCF signal types (GAIA codes absent from `signal-types.js`); (3) wiki spec diff (cross-checks `signal-types.js` OSM `{cat, type}` pairs against `OpenRailwayMap/Tagging_in_France`, reporting types only in the wiki, only in code, and fully matched); (4) JOSM preset sync (loads the `French_Railway_Signalling.xml` presets — from a configured local file/URL or the published GitHub copy — and diffs every `railway:signal:*` value against the wiki, reporting values only in the presets and only in the wiki). The wiki cross-checks (3) and (4) compare all value namespaces except those listed in `excludedNamespaces` (default `ETCS:`, documented in a separate spec). Header stats summarise the four sections. Results export two ways from an **Export** menu, both built from a single cached node-generation pass so they stay node-for-node consistent: a standard **GeoJSON** FeatureCollection (immediate download), or **MapRoulette cooperative challenges** — RFC 7464 line-by-line GeoJSON, every task carrying a base64 `.osc` so JOSM pre-creates the node(s). The export writes one file per leading line-code digit (0–9), one regional challenge each. A modal lists the ten files with their informal SNCF region label and per-file task/node counts; the footer total follows the current selection (the grand total — the parity figure to cross-check against the GeoJSON node count — when all are selected). Files download separately, or, with **merge** ticked, are concatenated into a single challenge file (ticking all ten yields one whole-France challenge on demand). Each MapRoulette task feature also carries a display-only `code_voie` (the SNCF track code shared by the node's signals), deliberately kept out of the `.osc` so it never reaches OSM; a challenge instruction can then name the target track — e.g. `Attach this signal to track {{code_voie}}` — to disambiguate multi-track areas without leaving anything to clean up. Co-located nodes are offset by ~50 cm so JOSM keeps them distinct. Signal chips link directly to the main app via `/?networkId=`. Duplicate networkId+signalType+trackCode combinations are highlighted in the conflict table with the chip's group color. Outlier detection uses an isolation-score algorithm (minimum networkId delta from the cluster) to identify the suspect node among duplicate signal types. Active conflict filters (excluded categories, mechanical toggle) are serialised to the URL hash (`#exclude=main&mech=0`) and restored on page load.
+- **Validation tool** (`validate.html`): four independent analyses run in parallel — (1) co-location conflicts (signals at the same location and direction that would force multiple OSM nodes due to a duplicate category); (2) unmapped SNCF signal types (GAIA codes absent from `signal-types.js`); (3) wiki spec diff (cross-checks `signal-types.js` OSM `{cat, type}` pairs against `OpenRailwayMap/Tagging_in_France`, reporting types only in the wiki, only in code, and fully matched); (4) JOSM preset sync (loads the `French_Railway_Signalling.xml` presets — from a configured local file/URL or the published GitHub copy — and diffs every `railway:signal:*` value against the wiki, reporting values only in the presets and only in the wiki). The wiki cross-checks (3) and (4) compare all value namespaces except those listed in `excludedNamespaces` (default `ETCS:`, documented in a separate spec); the wiki spec is built from the main tagging page plus the signal-states sub-pages (`FR:Key:railway:signal:main:states` and `FR:Key:railway:signal:distant:states`), fetched in parallel so the complete set of state values is available for comparison. Before conflict detection, `applyContextRemaps()` patches GAIA type codes that are ambiguous at cross-border locations (e.g. `CV` adjacent to Swiss main signals is remapped to `CV (CH)` — the Swiss Räumungssignal — resolving what would otherwise be a false co-location conflict). Header stats summarise the four sections. Results export two ways from an **Export** menu, both built from a single cached node-generation pass so they stay node-for-node consistent: a standard **GeoJSON** FeatureCollection (immediate download), or **MapRoulette cooperative challenges** — RFC 7464 line-by-line GeoJSON, every task carrying a base64 `.osc` so JOSM pre-creates the node(s). The export writes one file per leading line-code digit (0–9), one regional challenge each. A modal lists the ten files with their informal SNCF region label and per-file task/node counts; the footer total follows the current selection (the grand total — the parity figure to cross-check against the GeoJSON node count — when all are selected). Files download separately, or, with **merge** ticked, are concatenated into a single challenge file (ticking all ten yields one whole-France challenge on demand). Each MapRoulette task feature also carries a display-only `code_voie` (the SNCF track code shared by the node's signals), deliberately kept out of the `.osc` so it never reaches OSM; a challenge instruction can then name the target track — e.g. `Attach this signal to track {{code_voie}}` — to disambiguate multi-track areas without leaving anything to clean up. Co-located nodes are offset by ~50 cm so JOSM keeps them distinct. Signal chips link directly to the main app via `/?networkId=`. Duplicate networkId+signalType+trackCode combinations are highlighted in the conflict table with the chip's group color. Outlier detection uses an isolation-score algorithm (minimum networkId delta from the cluster) to identify the suspect node among duplicate signal types; `markOutliers()` returns a `Set<feat>` (no mutation of `feat.p`) so the sort is V8-hidden-class safe. Active conflict filters (excluded categories, mechanical toggle) are serialised to the URL hash (`#exclude=main&mech=0`) and restored on page load.
 - **Pinned signals**: Ctrl+click any signal to bookmark it; pinned signals appear in the Filters tab; clicking a pinned signal tag flies the map to it
 - **Context menu**: right-click any signal for quick access to Zoom to, Pin/Unpin, Properties, Share, and Locate on Google Maps. The "Locate on Maps" item opens Google Maps centred on the signal coordinates — from there, Street View is one click away, useful for confirming a signal's physical presence on the ground. All items display a colour-coded SVG icon (blue `var(--accent2)`) aligned in a fixed column — items without icons keep the column space so all labels align
 - **URL parameters**: `?networkId=<id>` and `?lineCode=<code>` restore a specific signal or line on page load. networkId takes priority when both are present. Generated by the Share action — shareable links work across devices
@@ -179,6 +179,8 @@ Subscriptions to language changes go through `utils/observable.js` (`onLangChang
 ## Signal type mapping
 
 `js/signal-types.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
+
+The `BORDER_CONTEXTS` registry handles cross-border type disambiguation: some GAIA type codes are reused by the SNCF dataset to represent Swiss signals on French territory (e.g. `CV` normally maps to the French Carré Violet but, when co-located with Swiss main signals `S (CH)` / `CARRE (CH)`, it actually represents the Swiss evacuation signal Räumungssignal, CH-FDV:308). `applyContextRemaps(feats)` detects this context from the full set of types at a location and patches `signalType` in place before conflict detection and OSM tag generation. It is called in `validate.js` (once all location groups are built) and in `tiles-worker.js` (in `_buildGroups`, before the final `done` message).
 
 `signal-mapping.js` owns the translation of one or more co-located features into OSM nodes (`getOsmNodes`): it groups features by direction and category, handles category conflicts by creating additional nodes, and builds the final tag map for each resulting node. Unsupported types at a location are aggregated into a single `fixme=*` tag on the node that shares their direction.
 
@@ -349,18 +351,25 @@ sncf-sigmap/
 │   ├── signal-mapping.js         ← signal type → display category, OSM tag builder, getOsmNodes
 │   │                               (delegates to signal-grouping.js); contrastColor (W3C luminance,
 │   │                               shared between signal-popup.js and report-renderer.js)
-│   ├── signal-grouping.js        ← OSM node grouping logic (canFit, groupFeats, getTypePriority);
-│   │                               shared between signal-mapping.js and validate/conflict-detector.js;
+│   ├── signal-grouping.js        ← OSM node grouping logic (canFit, groupFeats, getTypePriority,
+│   │                               locationGroupKey); shared between signal-mapping.js,
+│   │                               validate/conflict-detector.js, and tiles-worker.js;
 │   │                               no translation.js dependency; handles linkedCat affinity
 │   ├── signal-popup.js           ← signal popup: two-tab display, OSM/JOSM export, help button,
 │   │                               OsmStatusChecker integration, interactive OSM Tags
 │   │                               diff mode (merge / undo via osm-diff.js + Ctrl+Z/Y)
 │   ├── signal-types.js           ← SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags);
-│   │                               optional linkedCat field groups co-located signals (e.g. FR:Z with its FR:TIV-D)
+│   │                               optional linkedCat field groups co-located signals (e.g. FR:Z with its FR:TIV-D);
+│   │                               BORDER_CONTEXTS registry for cross-border type remapping (Swiss signals
+│   │                               on French territory); applyContextRemaps(feats) patches signalType
+│   │                               in place when a border context is detected at a location (e.g. GAIA
+│   │                               type "CV" becomes "CV (CH)" when co-located with "S (CH)" or "CARRE (CH)")
 │   ├── sncf-convert.js           ← SNCF raw data normalization
 │   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters, sample badge)
 │   ├── tiles.js                  ← manifest loader, tile URL calculator, tile fetch helpers
-│   ├── tiles-worker.js           ← tile fetch, normalization, filtering, adaptive sampling (Web Worker)
+│   ├── tiles-worker.js           ← tile fetch, normalization, filtering, adaptive sampling (Web Worker);
+│   │                               applies applyContextRemaps() in _buildGroups() once the full location
+│   │                               set is known so the final done message carries effective signal types
 │   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
 │   ├── tooltip.js                ← hover tooltip builder; OSM indicators: dotted underline on mapped
 │   │                               ID Réseau, OSM logo badge on first row (via osm-index.js)
@@ -381,8 +390,9 @@ sncf-sigmap/
 │       │                                  applies row visibility, renumbers visible rows, serialises
 │       │                                  active filters to the URL hash and restores them on load
 │       ├── outlier-detector.js          ← isolation-score algorithm to identify the outlier instance
-│       │                                  among duplicate signal types at the same location; used by
-│       │                                  validate-main.js to guide the two-pass groupFeats() call
+│       │                                  among duplicate signal types at the same location; markOutliers()
+│       │                                  returns a Set<feat> (no mutation of feat.p) — used by validate.js
+│       │                                  to sort feats before the two-pass groupFeats() call
 │       ├── preset-parser.js             ← JOSM preset XML parser: flat [key, value] tuple extraction
 │       │                                  (combo/multiselect/list_entry; check value_on=yes/value_off=no
 │       │                                  defaults + disable_off); reference/chunk resolution with cycle
@@ -396,12 +406,20 @@ sncf-sigmap/
 │       ├── validate-config.example.json ← template for the local, git-ignored validate-config.json:
 │       │                                  presetSource, wikiSource (optional local file/URL),
 │       │                                  excludedNamespaces
-│       ├── validate-main.js             ← validation orchestrator: parallel wiki fetch + tile scan, plus
+│       ├── validate.js                  ← validation orchestrator: parallel wiki fetch + tile scan, plus
 │       │                                  the automatic preset cross-check; loads validate-config.json;
+│       │                                  applies applyContextRemaps() across all location groups before
+│       │                                  conflict detection so Swiss border signals are correctly classified;
 │       │                                  try/catch per tile so one failing tile never aborts the run
 │       └── wiki-parser.js               ← MediaWiki parse API (prop=wikitext) or local file via
-│                                          wikiSource; extracts all railway:signal {{Tag}}/{{TagValue}}
-│                                          values; API result cached in sessionStorage (1 h TTL)
+│                                          wikiSource; fetches the main tagging page and the signal-states
+│                                          sub-pages (FR:Key:railway:signal:main:states, distant:states) in
+│                                          parallel; _parseInto/_toSpec accumulator pattern: main page uses
+│                                          standaloneTagValues=false ({{TagValue}} only inside enum blocks
+│                                          to skip prose mentions), sub-pages use standaloneTagValues=true
+│                                          (all {{TagValue}} entries are table enumerations); shared _seen
+│                                          set deduplicates across passes; API result cached in
+│                                          sessionStorage (1 h TTL)
 ├── strings/
 │   ├── strings.en-us.json        ← English UI strings (main app)
 │   ├── strings.fr-fr.json        ← French UI strings (main app)
