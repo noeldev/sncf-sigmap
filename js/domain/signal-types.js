@@ -77,7 +77,7 @@ const SIGNAL_MAPPING = {
         type: "FR:S",
         properties: {
             form: "light",
-            plate: "FR:F",
+            type: "FR:F",
             shape: "FR:C",
             states: "FR:S;FR:A;FR:VL"
         }
@@ -126,7 +126,7 @@ const SIGNAL_MAPPING = {
     "CARRE A": {
         group: "distant",
         cat: "distant",
-        type: "FR:CARRE_A",
+        type: "FR:CARRE",
         properties: {
             form: "sign"
         }
@@ -333,7 +333,7 @@ const SIGNAL_MAPPING = {
     "PN...": {
         group: "crossing",
         cat: "crossing_hint",
-        type: "FR:PN_A",
+        type: "FR:PN",
         properties: {
             form: "sign"
         }
@@ -439,8 +439,8 @@ const SIGNAL_MAPPING = {
     },
     "BIMODE A": {
         group: "electricity",
-        cat: "dual_mode",
-        type: "FR:BIMODE_A",
+        cat: "bimode",
+        type: "FR:BIMODE",
         properties: {
             form: "sign",
             function: "entry"
@@ -448,7 +448,7 @@ const SIGNAL_MAPPING = {
     },
     "BIMODE": {
         group: "electricity",
-        cat: "dual_mode",
+        cat: "bimode",
         type: "FR:BIMODE",
         properties: {
             form: "sign",
@@ -459,8 +459,8 @@ const SIGNAL_MAPPING = {
     // Cab signalling
     "CAB E": {
         group: "trainProtection",
-        cat: "train_protection",
-        type: "FR:cab_signalling_advance",
+        cat: "train_protection_distant",
+        type: "FR:CAB",
         properties: {
             form: "sign"
         }
@@ -468,7 +468,7 @@ const SIGNAL_MAPPING = {
     "CAB R": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:cab_signalling_entry",
+        type: "FR:CAB",
         properties: {
             form: "sign",
             function: "entry"
@@ -477,7 +477,7 @@ const SIGNAL_MAPPING = {
     "CAB S": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:cab_signalling_exit",
+        type: "FR:/CAB",
         properties: {
             form: "sign",
             function: "exit"
@@ -530,7 +530,7 @@ const SIGNAL_MAPPING = {
     "ARRET A": {
         group: "stop",
         cat: "stop_distant",
-        type: "FR:ARRET_A",
+        type: "FR:ARRET",
         properties: {
             form: "sign"
         }
@@ -538,7 +538,7 @@ const SIGNAL_MAPPING = {
     "STOP A": {
         group: "stop",
         cat: "stop_distant",
-        type: "FR:STOP_A",
+        type: "FR:STOP",
         properties: {
             form: "sign"
         }
@@ -557,7 +557,7 @@ const SIGNAL_MAPPING = {
         group: "stop",
         cat: "stop",
         type: "FR:passenger_stop",
-        subcat: "classic",
+        subcat: "conventional",
         subtype: "FR:TT",
         allowMultiple: true,
         properties: {
@@ -568,9 +568,10 @@ const SIGNAL_MAPPING = {
     "ATC": {
         group: "stop",
         cat: "stop",
-        type: "FR:ATC",
+        type: "FR:ARRET",
         properties: {
-            form: "sign"
+            form: "sign",
+            for: "worksite_trains"
         }
     },
     "JAL ARRET": {
@@ -772,7 +773,7 @@ const SIGNAL_MAPPING = {
     // Miscellaneous
     "GABARIT": {
         group: "miscellaneous",
-        cat: "minor",
+        cat: "clearance",
         type: "FR:reduced_clearance",
         properties: {
             form: "sign"
@@ -780,10 +781,11 @@ const SIGNAL_MAPPING = {
     },
     "TUNNEL": {
         group: "miscellaneous",
-        cat: "minor",
+        cat: "structure",
         type: "FR:tunnel",
         properties: {
-            form: "sign"
+            form: "sign",
+            type: "tunnel"
         }
     },
     "SIFFLER": {
@@ -846,7 +848,7 @@ const SIGNAL_MAPPING = {
         type: "CH-FDV:l",
         properties: {
             form: "light",
-            states: "CH-FDV:519;CH-FDV:528;CH-FDV:529;CH-FDV:534;CH-FDV:536"
+            states: "CH-FDV:519;CH-FDV:528;CH-FDV:534;CH-FDV:536"
         }
     },
     // Räumungssignal (evacuation signal): co-located with S (CH) or CARRE (CH).
@@ -1072,7 +1074,7 @@ export function getGroupForType(signalType) {
 export function getGroupForCat(osmCat) {
     for (const def of Object.values(SIGNAL_MAPPING)) {
         if (def.cat === osmCat) return def.group;
-        // Slot key match for entries with subcat (e.g. "wrong_road:entry", "stop:classic").
+        // Slot key match for entries with subcat (e.g. "wrong_road:entry", "stop:conventional").
         if (def.subcat && `${def.cat}:${def.subcat}` === osmCat) return def.group;
     }
     return null;
