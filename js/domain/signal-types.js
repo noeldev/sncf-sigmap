@@ -204,21 +204,23 @@ const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit",
         type: "FR:marker",
-        subcat: "entry",
+        subcat: "main",
         subtype: "FR:Z",
         linkedTo: "TIV D FIXE",
         properties: {
             form: "sign",
+            function: "entry"
         }
     },
     "R": {
         group: "speedLimit",
         cat: "speed_limit",
         type: "FR:marker",
-        subcat: "exit",
+        subcat: "main",
         subtype: "FR:R",
         properties: {
-            form: "sign"
+            form: "sign",
+            function: "exit"
         }
     },
     // The Km sign marks the transition point of a speed limit zone.
@@ -477,7 +479,7 @@ const SIGNAL_MAPPING = {
     "CAB S": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "FR:/CAB",
+        type: "FR:CAB",
         properties: {
             form: "sign",
             function: "exit"
@@ -561,8 +563,7 @@ const SIGNAL_MAPPING = {
         subtype: "FR:TT",
         allowMultiple: true,
         properties: {
-            form: "sign",
-            for: "head_of_train"
+            form: "sign"
         }
     },
     "ATC": {
@@ -604,15 +605,16 @@ const SIGNAL_MAPPING = {
     "APPROCHETS": {
         group: "station",
         cat: "station_distant",
-        type: "FR:facility_approach_simplified",
+        type: "FR:facility",
         properties: {
-            form: "sign"
+            form: "sign",
+            type: "FR:VUSS"
         }
     },
     "APPROETSA": {
         group: "station",
         cat: "station_distant",
-        type: "FR:facility_approach",
+        type: "FR:facility",
         properties: {
             form: "sign"
         }
@@ -620,9 +622,10 @@ const SIGNAL_MAPPING = {
     "LIMITETS": {
         group: "station",
         cat: "station",
-        type: "FR:facility_boundary",
+        type: "FR:facility",
         properties: {
-            form: "sign"
+            form: "sign",
+            type: "boundary"
         }
     },
 
@@ -644,7 +647,7 @@ const SIGNAL_MAPPING = {
         linkedTo: ["CARRE", "CV"],
         properties: {
             type: "allow",
-            form: "plate"
+            form: "sign"
         }
     },
     "DD": {
@@ -654,7 +657,7 @@ const SIGNAL_MAPPING = {
         linkedTo: ["CARRE", "CV"],
         properties: {
             type: "request",
-            form: "plate"
+            form: "sign"
         }
     },
     "REP ITIN": {
