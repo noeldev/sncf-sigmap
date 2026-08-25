@@ -57,12 +57,12 @@ const SIGNAL_MAPPING = {
     "CV": {
         group: "shunting",
         cat: "main",
-        type: "FR:CV",
+        type: "FR:Cv",
         default: {
             properties: {
                 form: "light",
                 shape: "FR:C",
-                states: "FR:CV;FR:M"
+                states: "FR:Cv;FR:M"
             }
         },
         mechanical: {
@@ -126,7 +126,7 @@ const SIGNAL_MAPPING = {
     "CARRE A": {
         group: "distant",
         cat: "distant",
-        type: "FR:CARRE",
+        type: "FR:C",
         properties: {
             form: "sign"
         }
@@ -262,7 +262,7 @@ const SIGNAL_MAPPING = {
         group: "speedLimit",
         cat: "speed_limit_distant",
         type: "FR:speed_indicator",
-        subcat: "freight:condition",
+        subcat: "restriction",
         subtype: "FR:L",
         linkedTo: "TIV PENDIS",
         properties: {
@@ -604,8 +604,8 @@ const SIGNAL_MAPPING = {
     },
     "APPROCHETS": {
         group: "station",
-        cat: "station_distant",
-        type: "FR:facility",
+        cat: "facility_distant",
+        type: "FR:marker",
         properties: {
             form: "sign",
             type: "FR:VUSS"
@@ -613,19 +613,18 @@ const SIGNAL_MAPPING = {
     },
     "APPROETSA": {
         group: "station",
-        cat: "station_distant",
-        type: "FR:facility",
+        cat: "facility_distant",
+        type: "FR:marker",
         properties: {
             form: "sign"
         }
     },
     "LIMITETS": {
         group: "station",
-        cat: "station",
-        type: "FR:facility",
+        cat: "facility",
+        type: "FR:boundary",
         properties: {
-            form: "sign",
-            type: "boundary"
+            form: "sign"
         }
     },
 
@@ -856,7 +855,7 @@ const SIGNAL_MAPPING = {
     },
     // Räumungssignal (evacuation signal): co-located with S (CH) or CARRE (CH).
     // The SNCF dataset uses the GAIA type "CV" for this signal, which is
-    // disambiguated from the French Carre Violet (FR:CV) by Swiss context
+    // disambiguated from the French Carre Violet (FR:Cv) by Swiss context
     // detection in conflict-detector.js via getSwissContextRemap().
     "CV (CH)": {
         group: "shunting",
