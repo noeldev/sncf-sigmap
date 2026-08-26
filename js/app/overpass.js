@@ -4,17 +4,29 @@
 /**
  * overpass.js — Pure Overpass API client.
  *
- * Constructs and executes Overpass QL queries against the public API.
+ * Constructs and executes Overpass QL queries against the API. The actual
+ * network call is routed through overpass-scheduler.js so the whole app never
+ * opens more than a fixed number of Overpass connections at once.
  *
  * Public API:
  * fetchNodesByRef(queries, bboxString, signal?) — query OSM nodes by (refTag, networkId) pairs
  * fetchSignalsInBbox(bboxString, signal) -- fetch all railway=signal nodes in a bbox (for viewport-wide scans)
  */
 
+import { schedule } from './overpass-scheduler.js';
+
 // ===== Configuration =====
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const OVERPASS_TIMEOUT = 20; // seconds — passed directly to the Overpass server
+// Same-origin proxy served by netlify/functions/overpass.js. It forwards the
+// query to overpass-api.de server-side with a descriptive User-Agent, which
+// avoids the browser CORS restriction and the anti-scraper 406 rejection.
+const OVERPASS_URL = '/api/overpass';
+
+// Server-side Overpass execution budget, in seconds. Kept below the Netlify
+// free-tier function timeout (10 s) so Overpass returns a clean timeout that
+// the proxy can relay, instead of the function being hard-killed. Raise it if
+// the proxy runs on a plan with a longer function timeout.
+const OVERPASS_TIMEOUT = 8;
 
 // ===== Public API =====
 
@@ -90,14 +102,18 @@ function _buildBboxQuery(bboxString) {
         + `out body;`;
 }
 
-/** Execute the network request. */
+/**
+ * Execute the network request through the global concurrency gate.
+ * The AbortSignal is carried by the fetch itself, so a request cancelled while
+ * still queued rejects without ever reaching the network.
+ */
 async function _fetchOverpass(query, signal) {
-    const response = await fetch(OVERPASS_URL, {
+    const response = await schedule(() => fetch(OVERPASS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
         signal,
-    });
+    }));
 
     if (!response.ok) throw new Error(`Overpass HTTP Error: ${response.status}`);
     return response.json();

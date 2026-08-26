@@ -1,10 +1,15 @@
 [build]
   publish = "."
   # Generates js/config.local.js from the JAWG_API_KEY environment variable.
-  # Set that variable in: Netlify dashboard → Site → Project configuration → Environment variables.
+  # Set that variable in: Netlify dashboard -> Site -> Project configuration -> Environment variables.
   command = """
     echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/config.local.js
   """
+
+# Server-side functions live here. Declared explicitly because publish = "."
+# would otherwise treat the whole repo root (including netlify/) as static assets.
+[functions]
+  directory = "netlify/functions"
 
 [[headers]]
   for = "/"
@@ -19,7 +24,7 @@
     Cache-Control = "no-cache"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
-    
+
 [[headers]]
   for = "/css/*"
   [headers.values]
@@ -45,7 +50,7 @@
     must-revalidate'''
 
 # Tile files are stored as .json.gz on disk.
-# JS requests .json — Netlify rewrites to .json.gz and adds decompression headers
+# JS requests .json - Netlify rewrites to .json.gz and adds decompression headers
 # so fetch().json() works transparently, identical to Caddy local dev.
 [[redirects]]
   from = "/data/tiles/*"
