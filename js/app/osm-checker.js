@@ -33,8 +33,12 @@ import { isSupported, getOsmNodes } from '../domain/signal-mapping.js';
 import { getOsmNode, primeFromPopup } from './osm-index.js';
 import { getIdKey, fetchNodesByRef } from './overpass.js';
 
-const MAX_RETRIES = 5;
-const RETRY_DELAY = 2000;
+const MAX_RETRIES = 3;
+
+// Base delay for the exponential retry backoff (2s, 4s, 8s across the retries).
+// Few, well-spaced retries keep the serverless proxy invocation budget under
+// control when Overpass is briefly unavailable.
+const RETRY_BASE_DELAY = 2000;
 
 /** Half-width of the Overpass query bbox around a signal group.
  *  0.001 decimal degrees ≈ 111 m at the equator — a comfortable margin
@@ -314,8 +318,12 @@ export class OsmStatusChecker {
         if (this.#retryCount >= MAX_RETRIES) return;
         if (!this.#statuses.some(s => this.#isError(s))) return;
 
+        // Exponential backoff: a temporary Overpass outage must not multiply
+        // proxy invocations. After MAX_RETRIES the popup shows ERROR and the
+        // user can trigger a manual retry.
+        const delay = RETRY_BASE_DELAY * (2 ** this.#retryCount);
         this.#retryCount++;
-        this.#retryTimer = setTimeout(() => this.#attemptCheck(), RETRY_DELAY);
+        this.#retryTimer = setTimeout(() => this.#attemptCheck(), delay);
     }
 
     #clearRetryTimer() {

@@ -109,6 +109,9 @@ osm-checker.js
   ├── osm-index.js        (getOsmNode — instant resolution from permanent index; primeFromPopup — cross-feed on IN_OSM confirmation)
   └── signal-mapping.js   (getOsmNodes — mast grouping, getSignalId, isSupported)
 
+overpass.js
+  └── overpass-scheduler.js  (schedule — global concurrency gate; osm-index and osm-checker inherit it through overpass.js)
+
 tooltip.js
   └── osm-index.js        (getOsmNode — dotted underline on mapped IDs; group OSM badge on first row)
 
@@ -255,7 +258,10 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `sign
 sncf-sigmap/
 ├── index.html
 ├── validate.html                 ← validation tool (co-location conflicts, unmapped types, wiki spec diff, JOSM preset sync)
-├── netlify.toml                  ← Netlify configuration file (gzip headers for tiles)
+├── netlify.toml                  ← Netlify config: gzip headers for tiles, functions directory
+├── netlify/
+│   └── functions/
+│       └── overpass-proxy.js     ← server-side Overpass relay (adds User-Agent; avoids CORS/406)
 ├── robots.txt
 ├── assets/
 │   ├── png/                      ← SNCF logos, favicon, basemap thumbnails
@@ -328,7 +334,7 @@ sncf-sigmap/
 │   │                               is authoritative source read by _buildScanContext()
 │   ├── markup.js                 ← Markdown-like markup parser for string compilation (About tab only)
 │   ├── osm-checker.js            ← OSM state machine: multi-node grouping, IN_OSM session cache,
-│   │                               NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry
+│   │                               NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry (exponential backoff)
 │   ├── osm-index.js              ← pure data service: permanent OSM signal presence index; no Leaflet
 │   │                               dependency, no guard logic; fetchViewport(bbox, paddedBbox) checks coverage
 │   │                               and runs Overpass scan; getOsmNode() for tooltip and checker;
@@ -336,7 +342,9 @@ sncf-sigmap/
 │   ├── osm-diff.js               ← tag comparison + editable target state
 │   │                               (merge / undo / mergeAll / undoAll + history stack)
 │   │                               used by signal-popup.js for the OSM Tags diff mode
-│   ├── overpass.js               ← pure Overpass API client (no cache, no state, AbortSignal-aware)
+│   ├── overpass.js               ← Overpass QL client; calls the same-origin /api/overpass proxy
+│   │                               through overpass-scheduler.js (AbortSignal-aware)
+│   ├── overpass-scheduler.js     ← global concurrency gate: caps parallel Overpass calls, queues the rest
 │   ├── pins.js                   ← pinned signals management, panel, navigation, onPinsChange observable;
 │   │                               clipboard Copy/Cut/Paste/Delete menu via chevron button;
 │   │                               dataType = FIELD.NETWORK_ID compatible with Network ID filter
@@ -512,6 +520,8 @@ localhost {
     tls internal
 }
 ```
+
+> **Note**: the client calls the same-origin `/api/overpass` proxy. Plain Caddy does not serve that path, so OSM presence checks are inactive locally unless you add a `reverse_proxy` for `/api/overpass` to `overpass-api.de` (with a descriptive `User-Agent`). A Netlify deploy preview exercises the real function.
 
 ### Testing with Netlify locally
 
