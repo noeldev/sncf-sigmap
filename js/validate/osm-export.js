@@ -43,11 +43,19 @@
  *   not assembled from strings, so attribute values are escaped by the
  *   serializer and no XML markup lives in this file.
  *
- *   MapRoulette task features also carry a display-only code_voie property (the
- *   SNCF track code shared by the node's signals). It is NOT written to the .osc,
- *   so it never reaches OSM; it only lets a challenge instruction name the target
- *   track, e.g. "Attach this signal to track {{code_voie}}". This is the one
- *   place a task feature and its .osc differ, and it is deliberate.
+ *   MapRoulette task features also carry display-only code_voie and idreseau
+ *   properties (the SNCF track code shared by the node's signals, and the
+ *   comma-joined SNCF network id(s) of those signals). They are NOT written to
+ *   the .osc, so they never reach OSM; they only let a challenge instruction name
+ *   the target track or signal, e.g. "Attach this signal to track {{code_voie}}"
+ *   or "idreseau: {{idreseau}}". This is the one place a task feature and its
+ *   .osc differ, and it is deliberate.
+ *
+ *   The .osc additionally drops the :ref of any omitRef def (the generic
+ *   passenger_stop): its idreseau stays in the GeoJSON (the only carrier there)
+ *   but must not reach OSM via the cooperative change -- the instruction surfaces
+ *   it, and the mapper writes it under the chosen subcat when classifying. So the
+ *   GeoJSON keeps the tag, the .osc omits it: node.oscOmit lists those keys.
  *
  * Async:
  *   The heavy loops await a macrotask every BATCH_SIZE items so the shared
@@ -65,12 +73,13 @@
  *   buildFeatureCollection(nodeSets, opts)     -> object   (GeoJSON)
  *   buildMapRouletteChallenges(nodeSets, opts) -> Promise<Array<ChallengeFile>>
  *
- *   NodeSet       = { lineCode: string, nodes: Array<{ lat, lng, tags, trackCode }> }
+ *   NodeSet       = { lineCode: string, nodes: Array<{ lat, lng, tags, trackCode, networkId, oscOmit }> }
  *   ChallengeFile = { bucket, region, taskCount, nodeCount, content }
  */
 
 import { APP_ID, NODE_OFFSET_DEG } from '../core/config.js';
-import { buildNodeTags } from '../domain/osm-tags.js';
+import { buildNodeTags, getSignalId } from '../domain/osm-tags.js';
+import { getMappingEntry } from '../domain/signal-types.js';
 import { groupFeats } from '../domain/signal-grouping.js';
 
 // ===== Constants =====
@@ -134,6 +143,8 @@ export async function generateNodeSets(locationGroups, { onProgress, batchSize =
             lng: loc.lng,
             tags: buildNodeTags(ng.feats, { isMech }),
             trackCode: _uniformTrackCode(ng.feats),
+            networkId: _networkId(ng.feats),
+            oscOmit: _oscOmitKeys(ng.feats),
         }));
         sets.push({ lineCode: _lineCodeOf(loc), nodes });
 
@@ -230,6 +241,33 @@ function _uniformTrackCode(feats) {
     return feats.every(f => f.p.trackCode === first) ? first : '';
 }
 
+/**
+ * The SNCF network id(s) (idreseau) of a node's signals, comma-joined, or ''
+ * when none. Display-only, like code_voie: surfaced in a MapRoulette instruction
+ * (e.g. "idreseau: {{idreseau}}"), never written to the .osc.
+ */
+function _networkId(feats) {
+    return feats.map(f => f.p.networkId).filter(Boolean).join(', ');
+}
+
+/**
+ * The :ref tag keys to keep in the GeoJSON but drop from the .osc, for defs
+ * flagged omitRef (the generic passenger_stop). Its idreseau is a provisional
+ * marker id that must not reach OSM via the cooperative change: the MapRoulette
+ * instruction surfaces it, and the mapper writes it under the chosen subcat when
+ * classifying. Empty for every other node.
+ */
+function _oscOmitKeys(feats) {
+    const omit = new Set();
+    for (const feat of feats) {
+        if (getMappingEntry(feat.p.signalType)?.omitRef) {
+            const key = getSignalId(feat.p.signalType);
+            if (key) omit.add(key);
+        }
+    }
+    return omit;
+}
+
 /** Convert one node into a GeoJSON Point Feature with OSM key=value properties. */
 function _toFeature(node, extra) {
     const properties = Object.fromEntries(node.tags);
@@ -242,14 +280,18 @@ function _toFeature(node, extra) {
 }
 
 /**
- * Task feature for MapRoulette: the OSM tags plus a display-only code_voie
- * property. This is intentionally NOT written to the .osc, so it never reaches
- * OSM; it only lets the challenge instruction surface the target track, e.g.
- * "Attach this signal to track {{code_voie}}". Omitted when the track code is
- * unknown or not shared by the node's signals.
+ * Task feature for MapRoulette: the OSM tags plus display-only code_voie and
+ * idreseau properties. These are intentionally NOT written to the .osc, so they
+ * never reach OSM; they only let the challenge instruction surface the target
+ * track or signal, e.g. "Attach this signal to track {{code_voie}}" or
+ * "idreseau: {{idreseau}}". Each is omitted when its value is empty (track code
+ * unknown or not shared; no network id).
  */
 function _toMapRouletteFeature(node) {
-    return _toFeature(node, node.trackCode ? { code_voie: node.trackCode } : undefined);
+    const extra = {};
+    if (node.trackCode) extra.code_voie = node.trackCode;
+    if (node.networkId) extra.idreseau = node.networkId;
+    return _toFeature(node, Object.keys(extra).length ? extra : undefined);
 }
 
 // ===== Bucketing / regions =====
@@ -332,6 +374,7 @@ function _buildOsc(nodes) {
         el.setAttribute('version', '0');
         el.setAttribute('changeset', '0');
         for (const [k, v] of node.tags) {
+            if (node.oscOmit?.has(k)) continue;   // omitRef :ref: kept in GeoJSON, dropped from the .osc
             const tag = doc.createElement('tag');
             tag.setAttribute('k', k);
             tag.setAttribute('v', v);

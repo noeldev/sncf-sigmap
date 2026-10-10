@@ -44,8 +44,7 @@ const SIGNAL_MAPPING = {
         default: {
             properties: {
                 form: "light",
-                shape: "FR:C",
-                states: "FR:C;FR:A;FR:VL"
+                states: "FR:C"
             }
         },
         mechanical: {
@@ -61,8 +60,7 @@ const SIGNAL_MAPPING = {
         default: {
             properties: {
                 form: "light",
-                shape: "FR:C",
-                states: "FR:Cv;FR:M"
+                states: "FR:Cv"
             }
         },
         mechanical: {
@@ -78,8 +76,7 @@ const SIGNAL_MAPPING = {
         properties: {
             form: "light",
             type: "FR:F",
-            shape: "FR:C",
-            states: "FR:S;FR:A;FR:VL"
+            states: "FR:S"
         }
     },
     "GA": {
@@ -99,7 +96,7 @@ const SIGNAL_MAPPING = {
         default: {
             properties: {
                 form: "light",
-                states: "FR:D;FR:A;FR:VL"
+                states: "FR:D"
             }
         },
         mechanical: {
@@ -113,7 +110,7 @@ const SIGNAL_MAPPING = {
         default: {
             properties: {
                 form: "light",
-                states: "FR:A;FR:VL"
+                states: "FR:A"
             }
         },
         mechanical: {
@@ -238,8 +235,12 @@ const SIGNAL_MAPPING = {
     },
 
     "CHEVRON": {
-        group: "miscellaneous",
-        cat: "minor",
+        // group: "miscellaneous",
+        // cat: "minor",
+        // group: "stop",
+        // cat: "stop",
+        group: "speedLimit",
+        cat: "speed_limit",
         type: "FR:chevron",
         properties: {
             form: "sign"
@@ -266,8 +267,7 @@ const SIGNAL_MAPPING = {
         subtype: "FR:L",
         linkedTo: "TIV PENDIS",
         properties: {
-            form: "sign",
-            for: "locomotive"
+            form: "sign"
         }
     },
     "TIV PENEXE": {
@@ -317,8 +317,7 @@ const SIGNAL_MAPPING = {
         type: "FR:TLD",
         allowMultiple: true,
         properties: {
-            form: "light",
-            shape: "double"
+            form: "light"
         }
     },
     "DESTI": {
@@ -510,7 +509,7 @@ const SIGNAL_MAPPING = {
     "TECS": {
         group: "wrongRoad",
         cat: "wrong_road",
-        type: "FR:transition",
+        type: "FR:IPCS",
         subcat: "entry",
         subtype: "FR:TECS",
         properties: {
@@ -520,7 +519,7 @@ const SIGNAL_MAPPING = {
     "TSCS": {
         group: "wrongRoad",
         cat: "wrong_road",
-        type: "FR:transition",
+        type: "FR:IPCS",
         subcat: "exit",
         subtype: "FR:TSCS",
         properties: {
@@ -559,12 +558,8 @@ const SIGNAL_MAPPING = {
         group: "stop",
         cat: "stop",
         type: "FR:passenger_stop",
-        subcat: "conventional",
-        subtype: "FR:TT",
         allowMultiple: true,
-        properties: {
-            form: "sign"
-        }
+        omitRef: true
     },
     "ATC": {
         group: "stop",
@@ -703,7 +698,7 @@ const SIGNAL_MAPPING = {
         subcat: "depot",
         subtype: "FR:D",
         properties: {
-            form: "sign"
+            form: "light"
         }
     },
     "G": {
@@ -713,7 +708,7 @@ const SIGNAL_MAPPING = {
         subcat: "stabling",
         subtype: "FR:G",
         properties: {
-            form: "sign"
+            form: "light"
         }
     },
     "IMP": {
