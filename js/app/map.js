@@ -218,8 +218,8 @@ function _makeBasemapBtn(key, def, tpl) {
     btn.classList.toggle('active', key === _current);
     btn.dataset.map = key;
     const thumb = btn.querySelector('.basemap-thumb');
+    thumb.addEventListener('error', () => { thumb.style.display = 'none'; }, { once: true });
     thumb.src = def.thumb;
-    thumb.onerror = function () { this.style.display = 'none'; };
     btn.querySelector('.basemap-label').textContent = t(def.labelKey);
     // Click is handled by the delegated listener on #basemap-list in _initMap.
     return btn;

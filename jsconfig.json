@@ -2,8 +2,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "target": "ESNext",
-    "checkJs": false,
-    "baseUrl": "."
+    "checkJs": false
   },
   "include": [ "js/**/*.js" ]
 }
