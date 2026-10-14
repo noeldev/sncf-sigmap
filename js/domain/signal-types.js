@@ -200,8 +200,8 @@ const SIGNAL_MAPPING = {
     "Z": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:marker",
-        subcat: "main",
+        type: "FR:speed_indicator",
+        subcat: "marker",
         subtype: "FR:Z",
         linkedTo: "TIV D FIXE",
         properties: {
@@ -212,8 +212,8 @@ const SIGNAL_MAPPING = {
     "R": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:marker",
-        subcat: "main",
+        type: "FR:speed_indicator",
+        subcat: "marker",
         subtype: "FR:R",
         properties: {
             form: "sign",
@@ -225,7 +225,7 @@ const SIGNAL_MAPPING = {
     "REPER VIT": {
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:marker",
+        type: "FR:speed_indicator",
         subcat: "transition",
         subtype: "FR:Km",
         linkedTo: ["TIV D FIXE", "TIVD B FIX", "TIVD C FIX", "Z", "R"],
@@ -235,13 +235,11 @@ const SIGNAL_MAPPING = {
     },
 
     "CHEVRON": {
-        // group: "miscellaneous",
-        // cat: "minor",
-        // group: "stop",
-        // cat: "stop",
         group: "speedLimit",
         cat: "speed_limit",
-        type: "FR:chevron",
+        type: "FR:speed_indicator",
+        subcat: "switch",
+        subtype: "FR:chevron",
         properties: {
             form: "sign"
         }
