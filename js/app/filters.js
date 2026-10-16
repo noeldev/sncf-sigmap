@@ -25,6 +25,12 @@
  *   searchLineCodes() in signal-data.js. Accent-insensitive, case-insensitive.
  *   Dropdown items carry a subtitle (line label) for display; tags show a
  *   tooltip with the full line name from getLineLabel().
+ *
+ * livePrefixMin fields (networkId):
+ *   While the search input holds at least livePrefixMin characters, the map
+ *   also shows the signals whose value starts with the input, in addition to
+ *   the selected values (pills). The prefix is never persisted and is dropped
+ *   as soon as the input is cleared or a value is selected.
  */
 
 import { MIN_SEARCH_THRESHOLD } from '../core/config.js';
@@ -194,14 +200,24 @@ export function filterByGroup(group) {
 }
 
 /**
- * Return active filter values in the format expected by tiles.worker.js.
- * @returns {Record<string, string[]>}  Field name → selected values.
+ * Return the active filters in the format expected by tiles-worker.js.
+ *   values   -- field name -> selected values (pills).
+ *   prefixes -- field name -> live prefix typed in the search input.
+ * Within a field, a signal matches a selected value OR the prefix; fields
+ * are combined with AND.
+ * @returns {{ values: Record<string, string[]>, prefixes: Record<string, string> }}
  */
 export function getActiveFiltersForWorker() {
-    const out = {};
+    const values = {};
     for (const [f, vals] of Object.entries(_activeFilters))
-        if (vals.size > 0) out[f] = [...vals];
-    return out;
+        if (vals.size > 0) values[f] = [...vals];
+
+    const prefixes = {};
+    for (const def of _defs) {
+        const prefix = _livePrefix(def);
+        if (prefix) prefixes[def.field] = prefix;
+    }
+    return { values, prefixes };
 }
 
 /**
@@ -243,12 +259,13 @@ export function addFilterField(key) {
 }
 
 /**
- * Return the number of fields that have at least one active filter value.
+ * Return the number of fields that filter the map: at least one active value
+ * or a live prefix in the search input.
  * Used by app.js to update the status bar after any filter change.
  * @returns {number}
  */
 export function getActiveFilterCount() {
-    return Object.values(_activeFilters).filter(s => s.size > 0).length;
+    return _defs.filter(d => _activeFilters[d.field]?.size > 0 || _livePrefix(d)).length;
 }
 
 /**
@@ -328,6 +345,17 @@ function _translateFilterValue(field, val) {
     return translated !== key ? translated : val;
 }
 
+
+/**
+ * Return the live prefix of a filter definition, or null when the field does
+ * not support it or the search input is shorter than its livePrefixMin.
+ * @param {{ field: string, search: string }} def
+ * @returns {string|null}
+ */
+function _livePrefix(def) {
+    const min = _fieldDef(def.field)?.livePrefixMin ?? 0;
+    return min > 0 && def.search.length >= min ? def.search : null;
+}
 
 /**
  * Ask the user to confirm clearing filter values.
@@ -502,8 +530,8 @@ function _onToggleMappedOnly(def, checked) {
 
 /**
  * onSearch handler — sanitizes the query (numericOnly fields strip non-digits),
- * keeps the visible input in sync when the sanitized value differs, and refreshes
- * the dropdown.
+ * keeps the visible input in sync when the sanitized value differs, refreshes
+ * the dropdown, and refreshes the map when the live prefix changes.
  * @param {{ field: string, search: string, panel: FilterPanel }} def
  * @param {number}      idx
  * @param {object|null} fieldMeta
@@ -512,9 +540,15 @@ function _onToggleMappedOnly(def, checked) {
 function _onSearch(def, idx, fieldMeta, query) {
     const sanitized = fieldMeta?.numericOnly ? query.replace(/\D/g, '') : query;
     if (sanitized !== query) def.panel?.setSearch(sanitized);
+
+    const previousPrefix = _livePrefix(def);
     def.search = sanitized;
     _refreshDropdown(idx);
     _openDropdown(idx);
+
+    // The live prefix filters the map: refresh it when the prefix changes.
+    // Nothing to persist, so _onChange is called directly instead of _commit.
+    if (_livePrefix(def) !== previousPrefix) _onChange?.();
 }
 
 function _handleTagClickGlobal(val) {

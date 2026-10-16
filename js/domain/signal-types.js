@@ -188,7 +188,7 @@ const SIGNAL_MAPPING = {
         cat: "speed_limit_distant",
         type: "FR:P",
         properties: {
-            form: "sign"
+            form: "board"
         }
     },
 
