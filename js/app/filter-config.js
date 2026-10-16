@@ -41,7 +41,12 @@ import { FIELD } from './field-keys.js';
  *   valueOrder      {string[]} — explicit sort order for dropdown items.
  *   globalSearch    {boolean}  — searches the full index.json table, not tile data.
  *   searchThreshold {number}   — min-char threshold before showing suggestions.
- */
+ *   livePrefixMin   {number}   - enables the live prefix filter: once the search
+ *                                input holds at least this many characters, the map
+ *                                also shows the signals whose value starts with it,
+ *                                in addition to the selected values (pills). Clearing
+ *                                the input restores the normal behavior.
+*/
 export const FILTER_FIELDS_META = Object.freeze({
     [FIELD.SIGNAL_TYPE]: {
         labelKey: 'fields.signalType',
@@ -70,6 +75,7 @@ export const FILTER_FIELDS_META = Object.freeze({
         numericOnly: true,
         globalSearch: true,
         searchThreshold: MIN_SEARCH_THRESHOLD,
+        livePrefixMin: 4,
     },
 });
 

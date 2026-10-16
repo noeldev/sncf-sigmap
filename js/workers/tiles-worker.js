@@ -7,6 +7,12 @@
  * Incoming message:
  *   { type, urls, activeFilters, bounds, forceOverview }
  *
+ *   activeFilters = { values, prefixes } (see filters.js getActiveFiltersForWorker):
+ *     values   -- field -> selected values (pills).
+ *     prefixes -- field -> live prefix typed in the search input.
+ *   Within a field a signal matches a selected value OR the prefix; fields
+ *   are combined with AND.
+ *
  * Outgoing messages (via workerPost -- see worker-contract.js):
  *   { source, status: 'partial', groups, loaded, total }  -- detail mode only
  *   { source, status: 'progress', key, args }
@@ -213,11 +219,20 @@ function _spatialSampleGroups(groups, maxCount) {
 
 // ===== Private helpers =====
 
-/** Convert activeFilters arrays to Sets for O(1) lookups. */
-function _buildFilterSets(activeFilters) {
+/**
+ * Convert activeFilters into per-field matchers: selected values become a Set
+ * for O(1) lookups, the live prefix (if any) is kept as a string.
+ * @returns {Record<string, { values: Set<string>|null, prefix: string|null }>}
+ */
+function _buildFilterSets({ values = {}, prefixes = {} } = {}) {
     const sets = {};
-    for (const [field, vals] of Object.entries(activeFilters)) {
-        if (Array.isArray(vals) && vals.length > 0) sets[field] = new Set(vals);
+    for (const [field, vals] of Object.entries(values)) {
+        if (Array.isArray(vals) && vals.length > 0) sets[field] = { values: new Set(vals), prefix: null };
+    }
+    for (const [field, prefix] of Object.entries(prefixes)) {
+        if (!prefix) continue;
+        sets[field] ??= { values: null, prefix: null };
+        sets[field].prefix = prefix;
     }
     return sets;
 }
@@ -288,7 +303,9 @@ function _buildGroups(byKey, filterSets) {
 /** Returns true when signal properties satisfy all active filters. */
 function _matches(p, filterSets) {
     for (const field in filterSets) {
-        if (!filterSets[field].has(String(p[field] ?? ''))) return false;
+        const { values, prefix } = filterSets[field];
+        const value = String(p[field] ?? '');
+        if (!values?.has(value) && !(prefix && value.startsWith(prefix))) return false;
     }
     return true;
 }
