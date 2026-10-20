@@ -43,8 +43,7 @@ const SIGNAL_MAPPING = {
         type: "FR:C",
         default: {
             properties: {
-                form: "light",
-                states: "FR:C"
+                form: "light"
             }
         },
         mechanical: {
@@ -59,8 +58,7 @@ const SIGNAL_MAPPING = {
         type: "FR:Cv",
         default: {
             properties: {
-                form: "light",
-                states: "FR:Cv"
+                form: "light"
             }
         },
         mechanical: {
@@ -75,8 +73,7 @@ const SIGNAL_MAPPING = {
         type: "FR:S",
         properties: {
             form: "light",
-            type: "FR:F",
-            states: "FR:S"
+            type: "FR:F"
         }
     },
     "GA": {
@@ -95,8 +92,7 @@ const SIGNAL_MAPPING = {
         type: "FR:D",
         default: {
             properties: {
-                form: "light",
-                states: "FR:D"
+                form: "light"
             }
         },
         mechanical: {
@@ -109,8 +105,7 @@ const SIGNAL_MAPPING = {
         type: "FR:A",
         default: {
             properties: {
-                form: "light",
-                states: "FR:A"
+                form: "light"
             }
         },
         mechanical: {
@@ -482,22 +477,12 @@ const SIGNAL_MAPPING = {
             function: "exit"
         }
     },
-    "REP TVM": {
-        group: "trainProtection",
-        cat: "train_protection",
-        type: "FR:marker",
-        subcat: "main",
-        subtype: "stop_marker",
-        properties: {
-            form: "sign"
-        }
-    },
     "REP TGV": {
         group: "trainProtection",
         cat: "train_protection",
-        type: "ETCS:marker",
+        type: "FR:TVM",
         subcat: "main",
-        subtype: "ETCS:stop_marker",
+        subtype: "stop_marker",
         properties: {
             form: "sign"
         }
@@ -601,7 +586,7 @@ const SIGNAL_MAPPING = {
         type: "FR:marker",
         properties: {
             form: "sign",
-            type: "FR:VUSS"
+            type: "simplified"
         }
     },
     "APPROETSA": {
@@ -823,8 +808,7 @@ const SIGNAL_MAPPING = {
         type: "CH-FDV:l",
         properties: {
             form: "light",
-            function: "entry",
-            states: "CH-FDV:524;CH-FDV:530;CH-FDV:542;CH-FDV:545"
+            function: "entry"
         }
     },
     "S (CH)": {
@@ -833,8 +817,7 @@ const SIGNAL_MAPPING = {
         type: "CH-FDV:l",
         properties: {
             form: "light",
-            function: "block",
-            states: "CH-FDV:524;CH-FDV:530;CH-FDV:542"
+            function: "block"
         }
     },
     "A (CH)": {
@@ -842,8 +825,7 @@ const SIGNAL_MAPPING = {
         cat: "distant",
         type: "CH-FDV:l",
         properties: {
-            form: "light",
-            states: "CH-FDV:519;CH-FDV:528;CH-FDV:534;CH-FDV:536"
+            form: "light"
         }
     },
     // Räumungssignal (evacuation signal): co-located with S (CH) or CARRE (CH).
@@ -855,8 +837,7 @@ const SIGNAL_MAPPING = {
         cat: "shunting",
         type: "CH-FDV:308",
         properties: {
-            form: "light",
-            states: "CH-FDV:308;CH-FDV:310"
+            form: "light"
         }
     },
 };
