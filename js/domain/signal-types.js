@@ -426,7 +426,7 @@ const SIGNAL_MAPPING = {
     "GIVRE": {
         group: "electricity",
         cat: "electricity",
-        type: "FR:frost",
+        type: "FR:GIVRE",
         properties: {
             form: "light"
         }
@@ -553,15 +553,15 @@ const SIGNAL_MAPPING = {
             for: "worksite_trains"
         }
     },
-    "JAL ARRET": {
-        group: "stop",
-        cat: "stop",
-        type: "FR:marker",
-        properties: {
-            type: "stop_marker",
-            form: "sign"
-        }
-    },
+    //"JAL ARRET": {
+    //    group: "stop",
+    //    cat: "stop",
+    //    type: "FR:marker",
+    //    properties: {
+    //        type: "stop_marker",
+    //        form: "sign"
+    //    }
+    //},
     "STOP": {
         group: "stop",
         cat: "stop",
@@ -613,17 +613,15 @@ const SIGNAL_MAPPING = {
         type: "FR:SLD",
         linkedTo: ["CARRE", "CV"],
         properties: {
-            type: "await",
             form: "light"
         }
     },
     "MIBLAN VER": {
         group: "station",
         cat: "departure",
-        type: "FR:departure_marker",
+        type: "FR:authorization_plate",
         linkedTo: ["CARRE", "CV"],
         properties: {
-            type: "allow",
             form: "sign"
         }
     },
@@ -633,7 +631,6 @@ const SIGNAL_MAPPING = {
         type: "FR:DD",
         linkedTo: ["CARRE", "CV"],
         properties: {
-            type: "request",
             form: "sign"
         }
     },
