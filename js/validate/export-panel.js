@@ -31,6 +31,11 @@
  *   (button, Escape, backdrop) calls onClose so validate.js re-enables the export
  *   button.
  *
+ *   Each challenge file comes with a Markdown file of the same base name holding
+ *   the challenge texts (name, description, instruction) to paste in the
+ *   MapRoulette form. The texts are versioned in challenge-texts.json and filled
+ *   with the line codes and region of the challenge (challenge-text.js).
+ *
  *   The changeset comment and source are not handled here: they are entered once
  *   in the MapRoulette challenge form at challenge creation (MapRoulette appends
  *   #maproulette itself), so they belong to neither the dialog nor the .osc.
@@ -39,11 +44,13 @@
  *   openMapRouletteDialog(files, { onClose }) -> void
  */
 
+import { buildChallengeText } from './challenge-text.js';
 import { timestamp, triggerDownload } from './download.js';
 
 // ===== Constants =====
 
 const MR_MIME = 'application/geo+json';
+const TEXT_MIME = 'text/markdown';
 const FILE_PREFIX = 'signals-sncf-maproulette';
 
 // Delay between successive downloads (ms) so the browser does not drop files
@@ -185,32 +192,59 @@ function _syncControls() {
 
 // ===== Download =====
 
-function _downloadSelected() {
+async function _downloadSelected() {
     const selected = _selectedFiles();
     if (!selected.length) return;
 
-    const stamp = timestamp();
+    _download.disabled = true;
 
-    // Merge: concatenate the selected files into one challenge file. Each file
-    // is a complete RFC 7464 sequence (every line RS-prefixed, LF-terminated),
-    // so plain concatenation stays valid.
-    if (_merge.checked && selected.length >= 2) {
-        const content = selected.map(f => f.content).join('');
-        triggerDownload(content, `${FILE_PREFIX}_merged_${stamp}.geojson`, MR_MIME);
-        _dialog.close();
-        return;
-    }
+    // Merge: the selection forms one challenge. Otherwise one challenge per file.
+    const challenges = (_merge.checked && selected.length >= 2)
+        ? [selected]
+        : selected.map(file => [file]);
 
-    // Otherwise download each selected file separately (staggered so the browser
-    // does not drop files requested in the same tick).
-    selected.forEach((file, i) => setTimeout(
-        () => triggerDownload(file.content, _fileName(file, stamp), MR_MIME),
-        i * DOWNLOAD_STAGGER_MS));
-
+    _scheduleDownloads(await _buildDownloads(challenges, timestamp()));
     _dialog.close();
 }
 
-/** signals-sncf-maproulette_0xxxxx_<stamp>.geojson */
-function _fileName(file, stamp) {
-    return `${FILE_PREFIX}_${file.bucket}_${stamp}.geojson`;
+/**
+ * Build the downloads of the given challenges: a challenge file, plus its texts
+ * file when the texts are available.
+ *
+ * Each file is a complete RFC 7464 sequence (every line RS-prefixed,
+ * LF-terminated), so plain concatenation of merged files stays valid.
+ *
+ * @param {Array<Array<object>>} challenges  Challenge files grouped per challenge.
+ * @param {string} stamp
+ * @returns {Promise<Array<{ content: string, name: string, mime: string }>>}
+ */
+async function _buildDownloads(challenges, stamp) {
+    const downloads = [];
+
+    for (const files of challenges) {
+        const baseName = _baseName(files, stamp);
+        downloads.push({
+            content: files.map(file => file.content).join(''),
+            name: `${baseName}.geojson`,
+            mime: MR_MIME,
+        });
+
+        const text = await buildChallengeText(files);
+        if (text) downloads.push({ content: text, name: `${baseName}.md`, mime: TEXT_MIME });
+    }
+
+    return downloads;
+}
+
+/** Staggered so the browser does not drop files requested in the same tick. */
+function _scheduleDownloads(downloads) {
+    downloads.forEach(({ content, name, mime }, i) => setTimeout(
+        () => triggerDownload(content, name, mime),
+        i * DOWNLOAD_STAGGER_MS));
+}
+
+/** signals-sncf-maproulette_<bucket|merged>_<stamp> (no extension) */
+function _baseName(files, stamp) {
+    const label = files.length > 1 ? 'merged' : files[0].bucket;
+    return `${FILE_PREFIX}_${label}_${stamp}`;
 }
