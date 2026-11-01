@@ -1,0 +1,7 @@
+# Line endings: text files are stored with LF in the repository and checked
+# out with the platform line ending (CRLF on Windows, LF on Netlify).
+* text=auto
+
+# Binary files - never converted
+*.gz binary
+*.png binary
