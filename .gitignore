@@ -3,7 +3,7 @@
 Thumbs.db
 *.swp
 
-# TileBuilder build artefacts — never commit compiled output
+# TileBuilder build artefacts - never commit compiled output
 /tools/TileBuilder/bin/
 /tools/TileBuilder/obj/
 
@@ -13,10 +13,9 @@ Thumbs.db
 .netlify/
 
 # Local / secret configs
-/js/config.secret.js
-/js/config.local.js
+/js/core/config.local.js
 /js/validate/validate-config.json
-/tools/TileBuilder/Properties/launchSettings.json
+**/launchSettings.json
 
 # Debug artefacts
 /import.ps1

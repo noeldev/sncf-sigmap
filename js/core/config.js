@@ -4,8 +4,10 @@
 /**
  * config.js — Static configuration constants.
  *
- * The Jawg API key is kept separately in js/config.local.js (git-ignored).
- * Copy js/config.local.example.js → js/config.local.js and add your key.
+ * The Jawg API key is kept separately in config.local.js (git-ignored), next to
+ * this file. On Netlify the build generates it from the JAWG_API_KEY environment
+ * variable (see netlify.toml); for local development copy config.local.example.js
+ * to config.local.js and add your key.
  * If the file is absent the app falls back to the OpenStreetMap tile layer.
  */
 

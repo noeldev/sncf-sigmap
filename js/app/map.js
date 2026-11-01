@@ -103,10 +103,10 @@ function _initBasemapEvents() {
     });
 }
 
-/** Attempt to load the Jawg API key from the git-ignored config.local.js. */
+/** Attempt to load the Jawg API key from the git-ignored core/config.local.js. */
 async function _loadJawgKey() {
     try {
-        const secret = await import('./config.local.js');
+        const secret = await import('../core/config.local.js');
         return (secret.JAWG_API_KEY || '').trim();
     } catch {
         /* config.local.js absent — fall back to OSM */
