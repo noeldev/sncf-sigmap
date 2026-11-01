@@ -33,6 +33,6 @@ export const FIELD = Object.freeze({
     LINE_NAME:   'lineName',
     BLOCK_TYPE:  'blockType',
     TRACK_CODE:  'trackCode',
-    MILEPOST:    'milepost',
+    KM_POINT:    'kmPoint',
     COORDS:      'coords',
 });

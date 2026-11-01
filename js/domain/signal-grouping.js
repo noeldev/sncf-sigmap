@@ -76,7 +76,7 @@ export function getHighestPriorityType(types) {
  * Shared by conflict-detector.js and tiles-worker.js.
  *
  * trackCode already embeds the line identifier so it alone, combined with
- * milepost, provides a stable identity key. Falls back to lat/lng (6 decimal
+ * kilometric point, provides a stable identity key. Falls back to lat/lng (6 decimal
  * places, ~0.1 m precision) when either field is missing.
  *
  * @param {object} p    Normalized signal properties (from normalizeSignal()).
@@ -85,8 +85,8 @@ export function getHighestPriorityType(types) {
  * @returns {string}
  */
 export function locationGroupKey(p, lat, lng) {
-    return (p.trackCode && p.milepost)
-        ? `${p.trackCode}|${p.milepost}`
+    return (p.trackCode && p.kmPoint)
+        ? `${p.trackCode}|${p.kmPoint}`
         : `${lat.toFixed(6)},${lng.toFixed(6)}`;
 }
 

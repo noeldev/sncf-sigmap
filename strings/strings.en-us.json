@@ -37,7 +37,8 @@
     "trackName": "Track name",
     "direction": "Direction",
     "placement": "Placement",
-    "milepost": "Milepost",
+    "kmPoint": "KP",
+    "coords": "Coordinates",
     "networkId": "Network ID"
   },
   "values": {

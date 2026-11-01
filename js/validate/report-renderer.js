@@ -336,7 +336,7 @@ function _buildConflictRow(loc, conflict, rowNum) {
     _fill(row, 'placement', conflict.placement);
 
     const link = row.querySelector('a.gmaps-link');
-    link.textContent = loc.milepost || (loc.lat.toFixed(5) + ',' + loc.lng.toFixed(5));
+    link.textContent = loc.kmPoint || (loc.lat.toFixed(5) + ',' + loc.lng.toFixed(5));
     link.dataset.lat = loc.lat;
     link.dataset.lng = loc.lng;
 

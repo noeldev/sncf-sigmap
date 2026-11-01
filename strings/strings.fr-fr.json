@@ -37,7 +37,8 @@
     "trackName": "Nom voie",
     "direction": "Sens",
     "placement": "Position",
-    "milepost": "PK",
+    "kmPoint": "PK",
+    "coords": "Coordonnées",
     "networkId": "ID Réseau"
   },
   "values": {

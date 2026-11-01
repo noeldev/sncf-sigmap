@@ -19,13 +19,13 @@
  *   Both are driven by getOsmNode() from osm-index.js; no parameters are threaded through.
  *
  * Multi-signal grouping logic:
- *   • lineCode, trackCode, trackName, milepost are always identical for co-located signals
+ *   • lineCode, trackCode, trackName, kmPoint are always identical for co-located signals
  *     → always listed at the bottom after the separator.
  *   • If direction and placement are the same for all signals:
  *       TYPE1  ID1
  *       TYPE2  ID2
  *       ───
- *       Track code / Track name / Direction / Placement / Milepost
+ *       Track code / Track name / Direction / Placement / KP
  *   • If direction or placement differ, signals are grouped by (direction, placement).
  *     Each group shows its type+id rows followed by its specific values.
  *     Groups are separated by a divider; shared fields remain at the bottom:
@@ -35,7 +35,7 @@
  *       TYPE2  ID2
  *       Direction: Decreasing  Placement: Left
  *       ───
- *       Track code / Track name / Milepost
+ *       Track code / Track name / KP
  */
 
 import { t, translateElement } from '../core/translation.js';
@@ -89,7 +89,7 @@ export function buildTooltip(feats) {
             groupsContainer.appendChild(_makeSigRow(f, showBadge));
             if (showBadge) badgeShown = true;
         }
-        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'direction', 'placement', 'milepost']);
+        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'direction', 'placement', 'kmPoint']);
     } else {
         // Group by (direction, placement) combination.
         const groups = _groupByDirectionPlacement(sorted);
@@ -109,7 +109,7 @@ export function buildTooltip(feats) {
             _appendFields(groupsContainer, groupFeats[0].p, ['direction', 'placement']);
         }
         // Only the truly common fields go at the bottom.
-        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'milepost']);
+        _appendFields(commonContainer, p0, ['lineCode', 'trackCode', 'trackName', 'kmPoint']);
     }
 
     // Translate all data-i18n labels (e.g. .tt-key) in one pass
