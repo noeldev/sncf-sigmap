@@ -347,7 +347,7 @@ function _detectConflicts(locationGroups) {
         conflicts.push({
             key: loc.key,
             trackCode: loc.trackCode,
-            milepost: loc.milepost,
+            kmPoint: loc.kmPoint,
             lat: loc.lat,
             lng: loc.lng,
             conflicts: detected.map(dc => ({

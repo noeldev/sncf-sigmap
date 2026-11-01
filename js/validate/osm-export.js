@@ -231,7 +231,7 @@ function _lineCodeOf(loc) {
 
 /**
  * The SNCF track code (code_voie) shared by a node's signals, or '' when it is
- * missing or they disagree. Locations are keyed by trackCode|milepost, so a
+ * missing or they disagree. Locations are keyed by trackCode|kmPoint, so a
  * node's feats normally share it; the empty result guards the lat/lng fallback,
  * where co-located signals may sit on different tracks.
  */

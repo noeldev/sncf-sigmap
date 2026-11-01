@@ -116,13 +116,13 @@ tooltip.js
   └── osm-index.js        (getOsmNode — dotted underline on mapped IDs; group OSM badge on first row)
 
 translation.js
-  └── utils/observable.js (onLangChange fan-out)
+  └── core/observable.js (onLangChange fan-out)
 
 pins.js
-  └── utils/observable.js (onPinsChange fan-out)
+  └── core/observable.js (onPinsChange fan-out)
 
 prefs.js
-  └── utils/observable.js (onPrefsChange fan-out)
+  └── core/observable.js (onPrefsChange fan-out)
 ```
 
 ### Worker pipeline
@@ -177,11 +177,11 @@ String files support:
 
 Strings containing markup are precompiled to HTML at load time; `data-i18n` elements receive plain text, `data-i18n-html` elements receive the compiled HTML.
 
-Subscriptions to language changes go through `utils/observable.js` (`onLangChange(fn) → unsubscribe`). The same shared observer pattern is reused by `pins.js` for `onPinsChange`.
+Subscriptions to language changes go through `core/observable.js` (`onLangChange(fn) → unsubscribe`). The same shared observer pattern is reused by `pins.js` for `onPinsChange`.
 
 ## Signal type mapping
 
-`js/signal-types.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
+`js/domain/signal-types.js` maps each SNCF signal type code (`type_if` in the raw data) to an application display category and to the corresponding [OpenRailwayMap OSM tags](https://wiki.openstreetmap.org/wiki/OpenRailwayMap/Tagging_in_France). Types not present in the mapping are shown in gray and cannot be exported.
 
 The `BORDER_CONTEXTS` registry handles cross-border type disambiguation: some GAIA type codes are reused by the SNCF dataset to represent Swiss signals on French territory (e.g. `CV` normally maps to the French Carré Violet but, when co-located with Swiss main signals `S (CH)` / `CARRE (CH)`, it actually represents the Swiss evacuation signal Räumungssignal, CH-FDV:308). `applyContextRemaps(feats)` detects this context from the full set of types at a location and patches `signalType` in place before conflict detection and OSM tag generation. It is called in `validate.js` (once all location groups are built) and in `tiles-worker.js` (in `_buildGroups`, before the final `done` message).
 
@@ -256,21 +256,28 @@ Filter and lookup index produced by TileBuilder. Loaded once at startup by `sign
 
 ```
 sncf-sigmap/
+├── .github/
+│   └── FUNDING.yml               ← GitHub Sponsors link
+├── .gitignore
 ├── index.html
 ├── validate.html                 ← validation tool (co-location conflicts, unmapped types, wiki spec diff, JOSM preset sync)
+├── jsconfig.json                 ← editor configuration (ES modules)
+├── LICENSE                       ← GNU AGPL-3.0-or-later
 ├── netlify.toml                  ← Netlify config: gzip headers for tiles, functions directory
 ├── netlify/
 │   └── functions/
 │       └── overpass-proxy.js     ← server-side Overpass relay (adds User-Agent; avoids CORS/406)
 ├── robots.txt
+├── sitemap.xml
+├── googlecb45c75ec19fd4a3.html  ← Google Search Console site verification
 ├── assets/
 │   ├── png/                      ← SNCF logos, favicon, basemap thumbnails
 │   └── svg/                      ← favicon, JOSM, OSM, flag icons
 ├── css/
 │   ├── app.css                   ← reset, layout, scrollbars, button foundations (index.html only)
+│   ├── context-menu.css          ← floating context menu (context-menu.js)
 │   ├── filters.css               ← filter panels, dropdowns, active value tags, empty states
 │   ├── map.css                   ← map container, markers, tooltips, statusbar, toolbar, basemap panel
-│   ├── markup.css                ← Markdown-rendered elements styling (About tab only; removable once About migrates to help/)
 │   ├── panel.css                 ← collapsible panels and subpanels layout styling
 │   ├── popup.css                 ← signal popup (two-tab: Signals + OSM Tags, diff rows)
 │   ├── shared.css                ← CSS shared between index.html and validate.html
@@ -296,101 +303,108 @@ sncf-sigmap/
 │       ├── map.html
 │       └── popup.html
 ├── js/
-│   ├── app.js                    ← boot sequencer; loads manifest + index in parallel, wires map events
-│   ├── block-system.js           ← line label and block signaling type lookup; initialized by signal-data.js
-│   ├── cat-mapping.js            ← application signal categories and colors (no DOM)
-│   ├── clipboard.js              ← shared clipboard helpers (canPaste, copyValues, readNewValues,
-│   │                               buildTagMenu, handleTagsKeydown); used by filter-panel.js and pins.js
-│   ├── collapsible-panel.js      ← cp-panel open/close state; initCollapsiblePanels() with localStorage;
-│   │                               initCollapsiblePanelsInRoot() without persistence (for validate.html)
-│   ├── config.js                 ← static constants (DATA_BASE, TILES_BASE, zoom thresholds,
-│   │                               OVERVIEW_MAX_SIGNALS, basemap defaults, APP_ID, CLIPBOARD_MIME_TYPE)
-│   ├── config.local.js           ← JAWG_API_KEY (local only, git-ignored)
-│   ├── config.local.example.js   ← template for API key, safe to commit
-│   ├── context-menu.js           ← floating context menu with event delegation and keyboard navigation
-│   ├── field-keys.js             ← canonical FIELD constant object; single source of truth for all field
-│   │                               key strings (filterable + display-only); imported everywhere string
-│   │                               literals would otherwise appear
-│   ├── filter-config.js          ← ordered FILTER_FIELDS_META registry (field key → UI + behavior metadata);
-│   │                               getFilterFieldKeys() is the data-layer accessor — analogous to
-│   │                               getSupportedTypes() in signal-mapping.js; no circular dependency risk
-│   │                               (imports only field-keys.js and config.js)
-│   ├── filter-data.js            ← per-field count accumulation and value index (pure data layer, no DOM)
-│   ├── filter-panel.js           ← per-filter DOM panel (label, active tags, combo input, dropdown list)
-│   ├── filter-toolbar.js         ← "Add filter" button and dropdown menu (IoC, no state)
-│   ├── filters.js                ← filter state, value index, dropdown orchestration; ALL_FILTER_FIELDS
-│   │                               is derived from FILTER_FIELDS_META at load time (no manual sync)
-│   ├── help-channel.js           ← BroadcastChannel to send/receive commands between help page and main app
-│   ├── josm.js                   ← JOSM Remote Control connection management
-│   ├── lang-picker.js            ← language picker dropdown
-│   ├── legend.js                 ← legend panel DOM builder and category filter shortcuts
-│   ├── map.js                    ← Leaflet init, basemap layers, position persistence, location marker
-│   ├── map-controls.js           ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, help, collapse
-│   ├── map-layer.js              ← signal marker pipeline (worker → render); flyToSignal; flyToLine;
-│   │                               handleUrlParams (startup URL parameter dispatch); async
-│   │                               showSignalPreview with generation-token cancellation;
-│   │                               Alt/Ctrl/right-click handling; owns OSM scan wiring (idle timer,
-│   │                               movestart/moveend, guard evaluation, bbox computation); _visibleCount
-│   │                               is authoritative source read by _buildScanContext()
-│   ├── markup.js                 ← Markdown-like markup parser for string compilation (About tab only)
-│   ├── osm-checker.js            ← OSM state machine: multi-node grouping, IN_OSM session cache,
-│   │                               NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry (exponential backoff)
-│   ├── osm-index.js              ← pure data service: permanent OSM signal presence index; no Leaflet
-│   │                               dependency, no guard logic; fetchViewport(bbox, paddedBbox) checks coverage
-│   │                               and runs Overpass scan; getOsmNode() for tooltip and checker;
-│   │                               primeFromPopup() for popup cross-feed; abortScan() on map movement
-│   ├── osm-diff.js               ← tag comparison + editable target state
-│   │                               (merge / undo / mergeAll / undoAll + history stack)
-│   │                               used by signal-popup.js for the OSM Tags diff mode
-│   ├── overpass.js               ← Overpass QL client; calls the same-origin /api/overpass proxy
-│   │                               through overpass-scheduler.js (AbortSignal-aware)
-│   ├── overpass-scheduler.js     ← global concurrency gate: caps parallel Overpass calls, queues the rest
-│   ├── pins.js                   ← pinned signals management, panel, navigation, onPinsChange observable;
-│   │                               clipboard Copy/Cut/Paste/Delete menu via chevron button;
-│   │                               dataType = FIELD.NETWORK_ID compatible with Network ID filter
-│   ├── prefs.js                  ← single source of truth for all localStorage access; onPrefsChange observable
-│   ├── progress.js               ← progress overlay and flash messages
-│   ├── sidebar.js                ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel,
-│   │                               BroadcastChannel listener for external help page commands
-│   ├── signal-data.js            ← index.json loader; exposes loadIndexData(), getFilterData()
-│   │                               (field keys sourced from filter-config.js, no manual sync needed),
-│   │                               getNetworkIdIndex(), searchNetworkIds() (binary prefix search),
-│   │                               getLineLabel(), getLineBbox(), searchLineCodes()
-│   ├── signal-mapping.js         ← signal type → display category, OSM tag builder, getOsmNodes
-│   │                               (delegates to signal-grouping.js); contrastColor (W3C luminance,
-│   │                               shared between signal-popup.js and report-renderer.js)
-│   ├── signal-grouping.js        ← OSM node grouping logic (canFit, groupFeats, getTypePriority,
-│   │                               locationGroupKey); shared between signal-mapping.js,
-│   │                               validate/conflict-detector.js, and tiles-worker.js;
-│   │                               no translation.js dependency; handles linkedCat affinity
-│   ├── signal-popup.js           ← signal popup: two-tab display, OSM/JOSM export, help button,
-│   │                               OsmStatusChecker integration, interactive OSM Tags
-│   │                               diff mode (merge / undo via osm-diff.js + Ctrl+Z/Y)
-│   ├── signal-types.js           ← SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags);
-│   │                               optional linkedCat field groups co-located signals (e.g. FR:Z with its FR:TIV-D);
-│   │                               BORDER_CONTEXTS registry for cross-border type remapping (Swiss signals
-│   │                               on French territory); applyContextRemaps(feats) patches signalType
-│   │                               in place when a border context is detected at a location (e.g. GAIA
-│   │                               type "CV" becomes "CV (CH)" when co-located with "S (CH)" or "CARRE (CH)")
-│   ├── sncf-convert.js           ← SNCF raw data normalization
-│   ├── statusbar.js              ← statusbar DOM updates (zoom, count, filters, sample badge)
-│   ├── tiles.js                  ← manifest loader, tile URL calculator, tile fetch helpers
-│   ├── tiles-worker.js           ← tile fetch, normalization, filtering, adaptive sampling (Web Worker);
-│   │                               applies applyContextRemaps() in _buildGroups() once the full location
-│   │                               set is known so the final done message carries effective signal types
-│   ├── tiles-worker-contract.js  ← worker message types and postMessage helpers
-│   ├── tooltip.js                ← hover tooltip builder; OSM indicators: dotted underline on mapped
-│   │                               ID Réseau, OSM logo badge on first row (via osm-index.js)
-│   ├── translation.js            ← i18n: strings loader, t(), openHelpPage(); uses prefs.js for lang persistence; onLangChange observable
-│   ├── webshare.js               ← Web Share API integration (shareSignal, shareLine, canShare);
+│   ├── app/
+│   │   ├── app.js                ← boot sequencer; loads manifest + index in parallel, wires map events
+│   │   ├── block-system.js       ← line label and block signaling type lookup; initialized by signal-data.js
+│   │   ├── clipboard.js          ← shared clipboard helpers (canPaste, copyValues, readNewValues,
+│   │   │                           buildTagMenu, handleTagsKeydown); used by filter-panel.js and pins.js
+│   │   ├── field-keys.js         ← canonical FIELD constant object; single source of truth for all field
+│   │   │                           key strings (filterable + display-only); imported everywhere string
+│   │   │                           literals would otherwise appear
+│   │   ├── filter-config.js      ← ordered FILTER_FIELDS_META registry (field key → UI + behavior metadata);
+│   │   │                           getFilterFieldKeys() is the data-layer accessor — analogous to
+│   │   │                           getSupportedTypes() in signal-mapping.js; no circular dependency risk
+│   │   │                           (imports only field-keys.js and config.js)
+│   │   ├── filter-data.js        ← per-field count accumulation and value index (pure data layer, no DOM)
+│   │   ├── filter-panel.js       ← per-filter DOM panel (label, active tags, combo input, dropdown list)
+│   │   ├── filter-toolbar.js     ← "Add filter" button and dropdown menu (IoC, no state)
+│   │   ├── filters.js            ← filter state, value index, dropdown orchestration; ALL_FILTER_FIELDS
+│   │   │                           is derived from FILTER_FIELDS_META at load time (no manual sync)
+│   │   ├── help-channel.js       ← BroadcastChannel to send/receive commands between help page and main app
+│   │   ├── josm.js               ← JOSM Remote Control connection management
+│   │   ├── lang-picker.js        ← language picker dropdown
+│   │   ├── legend.js             ← legend panel DOM builder and category filter shortcuts
+│   │   ├── map-controls.js       ← toolbar wiring (delegated): zoom, geolocate, fullscreen, basemap, help, collapse
+│   │   ├── map-layer.js          ← signal marker pipeline (worker → render); flyToSignal; flyToLine;
+│   │   │                           handleUrlParams (startup URL parameter dispatch); async
+│   │   │                           showSignalPreview with generation-token cancellation;
+│   │   │                           Alt/Ctrl/right-click handling; owns OSM scan wiring (idle timer,
+│   │   │                           movestart/moveend, guard evaluation, bbox computation); _visibleCount
+│   │   │                           is authoritative source read by _buildScanContext()
+│   │   ├── map.js                ← Leaflet init, basemap layers, position persistence, location marker
+│   │   ├── osm-checker.js        ← OSM state machine: multi-node grouping, IN_OSM session cache,
+│   │   │                           NOT_IN_OSM instance cache, micro-bbox queries, AbortController, auto-retry (exponential backoff)
+│   │   ├── osm-diff.js           ← tag comparison + editable target state
+│   │   │                           (merge / undo / mergeAll / undoAll + history stack)
+│   │   │                           used by signal-popup.js for the OSM Tags diff mode
+│   │   ├── osm-index.js          ← pure data service: permanent OSM signal presence index; no Leaflet
+│   │   │                           dependency, no guard logic; fetchViewport(bbox, paddedBbox) checks coverage
+│   │   │                           and runs Overpass scan; getOsmNode() for tooltip and checker;
+│   │   │                           primeFromPopup() for popup cross-feed; abortScan() on map movement
+│   │   ├── overpass-scheduler.js ← global concurrency gate: caps parallel Overpass calls, queues the rest
+│   │   ├── overpass.js           ← Overpass QL client; calls the same-origin /api/overpass proxy
+│   │   │                           through overpass-scheduler.js (AbortSignal-aware)
+│   │   ├── pins.js               ← pinned signals management, panel, navigation, onPinsChange observable;
+│   │   │                           clipboard Copy/Cut/Paste/Delete menu via chevron button;
+│   │   │                           dataType = FIELD.NETWORK_ID compatible with Network ID filter
+│   │   ├── progress.js           ← progress overlay and flash messages
+│   │   ├── sidebar.js            ← sidebar orchestration: tabs, legend, filters, pins, JOSM panel,
+│   │   │                           BroadcastChannel listener for external help page commands
+│   │   ├── signal-data.js        ← index.json loader; exposes loadIndexData(), getFilterData()
+│   │   │                           (field keys sourced from filter-config.js, no manual sync needed),
+│   │   │                           getNetworkIdIndex(), searchNetworkIds() (binary prefix search),
+│   │   │                           getLineLabel(), getLineBbox(), searchLineCodes()
+│   │   ├── signal-popup.js       ← signal popup: two-tab display, OSM/JOSM export, help button,
+│   │   │                           OsmStatusChecker integration, interactive OSM Tags
+│   │   │                           diff mode (merge / undo via osm-diff.js + Ctrl+Z/Y)
+│   │   ├── statusbar.js          ← statusbar DOM updates (zoom, count, filters, sample badge)
+│   │   ├── tooltip.js            ← hover tooltip builder; OSM indicators: dotted underline on mapped
+│   │   │                           ID Réseau, OSM logo badge on first row (via osm-index.js)
+│   │   └── webshare.js           ← Web Share API integration (shareSignal, shareLine, canShare);
 │   │                               clipboard URL fallback with flash notification; FIELD keys used
 │   │                               as URL parameter names so sharing stays in sync with field-keys.js
+│   ├── core/
+│   │   ├── config.js               ← static constants (DATA_BASE, TILES_BASE, zoom thresholds,
+│   │   │                             OVERVIEW_MAX_SIGNALS, basemap defaults, APP_ID, CLIPBOARD_MIME_TYPE)
+│   │   ├── config.local.js         ← JAWG_API_KEY (git-ignored); generated by the Netlify build,
+│   │   │                             or a local copy of config.local.example.js
+│   │   ├── config.local.example.js ← template for config.local.js (local development), safe to commit
+│   │   ├── markup.js               ← Markdown-like markup parser for string compilation (About tab only)
+│   │   ├── observable.js           ← minimal observer pattern — subscribe(fn) → unsubscribe; notify(...args)
+│   │   ├── prefs.js                ← single source of truth for all localStorage access; onPrefsChange observable
+│   │   ├── tiles.js                ← manifest loader, tile URL calculator, tile fetch helpers
+│   │   └── translation.js          ← i18n: strings loader, t(), openHelpPage(); uses prefs.js for lang persistence; onLangChange observable
+│   ├── domain/
+│   │   ├── group-mapping.js   ← application signal display groups and legend colors (no DOM); one group per legend color,
+│   │   │                        referenced by the "group" field of signal-types.js
+│   │   ├── osm-tags.js        ← OSM tag generation from SIGNAL_MAPPING entries (buildNodeTags, makeSignalCatKey, getSignalId);
+│   │   │                        dependency-free, shared by the main app and the validation tool
+│   │   ├── signal-grouping.js ← OSM node grouping logic (canFit, groupFeats, getTypePriority,
+│   │   │                        locationGroupKey); shared between signal-mapping.js,
+│   │   │                        validate/conflict-detector.js, and tiles-worker.js;
+│   │   │                        no translation.js dependency; handles linkedCat affinity
+│   │   ├── signal-mapping.js  ← signal type → display category, OSM tag builder, getOsmNodes
+│   │   │                        (delegates to signal-grouping.js); contrastColor (W3C luminance,
+│   │   │                        shared between signal-popup.js and report-renderer.js)
+│   │   ├── signal-types.js    ← SIGNAL_MAPPING data table (type → group, OpenRailwayMap category/tags);
+│   │   │                        optional linkedCat field groups co-located signals (e.g. FR:Z with its FR:TIV-D);
+│   │   │                        BORDER_CONTEXTS registry for cross-border type remapping (Swiss signals
+│   │   │                        on French territory); applyContextRemaps(feats) patches signalType
+│   │   │                        in place when a border context is detected at a location (e.g. GAIA
+│   │   │                        type "CV" becomes "CV (CH)" when co-located with "S (CH)" or "CARRE (CH)")
+│   │   └── sncf-convert.js    ← SNCF raw data normalization
 │   ├── ui/
-│   │   ├── combobox.js           ← search input behavior for filter dropdowns
-│   │   ├── dropdown.js           ← generic accessible dropdown / listbox controller
-│   │   └── tag-list.js           ← active-value tag container (event delegation, Shift+remove)
-│   ├── utils/
-│   │   └── observable.js         ← minimal observer pattern — subscribe(fn) → unsubscribe; notify(...args)
+│   │   ├── collapsible-panel.js ← cp-panel open/close state; initCollapsiblePanels() with localStorage;
+│   │   │                          initCollapsiblePanelsInRoot() without persistence (for validate.html)
+│   │   ├── combobox.js          ← search input behavior for filter dropdowns
+│   │   ├── context-menu.js      ← floating context menu with event delegation and keyboard navigation
+│   │   ├── dropdown.js          ← generic accessible dropdown / listbox controller
+│   │   └── tag-list.js          ← active-value tag container (event delegation, Shift+remove)
+│   ├── workers/
+│   │   ├── tiles-worker-contract.js ← worker message types and postMessage helpers
+│   │   └── tiles-worker.js          ← tile fetch, normalization, filtering, adaptive sampling (Web Worker);
+│   │                                  applies applyContextRemaps() in _buildGroups() once the full location
+│   │                                  set is known so the final done message carries effective signal types
 │   └── validate/
 │       ├── challenge-text.js            ← MapRoulette challenge texts: fills the tokens of challenge-texts.json
 │       │                                  with the line codes and regions of a challenge and lays them out as
@@ -402,9 +416,12 @@ sncf-sigmap/
 │       ├── conflict-filter.js           ← conflict table filter state (_excludedCats, _showMechanical);
 │       │                                  applies row visibility, renumbers visible rows, serialises
 │       │                                  active filters to the URL hash and restores them on load
+│       ├── download.js                  ← browser download helpers (timestamp, timestampedName, triggerDownload) shared by the export writers
 │       ├── export-panel.js              ← MapRoulette export dialog (native <dialog>): file selection,
 │       │                                  merge option, staggered downloads of each challenge file with its
 │       │                                  Markdown texts file
+│       ├── osm-export.js                ← OSM export payloads built from the location groups: one node-generation pass, formatted either as a
+│       │                                  GeoJSON FeatureCollection or as MapRoulette cooperative challenges (one file per leading line-code digit)
 │       ├── outlier-detector.js          ← isolation-score algorithm to identify the outlier instance
 │       │                                  among duplicate signal types at the same location; markOutliers()
 │       │                                  returns a Set<feat> (no mutation of feat.p) — used by validate.js
@@ -439,7 +456,8 @@ sncf-sigmap/
 ├── strings/
 │   ├── strings.en-us.json        ← English UI strings (main app)
 │   ├── strings.fr-fr.json        ← French UI strings (main app)
-│   └── validate.en-us.json       ← English UI strings for validate.html
+│   ├── validate.en-us.json       ← English UI strings for validate.html
+│   └── validate.fr-fr.json       ← French UI strings for validate.html
 └── tools/
     └── TileBuilder/              ← C# tile generator
         ├── AcronymEntry.cs
@@ -454,12 +472,15 @@ sncf-sigmap/
         ├── IndexWriter.cs
         ├── LineInfo.cs
         ├── Program.cs
+        ├── Properties/
+        │   └── launchSettings.json  ← local debug profile (git-ignored)
         ├── Signal.cs
         ├── SignalData.cs
         ├── SignalReader.cs
         ├── TileWriter.cs
         ├── tilebuilder.config.json
-        └── TileBuilder.csproj
+        ├── TileBuilder.csproj
+        └── TileBuilder.sln
 ```
 
 ## First-time setup
@@ -493,13 +514,15 @@ To rebuild only `data\index.json` and `data\manifest.json` without regenerating 
 The app works without a Jawg key — it falls back to standard OpenStreetMap tiles automatically.
 
 To enable it:
-- Copy `js/config.local.example.js` to `js/config.local.js`
-- Edit `js/config.local.js` and fill in your key:
+- Copy `js/core/config.local.example.js` to `js/core/config.local.js`
+- Edit `js/core/config.local.js` and fill in your key:
 ```js
 export const JAWG_API_KEY = 'your-token-here';
 ```
 
 Get a free key at [jawg.io](https://jawg.io). `config.local.js` is listed in `.gitignore` and will never be committed.
+
+On Netlify, the build command in `netlify.toml` generates `js/core/config.local.js` from the `JAWG_API_KEY` environment variable (*Project configuration → Environment variables*).
 
 ### Configure the validation tool (optional)
 

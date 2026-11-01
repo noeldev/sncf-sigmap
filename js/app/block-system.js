@@ -9,21 +9,21 @@
  * Public API:
  *   initBlockSystem(index)                   — load line labels, block types, segments
  *   getLineLabel(lineCode)                   — returns line display name, or null
- *   getBlockType(lineCode, milepost, direction) — returns abbreviated block type string, or null
+ *   getBlockType(lineCode, kmPoint, direction) — returns abbreviated block type string, or null
  *
  * Direction semantics:
  *   The block signaling dataset defines segments by [start, end] where both values
  *   increase with the line's kilometer origin. Direction is the OSM value from
  *   normalizeSignal() — 'forward' or 'backward':
  *     'forward'  — train moves toward higher PKs; downstream is the block starting
- *                  at or after the signal milepost.
+ *                  at or after the signal kilometric point.
  *     'backward' — train moves toward lower PKs; downstream is the block ending
- *                  at or before the signal milepost.
+ *                  at or before the signal kilometric point.
  *   At an exact boundary, direction determines which block is downstream.
  *   See _isSignalInSegment for the precise boundary conditions.
  */
 
-import { parseMilepostAsMeters } from '../domain/sncf-convert.js';
+import { parseKmPointAsMeters } from '../domain/sncf-convert.js';
 
 
 // ===== Module state =====
@@ -37,7 +37,7 @@ let _blockTypes = null;
 /**
  * Per-line segment lookup map built at init time.
  * lineCode → Array<{ start: number, end: number, blockIdx: number }>
- * start / end are integer meters (from parseMilepostAsMeters in sncf-convert.js).
+ * start / end are integer meters (from parseKmPointAsMeters in sncf-convert.js).
  * Avoids a full O(n) scan of canton_segs on every popup open.
  */
 let _blockMap = null;
@@ -91,21 +91,21 @@ export function getLineLabel(lineCode) {
  * Returns null when:
  *   - the module has not been initialized yet,
  *   - lineCode is not in the block signaling dataset,
- *   - pk cannot be parsed as a valid SNCF PK string,
- *   - no segment covers the signal's PK in the given direction.
+ *   - kmPoint cannot be parsed as a valid SNCF kilometric point string,
+ *   - no segment covers the signal's KP in the given direction.
  *
- * When multiple segments overlap at a non-boundary PK (unusual), the first
+ * When multiple segments overlap at a non-boundary KP (unusual), the first
  * match in insertion order is returned.
  *
  * @param {string} lineCode   App line code (e.g. '205000')
- * @param {string} milepost   SNCF milepost string, e.g. '069+350'
+ * @param {string} kmPoint    SNCF kilometric point string, e.g. '069+350'
  * @param {string} direction  OSM direction value: 'forward', 'backward', or 'both'
  * @returns {string|null}
  */
-export function getBlockType(lineCode, milepost, direction) {
+export function getBlockType(lineCode, kmPoint, direction) {
     if (!_blockMap) return null;
 
-    const pos = parseMilepostAsMeters(milepost);
+    const pos = parseKmPointAsMeters(kmPoint);
     if (pos === null) return null;
 
     const segments = _blockMap.get(String(lineCode));

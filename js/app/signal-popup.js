@@ -419,7 +419,7 @@ function _buildDisplayProps(p) {
     return {
         ...p,
         lineName: getLineLabel(p.lineCode) ?? t('popup.nodeNA'),
-        blockType: getBlockType(p.lineCode, p.milepost, p.direction) ?? t('popup.nodeNA'),
+        blockType: getBlockType(p.lineCode, p.kmPoint, p.direction) ?? t('popup.nodeNA'),
         direction: t(`values.direction.${p.direction}`),
         placement: t(`values.placement.${p.placement}`),
     };

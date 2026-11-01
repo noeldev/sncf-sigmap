@@ -14,7 +14,7 @@
  */
 
 import { resolveGroupDefs, getMappingEntry } from './signal-types.js';
-import { milepostToDecimalKm } from './sncf-convert.js';
+import { kmPointToDecimalKm } from './sncf-convert.js';
 
 /**
  * Build the OSM tag key for a signal category.
@@ -50,7 +50,7 @@ export function getSignalId(signalType) {
  *
  * Tags written for every node:
  *   railway=signal
- *   railway:position:exact    - milepost as decimal km
+ *   railway:position:exact    - kilometric point as decimal km
  *   railway:signal:direction  - forward | backward | both
  *   railway:signal:position   - left | right | bridge
  *
@@ -79,7 +79,7 @@ export function buildNodeTags(nodeFeats, { isMech = false } = {}) {
     const first = nodeFeats[0].p;
 
     tags.set('railway', 'signal');
-    tags.set('railway:position:exact', milepostToDecimalKm(first.milepost));
+    tags.set('railway:position:exact', kmPointToDecimalKm(first.kmPoint));
     if (first.direction !== 'unknown') tags.set('railway:signal:direction', first.direction);
     if (first.placement !== 'unknown') tags.set('railway:signal:position', first.placement);
 

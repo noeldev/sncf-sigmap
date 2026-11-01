@@ -8,10 +8,10 @@
  * locations where getOsmNodes() is forced to create more than one OSM node
  * for the same direction+placement combination (duplicated OSM category).
  *
- * Location group key: trackCode|milepost
+ * Location group key: trackCode|kmPoint
  *   trackCode already embeds the line identifier (code_ligne), so lineCode
  *   does not appear separately. This ensures that signals referenced by
- *   different lines at the same PK are kept in separate groups, matching
+ *   different lines at the same KP are kept in separate groups, matching
  *   the data semantics: the same physical signal can appear once per line
  *   in the SNCF dataset (bifurcation points, shared infrastructure).
  *   sens (direction) and position (placement) are handled by canFit() inside
@@ -20,7 +20,7 @@
  *   carries no additional identity information.
  *
  *   Note: this groupKey intentionally diverges from tiles-worker.js groupKey
- *   (trackCode|milepost only) because the two have different goals:
+ *   (trackCode|kmPoint only) because the two have different goals:
  *     - tiles-worker.js: physical co-location for map rendering
  *     - conflict-detector.js: data identity for OSM tagging analysis
  *
@@ -44,7 +44,7 @@
  *   findConflicts(nodes)       -> Conflict[]
  *
  * Types:
- *   LocationGroup = { lat, lng, key, trackCode, milepost, feats[] }
+ *   LocationGroup = { lat, lng, key, trackCode, kmPoint, feats[] }
  *   NodeGroup     = { direction, placement, feats[], categories: Set, types: Set }
  *   Conflict      = { direction, placement, nodes: NodeGroup[], dupCats: string[] }
  */
@@ -76,7 +76,7 @@ export function buildLocationGroups(tiles) {
                     lng: raw.lng,
                     key,
                     trackCode: p.trackCode,
-                    milepost: p.milepost,
+                    kmPoint: p.kmPoint,
                     feats: [],
                 });
             }

@@ -16,8 +16,8 @@
  *
  * Public API:
  *   normalizeSignal(raw)          — maps SNCF fields to English app names/values
- *   parseMilepostAsMeters(raw)    — "077+305" → 77305  (integer meters, or null)
- *   milepostToDecimalKm(raw)      — "077+305" → "77.305"  (OSM railway:position:exact)
+ *   parseKmPointAsMeters(raw)     — "077+305" → 77305  (integer meters, or null)
+ *   kmPointToDecimalKm(raw)       — "077+305" → "77.305"  (OSM railway:position:exact)
  *
  * Note: direction and placement are already in OSM notation after normalization
  * ('forward'|'backward'|'both'  and  'right'|'left'|'bridge'), so no additional
@@ -33,7 +33,7 @@
  * nom_voie         → trackName        Track display name
  * sens             → direction        C→forward  D→backward  B→both
  * position         → placement        D→right    G→left      A→bridge
- * pk               → milepost         SNCF format "123+456" (Point Kilométrique)
+ * pk               → kmPoint          SNCF format "123+456" (kilometric point, French PK)
  * idreseau         → networkId        SNCF network unique identifier
  *
  * Direction and placement are stored in their OSM notation so that
@@ -62,51 +62,51 @@ export function normalizeSignal(raw) {
         trackName: raw.nom_voie ?? '',
         direction: DIR[raw.sens] ?? 'unknown',
         placement: PLACE[raw.position] ?? 'unknown',
-        milepost: raw.pk ?? '',
+        kmPoint: raw.pk ?? '',
         networkId: raw.idreseau ?? '',
     };
 }
 
 
-/* ===== Milepost (PK) conversion =====
+/* ===== Kilometric point (KP) conversion =====
  *
- * Milepost corresponds to the SNCF Point Kilométrique (PK), stored in
+ * The kilometric point is the SNCF point kilometrique (PK), stored in
  * signal tiles as a string in the format "km+m" or "km-m" (e.g. "137+722",
  * "000-195"). The sign separates kilometers from additional meters.
  */
 
-const RE_MILEPOST = /^(\d+)([+-])(\d+)$/;
+const RE_KM_POINT = /^(\d+)([+-])(\d+)$/;
 
 /**
- * Parse a SNCF milepost string of the form "077+305" into integer meters (77305).
+ * Parse a SNCF kilometric point string of the form "077+305" into integer meters (77305).
  *
  * The _m suffix used in block_segments data distinguishes these integer meter
- * values from the raw milepost strings stored in the signal tiles.
+ * values from the raw kilometric point strings stored in the signal tiles.
  * Returns null when raw is absent or does not match the expected format.
  *
  * @param {string} raw  e.g. "077+305" or "000-195"
  * @returns {number|null}
  */
-export function parseMilepostAsMeters(raw) {
+export function parseKmPointAsMeters(raw) {
     if (!raw) return null;
-    const m = raw.match(RE_MILEPOST);
+    const m = raw.match(RE_KM_POINT);
     if (!m) return null;
     return parseInt(m[2] + m[1] + m[3]);
 }
 
 /**
- * Convert a SNCF milepost string to the decimal km string used in the OSM
+ * Convert a SNCF kilometric point string to the decimal km string used in the OSM
  * tag railway:position:exact (e.g. "077+305" → "77.305").
  *
- * Delegates to parseMilepostAsMeters so both functions share a single
- * implementation of the milepost format. Returns raw unchanged when the
+ * Delegates to parseKmPointAsMeters so both functions share a single
+ * implementation of the kilometric point format. Returns raw unchanged when the
  * format is unrecognized, and an empty string when raw is absent.
  *
  * @param {string} raw  e.g. "077+305"
  * @returns {string}
  */
-export function milepostToDecimalKm(raw) {
-    const m = parseMilepostAsMeters(raw);
+export function kmPointToDecimalKm(raw) {
+    const m = parseKmPointAsMeters(raw);
     if (m === null) return raw ?? '';
     return (m / 1000).toFixed(3);
 }
