@@ -487,6 +487,16 @@ const SIGNAL_MAPPING = {
             form: "sign"
         }
     },
+    "JAL MAN": {
+        group: "trainProtection",
+        cat: "train_protection",
+        type: "FR:TVM",
+        subcat: "main",
+        subtype: "shunting_marker",
+        properties: {
+            form: "sign"
+        }
+    },
 
     // Wrong-road (IPCS)
     "TECS": {
@@ -553,15 +563,14 @@ const SIGNAL_MAPPING = {
             for: "worksite_trains"
         }
     },
-    //"JAL ARRET": {
-    //    group: "stop",
-    //    cat: "stop",
-    //    type: "FR:marker",
-    //    properties: {
-    //        type: "stop_marker",
-    //        form: "sign"
-    //    }
-    //},
+    "JAL ARRET": {
+       group: "station",
+       cat: "minor",
+       type: "FR:stop_marker",
+       properties: {
+           form: "sign"
+       }
+    },
     "STOP": {
         group: "stop",
         cat: "stop",
@@ -663,14 +672,6 @@ const SIGNAL_MAPPING = {
     },
 
     // Shunting
-    "JAL MAN": {
-        group: "shunting",
-        cat: "shunting",
-        type: "FR:marker",
-        properties: {
-            form: "sign"
-        }
-    },
     "DEPOT": {
         group: "shunting",
         cat: "shunting_route",
