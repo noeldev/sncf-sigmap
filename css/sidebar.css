@@ -670,16 +670,26 @@ kbd {
         color: var(--text3);
     }
 
+/* Build line of the credits, set apart from the copyright lines */
+.about-build {
+    display: block;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    color: var(--text3);
+}
+
+    /* display: block would otherwise override the hidden attribute */
+    .about-build[hidden] {
+        display: none;
+    }
+
 
 /* ===== Footers =====
  *
  * Collapsible cp-panel fixed at the bottom of the tabs,
  * outside of the contents.
  */
-
-.about-build {
-    color: var(--text3);
-}
 
 .settings-josm-footer,
 .about-credits-footer {
