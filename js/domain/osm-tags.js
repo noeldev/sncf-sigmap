@@ -14,7 +14,7 @@
  */
 
 import { resolveGroupDefs, getMappingEntry } from './signal-types.js';
-import { kmPointToDecimalKm } from './sncf-convert.js';
+import { kmPointToDecimalKm, kmPointToKmCaption } from './sncf-convert.js';
 
 /**
  * Build the OSM tag key for a signal category.
@@ -45,6 +45,12 @@ export function getSignalId(signalType) {
     return entry.subcat ? `${base}:${entry.subcat}:ref` : `${base}:ref`;
 }
 
+// Captions computed from the SNCF data, by mapping.caption value.
+const CAPTION_BUILDERS = {
+    // Km sign: the kilometric point of the signal, e.g. "Km 77,3"
+    kmPoint: p => kmPointToKmCaption(p.kmPoint),
+};
+
 /**
 * Build the complete OSM tag Map for a node group.
  *
@@ -61,6 +67,7 @@ export function getSignalId(signalType) {
  *   railway:signal:<cat>=<type>
  *   railway:signal:<cat>:<property>=<value>   (from mapping.properties)
  *   railway:signal:<cat>:ref=<networkId>
+ *   railway:signal:<cat>:caption=<caption>     (from mapping.caption, e.g. the Km sign)
  *
  * For unmapped signals:
  *   fixme=Unavailable specs: '<type>' (<networkId>)
@@ -104,6 +111,8 @@ export function buildNodeTags(nodeFeats, { isMech = false } = {}) {
                 tags.set(`${propPrefix}:${k}`, v);
             }
             if (networkId) tags.set(`${propPrefix}:ref`, networkId);
+            const caption = CAPTION_BUILDERS[def.caption]?.(feat.p);
+            if (caption) tags.set(`${propPrefix}:caption`, caption);
         } else {
             if (!unsupported.has(signalType)) unsupported.set(signalType, []);
             if (networkId) unsupported.get(signalType).push(networkId);

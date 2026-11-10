@@ -10,6 +10,8 @@
  *   group      - application display group key
  *   cat        - OSM tag category suffix  (railway:signal:<cat>=...)
  *   type       - OSM tag value            (the FR:* string)
+ *   caption    - optional, how the :caption tag is computed from the SNCF
+ *                data ("kmPoint": kilometric point of the Km sign, see osm-tags.js)
  *
  * Context sections (one or both):
  *   default    - luminous form: { linkedTo?, properties }
@@ -223,6 +225,7 @@ const SIGNAL_MAPPING = {
         type: "FR:speed_indicator",
         subcat: "transition",
         subtype: "FR:Km",
+        caption: "kmPoint",
         linkedTo: ["TIV D FIXE", "TIVD B FIX", "TIVD C FIX", "Z", "R"],
         properties: {
             form: "sign"
