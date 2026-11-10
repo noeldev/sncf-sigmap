@@ -50,6 +50,9 @@ export const DEFAULT_BASEMAP = 'jawg-transport';
 // derived dynamically from the list size in filters.js.
 export const MIN_SEARCH_THRESHOLD = 500;
 
+// Source repository, linked from the build line (About tab, help).
+export const REPO_URL = 'https://github.com/noeldev/sncf-sigmap';
+
 // Canonical application identifier — single source of truth.
 // Used by: help-channel.js (BroadcastChannel name), translation.js (help window
 // name), and filter-panel.js (clipboard payload signature).

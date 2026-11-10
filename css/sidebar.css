@@ -677,6 +677,10 @@ kbd {
  * outside of the contents.
  */
 
+.about-build {
+    color: var(--text3);
+}
+
 .settings-josm-footer,
 .about-credits-footer {
     flex-shrink: 0;

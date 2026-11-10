@@ -14,6 +14,7 @@ Thumbs.db
 
 # Local / secret configs
 /js/core/config.local.js
+/js/core/build-info.local.js
 /js/validate/validate-config.json
 **/launchSettings.json
 

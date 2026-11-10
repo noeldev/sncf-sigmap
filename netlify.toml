@@ -2,8 +2,11 @@
   publish = "."
   # Generates js/core/config.local.js from the JAWG_API_KEY environment variable.
   # Set that variable in: Netlify dashboard -> Site -> Project configuration -> Environment variables.
+  # Also generates js/core/build-info.local.js (build date and the COMMIT_REF
+  # commit set by Netlify), shown in the About tab and the help.
   command = """
-    echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/core/config.local.js
+    echo "export const JAWG_API_KEY = '$JAWG_API_KEY';" > js/core/config.local.js && \
+    echo "export const BUILD_DATE = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'; export const BUILD_COMMIT = '$COMMIT_REF';" > js/core/build-info.local.js
   """
 
 # Server-side functions live here. Declared explicitly because publish = "."
