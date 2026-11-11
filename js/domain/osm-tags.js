@@ -14,7 +14,7 @@
  */
 
 import { resolveGroupDefs, getMappingEntry } from './signal-types.js';
-import { kmPointToDecimalKm, kmPointToKmCaption } from './sncf-convert.js';
+import { kmPointToDecimalKm, kmPointToSignKm } from './sncf-convert.js';
 
 /**
  * Build the OSM tag key for a signal category.
@@ -45,11 +45,31 @@ export function getSignalId(signalType) {
     return entry.subcat ? `${base}:${entry.subcat}:ref` : `${base}:ref`;
 }
 
-// Captions computed from the SNCF data, by mapping.caption value.
-const CAPTION_BUILDERS = {
-    // Km sign: the kilometric point of the signal, e.g. "Km 77,3"
-    kmPoint: p => kmPointToKmCaption(p.kmPoint),
+// Variables of a caption template ({name}), computed from the SNCF data.
+const CAPTION_VARIABLES = {
+    // Kilometric point as written on the Km sign, e.g. "77,3"
+    kmPoint: p => kmPointToSignKm(p.kmPoint),
 };
+
+const RE_CAPTION_VARIABLE = /\{(\w+)\}/g;
+
+/**
+ * Fill a caption template (mapping.caption, e.g. "Km {kmPoint}") with the
+ * values of a signal. Returns null when a variable is unknown or has no value,
+ * so that no partial caption is exported.
+ * @param {string} template
+ * @param {object} p  normalized signal properties
+ * @returns {string|null}
+ */
+function _buildCaption(template, p) {
+    let complete = true;
+    const caption = template.replace(RE_CAPTION_VARIABLE, (_, name) => {
+        const value = CAPTION_VARIABLES[name]?.(p);
+        if (value == null) complete = false;
+        return value ?? '';
+    });
+    return complete ? caption : null;
+}
 
 /**
 * Build the complete OSM tag Map for a node group.
@@ -67,7 +87,7 @@ const CAPTION_BUILDERS = {
  *   railway:signal:<cat>=<type>
  *   railway:signal:<cat>:<property>=<value>   (from mapping.properties)
  *   railway:signal:<cat>:ref=<networkId>
- *   railway:signal:<cat>:caption=<caption>     (from mapping.caption, e.g. the Km sign)
+ *   railway:signal:<cat>:caption=<caption>     (from mapping.caption, e.g. "Km {kmPoint}")
  *
  * For unmapped signals:
  *   fixme=Unavailable specs: '<type>' (<networkId>)
@@ -111,7 +131,7 @@ export function buildNodeTags(nodeFeats, { isMech = false } = {}) {
                 tags.set(`${propPrefix}:${k}`, v);
             }
             if (networkId) tags.set(`${propPrefix}:ref`, networkId);
-            const caption = CAPTION_BUILDERS[def.caption]?.(feat.p);
+            const caption = def.caption && _buildCaption(def.caption, feat.p);
             if (caption) tags.set(`${propPrefix}:caption`, caption);
         } else {
             if (!unsupported.has(signalType)) unsupported.set(signalType, []);

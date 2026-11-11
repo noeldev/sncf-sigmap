@@ -18,7 +18,7 @@
  *   normalizeSignal(raw)          — maps SNCF fields to English app names/values
  *   parseKmPointAsMeters(raw)     — "077+305" → 77305  (integer meters, or null)
  *   kmPointToDecimalKm(raw)       — "077+305" → "77.305"  (OSM railway:position:exact)
- *   kmPointToKmCaption(raw)       - "077+305" -> "Km 77,3" (caption of the Km sign)
+ *   kmPointToSignKm(raw)          - "077+305" -> "77,3" (kilometre written on the Km sign)
  *
  * Note: direction and placement are already in OSM notation after normalization
  * ('forward'|'backward'|'both'  and  'right'|'left'|'bridge'), so no additional
@@ -113,9 +113,9 @@ export function kmPointToDecimalKm(raw) {
 }
 
 /**
- * Convert a SNCF kilometric point string to the caption of a Km sign: the
- * kilometre truncated to one decimal, with a decimal comma as on the sign
- * (e.g. "077+305" -> "Km 77,3", "000-195" -> "Km -0,1").
+ * Convert a SNCF kilometric point string to the kilometre written on a Km
+ * sign: truncated to one decimal, with a decimal comma as on the sign
+ * (e.g. "077+305" -> "77,3", "000-195" -> "-0,1").
  *
  * Integer arithmetic only, so that no rounding can change the decimal.
  * Returns null when the format is unrecognized.
@@ -123,10 +123,10 @@ export function kmPointToDecimalKm(raw) {
  * @param {string} raw  e.g. "077+305"
  * @returns {string|null}
  */
-export function kmPointToKmCaption(raw) {
+export function kmPointToSignKm(raw) {
     const m = parseKmPointAsMeters(raw);
     if (m === null) return null;
     const hectometres = Math.trunc(Math.abs(m) / 100);
     const sign = m < 0 && hectometres > 0 ? '-' : '';
-    return `Km ${sign}${Math.trunc(hectometres / 10)},${hectometres % 10}`;
+    return `${sign}${Math.trunc(hectometres / 10)},${hectometres % 10}`;
 }
