@@ -12,6 +12,7 @@
  *   - Filter panels and Reset button (delegated to filters.js).
  *   - Pinned signals panel (delegated to pins.js).
  *   - JOSM detection panel (lazy-loaded on first Settings tab open).
+ *   - Build line of the About tab (deployed site only).
  *
  * No map state, no tile data, no worker interaction.
  *
@@ -25,7 +26,8 @@ import {
     getSkipJosmConfirm, setSkipJosmConfirm,
     getRememberPosition, setRememberPosition,
 } from '../core/prefs.js';
-import { t } from '../core/translation.js';
+import { t, onLangChange } from '../core/translation.js';
+import { loadBuildInfo, renderBuildInfo } from '../core/build-info.js';
 import { initCollapsiblePanels, openPanel } from '../ui/collapsible-panel.js';
 import { closeAll as closeAllDropdowns } from '../ui/dropdown.js';
 import { onHelpSwitchTabCommand } from './help-channel.js';
@@ -68,6 +70,7 @@ export function initSidebar(onRefresh) {
     _initResetButton();
     _initPins();
     _initHelpChannel();
+    _initBuildInfo();
 }
 
 
@@ -254,4 +257,20 @@ function _initHelpChannel() {
     onHelpSwitchTabCommand(tab => {
         _switchToTab(tab);
     });
+}
+
+
+// ===== Build line =====
+
+/**
+ * Show the build date and commit in the About tab credits, translated again
+ * on every language change. Nothing is shown on a local server.
+ */
+async function _initBuildInfo() {
+    const el = document.getElementById('about-build');
+    const info = await loadBuildInfo();
+    if (!el || !info) return;
+    const render = () => renderBuildInfo(el, t('about.credits.build'), info);
+    render();
+    onLangChange(render);
 }

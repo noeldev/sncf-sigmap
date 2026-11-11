@@ -75,6 +75,10 @@ body {
         margin: 0;
     }
 
+    .help-footer .help-build {
+        margin-top: 4px;
+    }
+
 /* Hub cards */
 
 .help-cards {

@@ -172,7 +172,8 @@
     "credits": {
       "title": "Crédits",
       "site": "Site © 2026 Noël Danjou",
-      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)"
+      "data": "Données © 2022 [SNCF Réseau](https://www.sncf-reseau.com/) — [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence)",
+      "build": "Généré le {0} à partir du commit {1}."
     }
   },
   "pinned": {
